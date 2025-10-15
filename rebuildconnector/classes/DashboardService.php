@@ -101,7 +101,8 @@ class DashboardService
         $rows = (array) Db::getInstance()->executeS($query);
         $indexed = [];
         foreach ($rows as $row) {
-            if (!is_array($row) || !isset($row['day'])) {
+            /** @var array<string, mixed> $row */
+            if (!isset($row['day'])) {
                 continue;
             }
 
