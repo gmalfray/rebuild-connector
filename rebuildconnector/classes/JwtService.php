@@ -4,6 +4,10 @@ defined('_PS_VERSION_') || exit;
 
 class JwtService
 {
+    /**
+     * @param array<string, mixed> $claims
+     * @return array<string, mixed>
+     */
     public function createToken(array $claims): array
     {
         // TODO: implement JWT creation.

@@ -4,12 +4,19 @@ defined('_PS_VERSION_') || exit;
 
 class OrdersService
 {
+    /**
+     * @param array<string, mixed> $filters
+     * @return array<int, array<string, mixed>>
+     */
     public function getOrders(array $filters = []): array
     {
         // TODO: fetch orders from PrestaShop core.
         return [];
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     public function getOrderById(int $orderId): array
     {
         // TODO: return order data structure.
