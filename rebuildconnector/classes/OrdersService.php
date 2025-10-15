@@ -65,10 +65,7 @@ class OrdersService
         $query->orderBy('o.date_add DESC');
         $query->limit($limit, $offset);
 
-        $rows = Db::getInstance()->executeS($query);
-        if (!is_array($rows)) {
-            return [];
-        }
+        $rows = (array) Db::getInstance()->executeS($query);
 
         $orders = [];
         foreach ($rows as $row) {
@@ -134,16 +131,18 @@ class OrdersService
             $carrierName = Carrier::getCarrierNameFromShopName($carrierId) ?: '';
         }
 
-        $history = OrderHistory::getHistory($langId, (int) $order->id);
+        $history = (array) OrderHistory::getHistory($langId, (int) $order->id);
         $formattedHistory = [];
-        if (is_array($history)) {
-            foreach ($history as $entry) {
-                $formattedHistory[] = [
-                    'order_state_id' => isset($entry['id_order_state']) ? (int) $entry['id_order_state'] : 0,
-                    'status' => isset($entry['ostate_name']) ? (string) $entry['ostate_name'] : '',
-                    'date_add' => isset($entry['date_add']) ? (string) $entry['date_add'] : null,
-                ];
+        foreach ($history as $entry) {
+            if (!is_array($entry)) {
+                continue;
             }
+
+            $formattedHistory[] = [
+                'order_state_id' => isset($entry['id_order_state']) ? (int) $entry['id_order_state'] : 0,
+                'status' => isset($entry['ostate_name']) ? (string) $entry['ostate_name'] : '',
+                'date_add' => isset($entry['date_add']) ? (string) $entry['date_add'] : null,
+            ];
         }
 
         return [
