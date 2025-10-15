@@ -169,10 +169,7 @@ class SettingsService
     {
         $normalized = [];
         foreach ($scopes as $scope) {
-            if (!is_string($scope)) {
-                continue;
-            }
-            $trimmed = trim($scope);
+            $trimmed = trim((string) $scope);
             if ($trimmed !== '') {
                 $normalized[] = $trimmed;
             }

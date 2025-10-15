@@ -83,6 +83,11 @@ class Module
         return $message;
     }
 
+    public function displayError(string $message): string
+    {
+        return $message;
+    }
+
     protected function l(string $string): string
     {
         return $string;
@@ -94,15 +99,8 @@ class Module
     }
 }
 
-class ModuleFrontController
+class ModuleFrontController extends Module
 {
-    /** @var bool */
-    public $ssl = true;
-    /** @var bool */
-    public $display_header = false;
-    /** @var bool */
-    public $display_footer = false;
-
     public function initContent(): void
     {
     }
@@ -135,6 +133,40 @@ class Tools
     {
         return (string) $price;
     }
+
+    public static function getShopDomainSsl(bool $http = false): string
+    {
+        return 'https://example.com';
+    }
+
+    /**
+     * @param mixed $default
+     * @return mixed
+     */
+    public static function getValue(string $key, $default = null)
+    {
+        return $default;
+    }
+
+    public static function file_get_contents(string $filename)
+    {
+        return '';
+    }
+
+    public static function passwdGen(int $length = 8): string
+    {
+        return str_repeat('a', max(1, $length));
+    }
+
+    public static function strlen(string $string): int
+    {
+        return strlen($string);
+    }
+
+    public static function substr(string $string, int $start, ?int $length = null): string
+    {
+        return $length === null ? substr($string, $start) : substr($string, $start, $length);
+    }
 }
 
 class Configuration
@@ -148,6 +180,11 @@ class Configuration
      * @param mixed $value
      */
     public static function updateValue(string $key, $value): bool
+    {
+        return true;
+    }
+
+    public static function deleteByName(string $key): bool
     {
         return true;
     }
