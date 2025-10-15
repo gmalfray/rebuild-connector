@@ -135,14 +135,9 @@ abstract class RebuildconnectorBaseApiModuleFrontController extends ModuleFrontC
 
     private function getCurrentLocale(): string
     {
-        if (
-            isset($this->context)
-            && isset($this->context->language)
-            && isset($this->context->language->iso_code)
-            && is_string($this->context->language->iso_code)
-            && $this->context->language->iso_code !== ''
-        ) {
-            return $this->context->language->iso_code;
+        $language = $this->context !== null ? $this->context->language ?? null : null;
+        if ($language !== null && isset($language->iso_code) && is_string($language->iso_code) && $language->iso_code !== '') {
+            return $language->iso_code;
         }
 
         return 'en';

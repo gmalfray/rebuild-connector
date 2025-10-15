@@ -2,17 +2,21 @@
 
 // Minimal PrestaShop stubs for PHPStan analysis.
 
+if (!defined('_PS_MODULE_DIR_')) {
+    define('_PS_MODULE_DIR_', __DIR__ . '/');
+}
+
 class Context
 {
     /** @var Smarty */
     public $smarty;
-    /** @var Language */
+    /** @var Language|null */
     public $language;
 
     public function __construct()
     {
         $this->smarty = new Smarty();
-        $this->language = new Language();
+        $this->language = null;
     }
 
     public static function getContext(): self
@@ -53,14 +57,14 @@ class Module
     public $description;
     /** @var array<string, string> */
     public $ps_versions_compliancy = [];
-    /** @var Context */
-    public $context;
+    /** @var Context|null */
+    public $context = null;
     /** @var string */
     protected $_path = '';
 
     public function __construct()
     {
-        $this->context = Context::getContext();
+        // Stub: leave context nullable for static analysis.
     }
 
     public function install(): bool
