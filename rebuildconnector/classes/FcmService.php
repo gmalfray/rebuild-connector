@@ -14,7 +14,7 @@ class FcmService
     }
 
     /**
-     * @param array<int, string> $tokens
+     * @param array<int, mixed> $tokens
      * @param array<string, string> $notification
      * @param array<string, mixed> $data
      */
@@ -65,17 +65,13 @@ class FcmService
         return !$errors;
     }
 
-    /**
-     * @return array<int, string>
-     */
+    /** @return array<int, string> */
     private function sanitizeTokens(array $tokens): array
     {
         $cleaned = [];
         foreach ($tokens as $token) {
-            if (!is_string($token)) {
-                continue;
-            }
-            $trimmed = trim($token);
+            $stringToken = is_string($token) ? $token : (string) $token;
+            $trimmed = trim($stringToken);
             if ($trimmed !== '') {
                 $cleaned[] = $trimmed;
             }
@@ -97,6 +93,9 @@ class FcmService
         return null;
     }
 
+    /**
+     * @param array<string, mixed> $serviceAccount
+     */
     private function fetchAccessToken(array $serviceAccount): ?string
     {
         if (!isset($serviceAccount['client_email'], $serviceAccount['private_key'])) {
