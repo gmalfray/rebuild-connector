@@ -192,9 +192,9 @@ class OrdersService
 
         $history = new OrderHistory();
         $history->id_order = (int) $order->id;
-        $history->id_employee = Context::getContext()->employee instanceof Employee
-            ? (int) Context::getContext()->employee->id
-            : 0;
+        $context = Context::getContext();
+        $employee = $context->employee instanceof Employee ? $context->employee : null;
+        $history->id_employee = $employee instanceof Employee ? (int) $employee->id : 0;
 
         $history->changeIdOrderState($stateId, (int) $order->id);
 
@@ -258,7 +258,7 @@ class OrdersService
     private function getLanguageId(): int
     {
         $context = Context::getContext();
-        if ($context !== null && $context->language instanceof Language) {
+        if ($context->language instanceof Language) {
             return (int) $context->language->id;
         }
 

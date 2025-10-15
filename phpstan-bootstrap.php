@@ -1,9 +1,16 @@
 <?php
 
-// Minimal PrestaShop stubs for PHPStan analysis.
-
 if (!defined('_PS_MODULE_DIR_')) {
     define('_PS_MODULE_DIR_', __DIR__ . '/');
+}
+
+if (!defined('_DB_PREFIX_')) {
+    define('_DB_PREFIX_', 'ps_');
+}
+
+function pSQL(string $string, bool $htmlOK = false): string
+{
+    return $string;
 }
 
 class Context
@@ -12,11 +19,17 @@ class Context
     public $smarty;
     /** @var Language|null */
     public $language;
+    /** @var Shop|null */
+    public $shop;
+    /** @var Employee|null */
+    public $employee;
 
     public function __construct()
     {
         $this->smarty = new Smarty();
         $this->language = null;
+        $this->shop = new Shop();
+        $this->employee = new Employee();
     }
 
     public static function getContext(): self
@@ -33,6 +46,18 @@ class Smarty
     public function assign(array $params): void
     {
     }
+}
+
+class Shop
+{
+    /** @var int */
+    public $id = 1;
+}
+
+class Employee
+{
+    /** @var int */
+    public $id = 1;
 }
 
 class Module
@@ -64,7 +89,7 @@ class Module
 
     public function __construct()
     {
-        // Stub: leave context nullable for static analysis.
+        // Stub: leave context nullable.
     }
 
     public function install(): bool
@@ -171,6 +196,11 @@ class Tools
     {
         return $length === null ? substr($string, $start) : substr($string, $start, $length);
     }
+
+    public static function strtolower(string $string): string
+    {
+        return strtolower($string);
+    }
 }
 
 class Configuration
@@ -191,6 +221,89 @@ class Configuration
     public static function deleteByName(string $key): bool
     {
         return true;
+    }
+}
+
+class Validate
+{
+    /**
+     * @param mixed $object
+     */
+    public static function isLoadedObject($object): bool
+    {
+        return $object !== null;
+    }
+}
+
+class Db
+{
+    public static function getInstance(): self
+    {
+        return new self();
+    }
+
+    /**
+     * @param mixed $query
+     * @return array<int, array<string, mixed>>
+     */
+    public function executeS($query): array
+    {
+        return [];
+    }
+
+    /**
+     * @param mixed $query
+     * @return mixed
+     */
+    public function getValue($query)
+    {
+        return 0;
+    }
+}
+
+class DbQuery
+{
+    /**
+     * @param string $fields
+     */
+    public function select($fields): self
+    {
+        return $this;
+    }
+
+    public function from(string $table, string $alias = ''): self
+    {
+        return $this;
+    }
+
+    public function innerJoin(string $table, string $alias, string $on): self
+    {
+        return $this;
+    }
+
+    public function leftJoin(string $table, string $alias, string $on): self
+    {
+        return $this;
+    }
+
+    public function where(string $condition): self
+    {
+        return $this;
+    }
+
+    public function groupBy(string $fields): self
+    {
+        return $this;
+    }
+
+    public function orderBy(string $fields): self
+    {
+        return $this;
+    }
+
+    public function limit(int $limit, int $offset = 0): self
+    {
+        return $this;
     }
 }
 
@@ -217,15 +330,144 @@ class Order
     /** @var int */
     public $id;
     /** @var string */
-    public $reference;
-    /** @var float */
-    public $total_paid;
+    public $reference = '';
     /** @var int */
-    public $id_currency;
+    public $current_state = 0;
+    /** @var int */
+    public $id_currency = 0;
+    /** @var int */
+    public $id_customer = 0;
+    /** @var float */
+    public $total_paid_tax_incl = 0.0;
+    /** @var float */
+    public $total_paid_tax_excl = 0.0;
+    /** @var string */
+    public $shipping_number = '';
+    /** @var int */
+    public $id_carrier = 0;
+    /** @var string */
+    public $date_add = '';
+    /** @var string */
+    public $date_upd = '';
+
+    public function __construct(int $id)
+    {
+        $this->id = $id;
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    public function getProducts(): array
+    {
+        return [];
+    }
+
+    public function update(): bool
+    {
+        return true;
+    }
 }
 
 class OrderState
 {
     /** @var string|array<int|string, string> */
-    public $name;
+    public $name = '';
+
+    public function __construct(int $id_order_state, ?int $id_lang = null)
+    {
+    }
+
+    public static function getIdByName(string $name, int $id_lang): int
+    {
+        return 0;
+    }
+}
+
+class OrderHistory
+{
+    /** @var int */
+    public $id_order = 0;
+    /** @var int */
+    public $id_employee = 0;
+
+    public function changeIdOrderState(int $stateId, int $orderId): void
+    {
+    }
+
+    public function addWithemail(bool $sendEmail = false): bool
+    {
+        return true;
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    public static function getHistory(int $langId, int $orderId): array
+    {
+        return [];
+    }
+}
+
+class OrderCarrier
+{
+    /** @var string */
+    public $tracking_number = '';
+    /** @var int */
+    public $id_carrier = 0;
+
+    public function __construct(int $id_order_carrier)
+    {
+    }
+
+    public static function getIdByOrderId(int $orderId): int
+    {
+        return 0;
+    }
+
+    public function update(): bool
+    {
+        return true;
+    }
+}
+
+class Carrier
+{
+    public static function getCarrierNameFromShopName(int $idCarrier): string
+    {
+        return '';
+    }
+}
+
+class Customer
+{
+    /** @var string */
+    public $firstname = '';
+    /** @var string */
+    public $lastname = '';
+    /** @var string */
+    public $email = '';
+
+    public function __construct(int $id_customer)
+    {
+    }
+}
+
+class Product
+{
+    public function __construct(int $id_product)
+    {
+    }
+
+    public static function getPriceStatic(int $idProduct, bool $withTax): float
+    {
+        return 0.0;
+    }
+}
+
+class StockAvailable
+{
+    public static function setQuantity(int $idProduct, int $idProductAttribute, int $quantity): void
+    {
+    }
 }
