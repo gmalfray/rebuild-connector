@@ -194,6 +194,8 @@ class Language
 {
     /** @var int */
     public $id = 1;
+    /** @var string */
+    public $iso_code = 'en';
 }
 
 class Currency

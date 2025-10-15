@@ -6,6 +6,7 @@ require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/SettingsService.php';
 require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/JwtService.php';
 require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/AuthService.php';
 require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/Exceptions/AuthenticationException.php';
+require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/TranslationService.php';
 
 abstract class RebuildconnectorBaseApiModuleFrontController extends ModuleFrontController
 {
@@ -20,6 +21,7 @@ abstract class RebuildconnectorBaseApiModuleFrontController extends ModuleFrontC
     private bool $settingsBootstrapped = false;
     private ?JwtService $jwtService = null;
     private ?AuthService $authService = null;
+    private ?TranslationService $translationService = null;
 
     /**
      * @param array<string, mixed> $payload
@@ -39,7 +41,7 @@ abstract class RebuildconnectorBaseApiModuleFrontController extends ModuleFrontC
     {
         $rawBody = Tools::file_get_contents('php://input');
         if ($rawBody === false) {
-            throw new \InvalidArgumentException($this->l('Unable to read request body.'));
+            throw new \InvalidArgumentException($this->t('api.error.read_body', [], 'Unable to read request body.'));
         }
 
         if ($rawBody === '') {
@@ -48,7 +50,7 @@ abstract class RebuildconnectorBaseApiModuleFrontController extends ModuleFrontC
 
         $decoded = json_decode($rawBody, true);
         if (!is_array($decoded)) {
-            throw new \InvalidArgumentException($this->l('Request body must be valid JSON.'));
+            throw new \InvalidArgumentException($this->t('api.error.invalid_json', [], 'Request body must be valid JSON.'));
         }
 
         return $decoded;
@@ -112,6 +114,38 @@ abstract class RebuildconnectorBaseApiModuleFrontController extends ModuleFrontC
 
         $payload = $this->base64JsonDecode($segments[1]);
         return is_array($payload) ? $payload : null;
+    }
+
+    /**
+     * @param array<int, mixed> $parameters
+     */
+    protected function t(string $key, array $parameters = [], ?string $fallback = null): string
+    {
+        return $this->getTranslationService()->translate($key, $this->getCurrentLocale(), $parameters, $fallback);
+    }
+
+    private function getTranslationService(): TranslationService
+    {
+        if ($this->translationService === null) {
+            $this->translationService = new TranslationService();
+        }
+
+        return $this->translationService;
+    }
+
+    private function getCurrentLocale(): string
+    {
+        if (
+            isset($this->context)
+            && isset($this->context->language)
+            && isset($this->context->language->iso_code)
+            && is_string($this->context->language->iso_code)
+            && $this->context->language->iso_code !== ''
+        ) {
+            return $this->context->language->iso_code;
+        }
+
+        return 'en';
     }
 
     protected function getAuthorizationHeader(): ?string
