@@ -307,12 +307,12 @@ class SettingsService
     private function generateJwtSecret(): string
     {
         try {
-            /** @var string $bytes */
             $bytes = random_bytes(32);
-            return rtrim(strtr(base64_encode($bytes), '+/', '-_'), '=');
         } catch (\Exception $exception) {
             return Tools::passwdGen(64);
         }
+
+        return rtrim(strtr(base64_encode($bytes), '+/', '-_'), '=');
     }
 
     private function renderSecretPreview(string $secret): string

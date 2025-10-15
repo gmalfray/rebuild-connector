@@ -147,6 +147,9 @@ class TranslationService
         ],
     ];
 
+    /**
+     * @param array<int, mixed> $parameters
+     */
     public function translate(string $key, string $locale, array $parameters = [], ?string $fallback = null): string
     {
         $normalizedLocale = $this->normalizeLocale($locale);

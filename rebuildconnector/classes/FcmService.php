@@ -65,13 +65,15 @@ class FcmService
         return !$errors;
     }
 
-    /** @return array<int, string> */
+    /**
+     * @param array<int, mixed> $tokens
+     * @return array<int, string>
+     */
     private function sanitizeTokens(array $tokens): array
     {
         $cleaned = [];
         foreach ($tokens as $token) {
-            $stringToken = is_string($token) ? $token : (string) $token;
-            $trimmed = trim($stringToken);
+            $trimmed = trim((string) $token);
             if ($trimmed !== '') {
                 $cleaned[] = $trimmed;
             }
@@ -203,10 +205,6 @@ class FcmService
         $normalized = [];
 
         foreach ($data as $key => $value) {
-            if (!is_string($key)) {
-                continue;
-            }
-
             if (is_scalar($value) || $value === null) {
                 $normalized[$key] = (string) $value;
                 continue;
