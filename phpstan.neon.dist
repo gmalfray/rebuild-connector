@@ -3,8 +3,6 @@ parameters:
   level: 6
   paths: []  # ✅ laisser vide pour l'instant ; à remplacer par ["rebuildconnector"] quand le code est en place
   tmpDir: build/phpstan
-  checkGenericClassInNonGenericObjectType: false
-  checkMissingIterableValueType: false
   inferPrivatePropertyTypeFromConstructor: true
   reportUnmatchedIgnoredErrors: false
   excludePaths:
