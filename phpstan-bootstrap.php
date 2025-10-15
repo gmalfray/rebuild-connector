@@ -6,10 +6,13 @@ class Context
 {
     /** @var Smarty */
     public $smarty;
+    /** @var Language */
+    public $language;
 
     public function __construct()
     {
         $this->smarty = new Smarty();
+        $this->language = new Language();
     }
 
     public static function getContext(): self
@@ -123,10 +126,24 @@ class Tools
     {
         return [];
     }
+
+    /**
+     * @param mixed $price
+     * @param Currency|null $currency
+     */
+    public static function displayPrice($price, $currency = null): string
+    {
+        return (string) $price;
+    }
 }
 
 class Configuration
 {
+    public static function get(string $key)
+    {
+        return null;
+    }
+
     /**
      * @param mixed $value
      */
@@ -134,4 +151,38 @@ class Configuration
     {
         return true;
     }
+}
+
+class Language
+{
+    /** @var int */
+    public $id = 1;
+}
+
+class Currency
+{
+    /** @var string */
+    public $iso_code = 'EUR';
+
+    public function __construct(int $idCurrency)
+    {
+    }
+}
+
+class Order
+{
+    /** @var int */
+    public $id;
+    /** @var string */
+    public $reference;
+    /** @var float */
+    public $total_paid;
+    /** @var int */
+    public $id_currency;
+}
+
+class OrderState
+{
+    /** @var string|array<int|string, string> */
+    public $name;
 }
