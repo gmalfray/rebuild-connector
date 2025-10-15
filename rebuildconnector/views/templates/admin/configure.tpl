@@ -1,10 +1,10 @@
 <div class="panel">
-    <h3>{l s='Rebuild Connector — API & Notifications' mod='rebuildconnector'}</h3>
+    <h3>{$i18n.title|escape:'htmlall'}</h3>
 
     <form method="post" class="form-horizontal">
         <div class="form-group">
             <label class="control-label col-lg-3" for="rebuildconnector_api_key">
-                {l s='API key' mod='rebuildconnector'}
+                {$i18n.api_key_label|escape:'htmlall'}
             </label>
             <div class="col-lg-9">
                 <input
@@ -17,14 +17,14 @@
                     required
                 >
                 <p class="help-block">
-                    {l s='Key dedicated to the PrestaFlow mobile app. Share it securely with your team only.' mod='rebuildconnector'}
+                    {$i18n.api_key_help|escape:'htmlall'}
                 </p>
             </div>
         </div>
 
         <div class="form-group">
             <label class="control-label col-lg-3" for="rebuildconnector_token_ttl">
-                {l s='Token lifetime (seconds)' mod='rebuildconnector'}
+                {$i18n.token_ttl_label|escape:'htmlall'}
             </label>
             <div class="col-lg-9">
                 <input
@@ -38,14 +38,14 @@
                     required
                 >
                 <p class="help-block">
-                    {l s='Duration before access tokens expire. Default: 3600 seconds (1 hour).' mod='rebuildconnector'}
+                    {$i18n.token_ttl_help|escape:'htmlall'}
                 </p>
             </div>
         </div>
 
         <div class="form-group">
             <label class="control-label col-lg-3" for="rebuildconnector_scopes">
-                {l s='Authorized scopes' mod='rebuildconnector'}
+                {$i18n.scopes_label|escape:'htmlall'}
             </label>
             <div class="col-lg-9">
                 <textarea
@@ -55,31 +55,31 @@
                     class="form-control"
                 >{$settings.scopes_text|escape:'htmlall'}</textarea>
                 <p class="help-block">
-                    {l s='One scope per line (e.g. orders.read, products.write). Leave empty to restore defaults.' mod='rebuildconnector'}
+                    {$i18n.scopes_help|escape:'htmlall'}
                 </p>
             </div>
         </div>
 
         <div class="form-group">
             <label class="control-label col-lg-3">
-                {l s='JWT secret' mod='rebuildconnector'}
+                {$i18n.jwt_label|escape:'htmlall'}
             </label>
             <div class="col-lg-9">
                 <p class="form-control-static">
                     {$settings.jwt_secret_preview|escape:'htmlall'}
                 </p>
                 <p class="help-block">
-                    {l s='Used to sign the tokens sent to the mobile app. Regenerate if you suspect a leak.' mod='rebuildconnector'}
+                    {$i18n.jwt_help|escape:'htmlall'}
                 </p>
                 <button
                     type="submit"
                     name="rebuildconnector_regenerate_secret"
                     value="1"
                     class="btn btn-warning"
-                    onclick="return confirm('{l s='Regenerating the secret invalidates all current sessions. Continue?' mod='rebuildconnector' js=1}');"
+                    onclick="return confirm('{$i18n.regenerate_confirm|escape:'javascript'}');"
                 >
                     <i class="icon-refresh"></i>
-                    {l s='Regenerate secret' mod='rebuildconnector'}
+                    {$i18n.regenerate_button|escape:'htmlall'}
                 </button>
             </div>
         </div>
@@ -88,7 +88,7 @@
 
         <div class="form-group">
             <label class="control-label col-lg-3" for="rebuildconnector_fcm_service_account">
-                {l s='FCM service account (JSON)' mod='rebuildconnector'}
+                {$i18n.service_account_label|escape:'htmlall'}
             </label>
             <div class="col-lg-9">
                 <textarea
@@ -99,14 +99,14 @@
                     spellcheck="false"
                 >{$settings.fcm_service_account|escape:'htmlall'}</textarea>
                 <p class="help-block">
-                    {l s='Paste the JSON content of your Firebase service account used for HTTP v1 notifications.' mod='rebuildconnector'}
+                    {$i18n.service_account_help|escape:'htmlall'}
                 </p>
             </div>
         </div>
 
         <div class="form-group">
             <label class="control-label col-lg-3" for="rebuildconnector_fcm_device_tokens">
-                {l s='Fallback device tokens' mod='rebuildconnector'}
+                {$i18n.device_tokens_label|escape:'htmlall'}
             </label>
             <div class="col-lg-9">
                 <textarea
@@ -116,7 +116,7 @@
                     class="form-control"
                 >{$settings.fcm_device_tokens|escape:'htmlall'}</textarea>
                 <p class="help-block">
-                    {l s='Optional static tokens (one per line) used until the app registers users automatically.' mod='rebuildconnector'}
+                    {$i18n.device_tokens_help|escape:'htmlall'}
                 </p>
             </div>
         </div>
@@ -124,7 +124,7 @@
         <div class="panel-footer">
             <button type="submit" name="submitRebuildconnectorModule" value="1" class="btn btn-primary">
                 <i class="icon-save"></i>
-                {l s='Save settings' mod='rebuildconnector'}
+                {$i18n.save_button|escape:'htmlall'}
             </button>
         </div>
     </form>

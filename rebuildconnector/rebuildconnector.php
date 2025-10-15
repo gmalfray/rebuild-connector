@@ -9,11 +9,13 @@ require_once __DIR__ . '/classes/FcmService.php';
 require_once __DIR__ . '/classes/Exceptions/AuthenticationException.php';
 require_once __DIR__ . '/classes/JwtService.php';
 require_once __DIR__ . '/classes/AuthService.php';
+require_once __DIR__ . '/classes/TranslationService.php';
 
 class RebuildConnector extends Module
 {
     private ?FcmService $fcmService = null;
     private ?SettingsService $settingsService = null;
+    private ?TranslationService $translationService = null;
     private bool $settingsBootstrapped = false;
 
     public function __construct()
@@ -29,8 +31,8 @@ class RebuildConnector extends Module
 
         parent::__construct();
 
-        $this->displayName = $this->l('Rebuild Connector');
-        $this->description = $this->l('API connector between PrestaShop and the PrestaFlow mobile application.');
+        $this->displayName = $this->t('module.name', [], 'Rebuild Connector');
+        $this->description = $this->t('module.description', [], 'API connector between PrestaShop and the PrestaFlow mobile application.');
         $this->ps_versions_compliancy = ['min' => '1.7.0.0', 'max' => _PS_VERSION_];
     }
 
@@ -67,11 +69,11 @@ class RebuildConnector extends Module
 
         if (Tools::isSubmit('rebuildconnector_regenerate_secret')) {
             $settingsService->regenerateJwtSecret();
-            $messages[] = $this->l('JWT secret regenerated. Update mobile clients to keep them in sync.');
+            $messages[] = $this->t('admin.message.secret_regenerated');
         } elseif (Tools::isSubmit('submitRebuildconnectorModule')) {
             $apiKey = trim((string) Tools::getValue('REBUILDCONNECTOR_API_KEY'));
             if ($apiKey === '') {
-                $errors[] = $this->l('API key cannot be empty.');
+                $errors[] = $this->t('admin.error.api_key_empty');
             } else {
                 $settingsService->setApiKey($apiKey);
             }
@@ -86,7 +88,7 @@ class RebuildConnector extends Module
             if ($serviceAccount !== '') {
                 $decoded = json_decode($serviceAccount, true);
                 if (!is_array($decoded)) {
-                    $errors[] = $this->l('The FCM service account must contain valid JSON.');
+                    $errors[] = $this->t('admin.error.invalid_service_account');
                 } else {
                     $settingsService->setFcmServiceAccount(
                         json_encode($decoded, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)
@@ -100,8 +102,8 @@ class RebuildConnector extends Module
             $settingsService->setFcmDeviceTokens($deviceTokens);
 
             if ($errors === []) {
-                $messages[] = $this->l('Settings updated.');
-            }
+                $messages[] = $this->t('admin.message.settings_updated');
+        }
         }
 
         foreach ($errors as $error) {
@@ -115,6 +117,7 @@ class RebuildConnector extends Module
         $this->context->smarty->assign([
             'module_dir' => $this->_path,
             'settings' => $settingsService->exportForTemplate(),
+            'i18n' => $this->getTranslationService()->getAdminFormStrings($this->getCurrentLocale()),
         ]);
 
         return $output . $this->display(__FILE__, 'views/templates/admin/configure.tpl');
@@ -140,8 +143,8 @@ class RebuildConnector extends Module
             : sprintf('%06d', $orderId);
 
         $notification = [
-            'title' => $this->l('New order received'),
-            'body' => sprintf('#%s - %s', $reference, $this->formatOrderAmount($order)),
+            'title' => $this->t('notifications.order_new_title'),
+            'body' => $this->t('notifications.order_summary', [$reference, $this->formatOrderAmount($order)], sprintf('#%s - %s', $reference, $this->formatOrderAmount($order))),
         ];
 
         $data = [
@@ -171,8 +174,8 @@ class RebuildConnector extends Module
         $statusName = $this->resolveOrderStatusName($params['newOrderStatus'] ?? null);
 
         $notification = [
-            'title' => $this->l('Order status updated'),
-            'body' => sprintf('#%s - %s', $reference, $statusName),
+            'title' => $this->t('notifications.order_status_title'),
+            'body' => $this->t('notifications.order_summary', [$reference, $statusName], sprintf('#%s - %s', $reference, $statusName)),
         ];
 
         $data = [
@@ -243,7 +246,7 @@ class RebuildConnector extends Module
             }
         }
 
-        return $this->l('Status updated');
+        return $this->t('notifications.status_updated_generic');
     }
 
     /**
@@ -292,5 +295,37 @@ class RebuildConnector extends Module
         }
 
         return $this->settingsService;
+    }
+
+    private function getTranslationService(): TranslationService
+    {
+        if ($this->translationService === null) {
+            $this->translationService = new TranslationService();
+        }
+
+        return $this->translationService;
+    }
+
+    /**
+     * @param array<int, mixed> $parameters
+     */
+    private function t(string $key, array $parameters = [], ?string $fallback = null): string
+    {
+        return $this->getTranslationService()->translate($key, $this->getCurrentLocale(), $parameters, $fallback);
+    }
+
+    private function getCurrentLocale(): string
+    {
+        if (
+            isset($this->context)
+            && isset($this->context->language)
+            && isset($this->context->language->iso_code)
+            && is_string($this->context->language->iso_code)
+            && $this->context->language->iso_code !== ''
+        ) {
+            return $this->context->language->iso_code;
+        }
+
+        return 'en';
     }
 }

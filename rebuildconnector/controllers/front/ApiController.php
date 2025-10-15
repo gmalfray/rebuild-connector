@@ -15,7 +15,7 @@ class RebuildconnectorApiModuleFrontController extends RebuildconnectorBaseApiMo
             header('Allow: POST');
             $this->renderJson([
                 'error' => 'method_not_allowed',
-                'message' => $this->l('This endpoint only accepts POST requests.'),
+                'message' => $this->t('api.error.method_not_allowed', [], 'This endpoint only accepts POST requests.'),
             ], 405);
 
             return;
@@ -38,7 +38,7 @@ class RebuildconnectorApiModuleFrontController extends RebuildconnectorBaseApiMo
         if ($apiKey === '') {
             $this->renderJson([
                 'error' => 'invalid_request',
-                'message' => $this->l('The api_key field is required.'),
+                'message' => $this->t('api.error.api_key_required', [], 'The api_key field is required.'),
             ], 400);
 
             return;
@@ -49,7 +49,7 @@ class RebuildconnectorApiModuleFrontController extends RebuildconnectorBaseApiMo
         } catch (AuthenticationException $exception) {
             $this->renderJson([
                 'error' => 'unauthorized',
-                'message' => $this->l('Authentication failed. Check your API key.'),
+                'message' => $this->t('api.error.auth_failed', [], 'Authentication failed. Check your API key.'),
             ], 401);
 
             return;
@@ -60,7 +60,7 @@ class RebuildconnectorApiModuleFrontController extends RebuildconnectorBaseApiMo
 
             $this->renderJson([
                 'error' => 'server_error',
-                'message' => $this->l('Unexpected error during authentication.'),
+                'message' => $this->t('api.error.unexpected', [], 'Unexpected error during authentication.'),
             ], 500);
 
             return;
