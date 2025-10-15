@@ -320,8 +320,11 @@ class RebuildConnector extends Module
     private function getCurrentLocale(): string
     {
         $language = $this->context !== null ? $this->context->language ?? null : null;
-        if ($language !== null && isset($language->iso_code) && is_string($language->iso_code) && $language->iso_code !== '') {
-            return $language->iso_code;
+        if ($language instanceof Language) {
+            $code = $language->iso_code;
+            if (is_string($code) && $code !== '') {
+                return $code;
+            }
         }
 
         return 'en';
