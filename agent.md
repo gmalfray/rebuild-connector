@@ -5,14 +5,14 @@
 - Périmètre MVP : authentification par clé API, commandes, clients, produits, stocks, dashboard temps réel, notifications FCM, mode hors ligne, FR/EN.
 - Extensions prévues : compatibilité PrestaShop 9, thèmes personnalisables, analytics avancés.
 - Hors périmètre initial : multi-boutiques, relance de paniers, automatisations marketing tant que le module dédié n’est pas disponible.
-- Objectifs de l’assistant : conserver la cohérence entre cahier des charges et implémentations, documenter les dépendances, tracer les questions en suspens (section 13 du cahier).
+- Objectifs de l’assistant : conserver la cohérence entre cahier des charges et implémentations, documenter les dépendances, tracer les questions en suspens (section 13 du cahier), garantir que tout contenu (texte, notifications, e-mails, écrans) soit disponible en français et en anglais.
 
 ## 2. Arborescence du dépôt
 ```
 repo-root/
 ├─ agent.md
 ├─ rebuildconnector/                 # Module PrestaShop
-│  ├─ classes/                       # Services métiers (auth, orders, products…)
+│  ├─ classes/                       # Services métiers (auth, orders, products…), i18n (TranslationService)
 │  ├─ controllers/front/             # Contrôleurs REST JSON
 │  ├─ views/templates/admin/         # UI de configuration module
 │  ├─ upgrade/                       # Scripts d’upgrade PrestaShop
@@ -35,7 +35,7 @@ repo-root/
   - Utiliser EncryptedSharedPrefs + Android Keystore pour stocker la clé API et le token JWT.
 - **CI/CD** :
   - Variables masquées : `FIREBASE_SERVICE_ACCOUNT`, `PRESTASHOP_DEPLOY_SSH_KEY`, `PLAY_STORE_JSON`.
-- Politique : aucune clé en clair dans Git, secrets injectés via vault ou CI.
+- Politique : aucune clé en clair dans Git, secrets injectés via vault ou CI, traductions maintenues dans `TranslationService` (FR & EN obligatoires).
 
 ## 4. Endpoints PrestaShop (REST JSON)
 Base URL : `https://<boutique>/module/rebuildconnector/api`
@@ -132,6 +132,7 @@ curl -X PATCH "https://example.com/module/rebuildconnector/api/orders/123/shippi
   - Packaging : `zip -r rebuildconnector.zip rebuildconnector/`.
   - Déploiement : upload dans `/modules/`, installation via back-office.
 - **Documentation/diagrammes** : stocker dans `docs/` + exporter version PNG/PDF pour les diagrammes Mermaid.
+- **Internationalisation** : tout nouveau texte doit passer par `TranslationService` avec variantes FR/EN ; vérifier la présence des deux langues dans les revues.
 
 ## 8. Gestion des erreurs & retries
 - HTTP 401/403 : rafraîchir le token via `/connector/login`, notifier l’utilisateur si échec répété.
