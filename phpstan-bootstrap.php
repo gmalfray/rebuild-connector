@@ -198,8 +198,8 @@ class Language
 {
     /** @var int */
     public $id = 1;
-    /** @var string */
-    public $iso_code = 'en';
+    /** @var string|null */
+    public $iso_code = null;
 }
 
 class Currency
