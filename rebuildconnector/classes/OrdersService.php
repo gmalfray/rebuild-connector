@@ -69,6 +69,7 @@ class OrdersService
 
         $orders = [];
         foreach ($rows as $row) {
+            /** @var array<string, mixed> $row */
             $orders[] = $this->formatOrderRow($row);
         }
 
@@ -134,10 +135,7 @@ class OrdersService
         $history = (array) OrderHistory::getHistory($langId, (int) $order->id);
         $formattedHistory = [];
         foreach ($history as $entry) {
-            if (!is_array($entry)) {
-                continue;
-            }
-
+            /** @var array<string, mixed> $entry */
             $formattedHistory[] = [
                 'order_state_id' => isset($entry['id_order_state']) ? (int) $entry['id_order_state'] : 0,
                 'status' => isset($entry['ostate_name']) ? (string) $entry['ostate_name'] : '',

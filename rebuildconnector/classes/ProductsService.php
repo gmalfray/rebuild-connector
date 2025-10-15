@@ -62,6 +62,7 @@ class ProductsService
 
         $products = [];
         foreach ($rows as $row) {
+            /** @var array<string, mixed> $row */
             $products[] = $this->formatProductRow($row);
         }
 
