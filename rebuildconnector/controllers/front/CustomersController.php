@@ -5,11 +5,11 @@ defined('_PS_VERSION_') || exit;
 class RebuildconnectorCustomersModuleFrontController extends ModuleFrontController
 {
     /** @var bool */
-    protected $ssl = true;
+    public $ssl = true;
     /** @var bool */
-    protected $display_header = false;
+    public $display_header = false;
     /** @var bool */
-    protected $display_footer = false;
+    public $display_footer = false;
 
     public function initContent(): void
     {
