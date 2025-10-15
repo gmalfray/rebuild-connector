@@ -4,6 +4,12 @@ if (!defined('_PS_VERSION_')) {
     exit;
 }
 
+require_once __DIR__ . '/classes/SettingsService.php';
+require_once __DIR__ . '/classes/FcmService.php';
+require_once __DIR__ . '/classes/Exceptions/AuthenticationException.php';
+require_once __DIR__ . '/classes/JwtService.php';
+require_once __DIR__ . '/classes/AuthService.php';
+
 class RebuildConnector extends Module
 {
     private ?FcmService $fcmService = null;

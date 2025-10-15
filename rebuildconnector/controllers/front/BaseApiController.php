@@ -2,6 +2,11 @@
 
 defined('_PS_VERSION_') || exit;
 
+require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/SettingsService.php';
+require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/JwtService.php';
+require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/AuthService.php';
+require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/Exceptions/AuthenticationException.php';
+
 abstract class RebuildconnectorBaseApiModuleFrontController extends ModuleFrontController
 {
     /** @var bool */
