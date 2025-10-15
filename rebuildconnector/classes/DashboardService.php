@@ -98,15 +98,18 @@ class DashboardService
         $query->groupBy('day');
         $query->orderBy('day ASC');
 
-        $rows = Db::getInstance()->executeS($query);
+        $rows = (array) Db::getInstance()->executeS($query);
         $indexed = [];
-        if (is_array($rows)) {
-            foreach ($rows as $row) {
-                $indexed[$row['day']] = [
-                    'revenue' => isset($row['revenue']) ? (float) $row['revenue'] : 0.0,
-                    'orders' => isset($row['orders']) ? (int) $row['orders'] : 0,
-                ];
+        foreach ($rows as $row) {
+            if (!is_array($row) || !isset($row['day'])) {
+                continue;
             }
+
+            $day = (string) $row['day'];
+            $indexed[$day] = [
+                'revenue' => isset($row['revenue']) ? (float) $row['revenue'] : 0.0,
+                'orders' => isset($row['orders']) ? (int) $row['orders'] : 0,
+            ];
         }
 
         $chart = [];

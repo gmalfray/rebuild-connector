@@ -58,10 +58,7 @@ class ProductsService
         $query->orderBy('pl.name ASC');
         $query->limit($limit, $offset);
 
-        $rows = Db::getInstance()->executeS($query);
-        if (!is_array($rows)) {
-            return [];
-        }
+        $rows = (array) Db::getInstance()->executeS($query);
 
         $products = [];
         foreach ($rows as $row) {
