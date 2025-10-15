@@ -125,9 +125,7 @@ class DashboardService
             ];
         }
 
-        return [
-            'series' => $chart,
-        ];
+        return $chart;
     }
 
     private function resolveCurrencyIso(): ?string

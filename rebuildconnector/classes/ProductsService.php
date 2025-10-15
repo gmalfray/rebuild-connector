@@ -12,7 +12,7 @@ class ProductsService
     {
         $langId = $this->getLanguageId();
         $context = Context::getContext();
-        $shopId = $context !== null && $context->shop instanceof Shop ? (int) $context->shop->id : (int) Configuration::get('PS_SHOP_DEFAULT');
+        $shopId = $context->shop instanceof Shop ? (int) $context->shop->id : (int) Configuration::get('PS_SHOP_DEFAULT');
 
         $limit = isset($filters['limit']) ? max(1, (int) $filters['limit']) : 20;
         $offset = isset($filters['offset']) ? max(0, (int) $filters['offset']) : 0;
@@ -49,8 +49,8 @@ class ProductsService
         }
 
         if (!empty($filters['ids']) && is_array($filters['ids'])) {
-            $ids = array_map('intval', $filters['ids']);
-            if ($ids !== []) {
+            $ids = array_filter(array_map('intval', $filters['ids']));
+            if (!empty($ids)) {
                 $query->where('p.id_product IN (' . implode(',', $ids) . ')');
             }
         }
@@ -107,7 +107,7 @@ class ProductsService
     private function getLanguageId(): int
     {
         $context = Context::getContext();
-        if ($context !== null && $context->language instanceof Language) {
+        if ($context->language instanceof Language) {
             return (int) $context->language->id;
         }
 
