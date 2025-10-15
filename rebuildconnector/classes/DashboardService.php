@@ -4,6 +4,9 @@ defined('_PS_VERSION_') || exit;
 
 class DashboardService
 {
+    /**
+     * @return array<string, mixed>
+     */
     public function getMetrics(): array
     {
         // TODO: compute metrics and KPI for the dashboard.

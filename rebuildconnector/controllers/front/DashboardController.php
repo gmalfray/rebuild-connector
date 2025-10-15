@@ -4,11 +4,14 @@ defined('_PS_VERSION_') || exit;
 
 class RebuildconnectorDashboardModuleFrontController extends ModuleFrontController
 {
+    /** @var bool */
     protected $ssl = true;
+    /** @var bool */
     protected $display_header = false;
+    /** @var bool */
     protected $display_footer = false;
 
-    public function initContent()
+    public function initContent(): void
     {
         parent::initContent();
 
@@ -18,10 +21,14 @@ class RebuildconnectorDashboardModuleFrontController extends ModuleFrontControll
         ]);
     }
 
-    protected function renderJson(array $payload, int $statusCode = 200)
+    /**
+     * @param array<string, mixed> $payload
+     */
+    protected function renderJson(array $payload, int $statusCode = 200): void
     {
         header('Content-Type: application/json');
         http_response_code($statusCode);
-        $this->ajaxRender(json_encode($payload));
+        $body = json_encode($payload);
+        $this->ajaxRender($body === false ? '{}' : $body);
     }
 }

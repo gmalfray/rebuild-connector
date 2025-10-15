@@ -24,7 +24,7 @@ class RebuildConnector extends Module
         $this->ps_versions_compliancy = ['min' => '1.7.0.0', 'max' => _PS_VERSION_];
     }
 
-    public function install()
+    public function install(): bool
     {
         if (!parent::install()) {
             return false;
@@ -35,7 +35,7 @@ class RebuildConnector extends Module
             && $this->registerHook('actionOrderStatusPostUpdate');
     }
 
-    public function uninstall()
+    public function uninstall(): bool
     {
         if (!parent::uninstall()) {
             return false;
@@ -44,11 +44,12 @@ class RebuildConnector extends Module
         return true;
     }
 
-    public function getContent()
+    public function getContent(): string
     {
         $output = '';
 
         if (Tools::isSubmit('submitRebuildconnectorModule')) {
+            /** @var array<string, mixed> $settings */
             $settings = Tools::getAllValues();
             $ignoredKeys = [
                 'submitRebuildconnectorModule',
@@ -80,12 +81,18 @@ class RebuildConnector extends Module
         return $output . $this->display(__FILE__, 'views/templates/admin/configure.tpl');
     }
 
-    public function hookActionValidateOrder(array $params)
+    /**
+     * @param array<string, mixed> $params
+     */
+    public function hookActionValidateOrder(array $params): void
     {
         // TODO: trigger push notification for new order.
     }
 
-    public function hookActionOrderStatusPostUpdate(array $params)
+    /**
+     * @param array<string, mixed> $params
+     */
+    public function hookActionOrderStatusPostUpdate(array $params): void
     {
         // TODO: notify status update to mobile app.
     }

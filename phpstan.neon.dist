@@ -5,6 +5,8 @@ parameters:
   tmpDir: build/phpstan
   inferPrivatePropertyTypeFromConstructor: true
   reportUnmatchedIgnoredErrors: false
+  bootstrapFiles:
+    - phpstan-bootstrap.php
   excludePaths:
     - vendor/*
     - rebuildconnector/vendor/*
