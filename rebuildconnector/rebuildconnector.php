@@ -49,7 +49,27 @@ class RebuildConnector extends Module
         $output = '';
 
         if (Tools::isSubmit('submitRebuildconnectorModule')) {
-            // TODO: persist configuration settings.
+            $settings = Tools::getAllValues();
+            $ignoredKeys = [
+                'submitRebuildconnectorModule',
+                'controller',
+                'configure',
+                'module_name',
+                'token',
+                'ajax',
+            ];
+
+            foreach ($ignoredKeys as $ignoredKey) {
+                if (isset($settings[$ignoredKey])) {
+                    unset($settings[$ignoredKey]);
+                }
+            }
+
+            $encodedSettings = json_encode($settings, JSON_UNESCAPED_UNICODE);
+            Configuration::updateValue(
+                'REBUILDCONNECTOR_SETTINGS',
+                $encodedSettings !== false ? $encodedSettings : '{}'
+            );
             $output .= $this->displayConfirmation($this->l('Settings updated.'));
         }
 
