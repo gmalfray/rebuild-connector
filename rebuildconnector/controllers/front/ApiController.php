@@ -54,13 +54,13 @@ class RebuildconnectorApiModuleFrontController extends RebuildconnectorBaseApiMo
 
             return;
         } catch (\Throwable $exception) {
-            if (defined('_PS_MODE_DEV_') && _PS_MODE_DEV_) {
+            if ($this->isDevMode()) {
                 error_log('[RebuildConnector] Auth error: ' . $exception->getMessage());
             }
 
             $this->renderJson([
                 'error' => 'server_error',
-                'message' => $this->t('api.error.unexpected', [], 'Unexpected error during authentication.'),
+                'message' => $this->t('api.error.unexpected', [], 'Unexpected error occurred.'),
             ], 500);
 
             return;
