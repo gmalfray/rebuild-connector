@@ -99,6 +99,9 @@ class ProductsService
         return true;
     }
 
+    /**
+     * @param array<string, mixed> $payload
+     */
     public function updateProduct(int $productId, array $payload): bool
     {
         $product = new Product($productId);

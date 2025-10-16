@@ -8,6 +8,10 @@ if (!defined('_DB_PREFIX_')) {
     define('_DB_PREFIX_', 'ps_');
 }
 
+if (!defined('_PS_MODE_DEV_')) {
+    define('_PS_MODE_DEV_', false);
+}
+
 function pSQL(string $string, bool $htmlOK = false): string
 {
     return $string;
