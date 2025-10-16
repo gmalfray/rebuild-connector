@@ -2,6 +2,8 @@
 
 defined('_PS_VERSION_') || exit;
 
+require_once __DIR__ . '/BaseApiController.php';
+
 class RebuildconnectorApiModuleFrontController extends RebuildconnectorBaseApiModuleFrontController
 {
     public function initContent(): void
