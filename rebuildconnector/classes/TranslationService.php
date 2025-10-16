@@ -277,6 +277,10 @@ class TranslationService
             'en' => 'A tracking number is required.',
             'fr' => 'Un numéro de suivi est requis.',
         ],
+        'orders.error.invalid_carrier' => [
+            'en' => 'The carrier_id field must be a positive integer.',
+            'fr' => 'Le champ carrier_id doit être un entier positif.',
+        ],
         'products.error.not_found' => [
             'en' => 'Product not found.',
             'fr' => 'Produit introuvable.',

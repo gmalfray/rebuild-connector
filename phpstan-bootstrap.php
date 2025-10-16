@@ -477,8 +477,10 @@ class OrderCarrier
     public $tracking_number = '';
     /** @var int */
     public $id_carrier = 0;
+    /** @var int */
+    public $id_order = 0;
 
-    public function __construct(int $id_order_carrier)
+    public function __construct(int $id_order_carrier = 0)
     {
     }
 
@@ -488,6 +490,11 @@ class OrderCarrier
     }
 
     public function update(): bool
+    {
+        return true;
+    }
+
+    public function add(): bool
     {
         return true;
     }
