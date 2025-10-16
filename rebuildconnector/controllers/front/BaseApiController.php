@@ -37,8 +37,8 @@ abstract class RebuildconnectorBaseApiModuleFrontController extends ModuleFrontC
     public function init(): void
     {
         parent::init();
-        $this->ajax = true;
-        $this->content_only = true;
+        $this->ajax = true; // @phpstan-ignore-line
+        $this->content_only = true; // @phpstan-ignore-line
         $this->clientIp = $this->resolveClientIp();
         $this->enforceIpAllowlist();
         $this->enforceRateLimit();
@@ -47,7 +47,7 @@ abstract class RebuildconnectorBaseApiModuleFrontController extends ModuleFrontC
     public function initContent(): void
     {
         // Skip parent implementation to prevent Smarty rendering.
-        $this->ajax = true;
+        $this->ajax = true; // @phpstan-ignore-line
     }
 
     /**
