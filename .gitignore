@@ -30,3 +30,4 @@ phpunit.xml
 phpunit.xml.dist
 coverage.xml
 logs/
+composer.json
