@@ -370,7 +370,7 @@ abstract class RebuildconnectorBaseApiModuleFrontController extends ModuleFrontC
     private function resolveClientIp(): ?string
     {
         $ip = Tools::getRemoteAddr();
-        if (!is_string($ip) || $ip === '') {
+        if ($ip === '') {
             return null;
         }
 
