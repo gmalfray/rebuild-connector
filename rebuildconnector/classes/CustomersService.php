@@ -155,6 +155,9 @@ class CustomersService
         ];
     }
 
+    /**
+     * @param mixed $limit
+     */
     private function sanitizeLimit($limit): int
     {
         $limit = (int) $limit;
