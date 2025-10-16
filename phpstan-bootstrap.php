@@ -12,6 +12,10 @@ if (!defined('_PS_MODE_DEV_')) {
     define('_PS_MODE_DEV_', true);
 }
 
+if (!defined('_MYSQL_ENGINE_')) {
+    define('_MYSQL_ENGINE_', 'InnoDB');
+}
+
 function pSQL(string $string, bool $htmlOK = false): string
 {
     return $string;
@@ -258,6 +262,34 @@ class Db
     public function executeS($query): array
     {
         return [];
+    }
+
+    /**
+     * @param string $table
+     * @param array<string, mixed> $data
+     */
+    public function update(string $table, array $data, string $where = ''): bool
+    {
+        return true;
+    }
+
+    /**
+     * @param string $table
+     * @param array<string, mixed> $data
+     */
+    public function insert(string $table, array $data): bool
+    {
+        return true;
+    }
+
+    public function delete(string $table, string $where = ''): bool
+    {
+        return true;
+    }
+
+    public function execute(string $sql): bool
+    {
+        return true;
     }
 
     /**

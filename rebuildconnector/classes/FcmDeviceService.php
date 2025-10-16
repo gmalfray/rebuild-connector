@@ -7,6 +7,7 @@ class FcmDeviceService
     public const TABLE_NAME = 'rebuildconnector_fcm_device';
 
     /**
+     * @param array<int, string> $topics
      * @return array<int, string>
      */
     public function getTokens(array $topics = []): array
@@ -103,6 +104,7 @@ class FcmDeviceService
     }
 
     /**
+     * @param array<int, mixed> $topics
      * @return array<int, string>
      */
     public static function sanitizeTopics(array $topics): array

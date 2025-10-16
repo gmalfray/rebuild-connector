@@ -393,10 +393,6 @@ class SettingsService
     {
         $normalized = [];
         foreach ($topics as $topic) {
-            if (!is_string($topic)) {
-                continue;
-            }
-
             $topic = trim($topic);
             if ($topic === '') {
                 continue;
