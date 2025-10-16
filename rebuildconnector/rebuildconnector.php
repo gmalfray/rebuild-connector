@@ -7,6 +7,9 @@ if (!defined('_PS_VERSION_')) {
 require_once __DIR__ . '/classes/SettingsService.php';
 require_once __DIR__ . '/classes/FcmDeviceService.php';
 require_once __DIR__ . '/classes/FcmService.php';
+require_once __DIR__ . '/classes/RateLimiterService.php';
+require_once __DIR__ . '/classes/WebhookService.php';
+require_once __DIR__ . '/classes/AuditLogService.php';
 require_once __DIR__ . '/classes/Exceptions/AuthenticationException.php';
 require_once __DIR__ . '/classes/JwtService.php';
 require_once __DIR__ . '/classes/AuthService.php';
@@ -18,6 +21,8 @@ class RebuildConnector extends Module
     private ?SettingsService $settingsService = null;
     private ?TranslationService $translationService = null;
     private ?FcmDeviceService $fcmDeviceService = null;
+    private ?WebhookService $webhookService = null;
+    private ?AuditLogService $auditLogService = null;
     private bool $settingsBootstrapped = false;
 
     public function __construct()
@@ -50,6 +55,14 @@ class RebuildConnector extends Module
             return false;
         }
 
+        if (!RateLimiterService::install()) {
+            return false;
+        }
+
+        if (!AuditLogService::install()) {
+            return false;
+        }
+
         return $this
             ->registerHook('actionValidateOrder')
             && $this->registerHook('actionOrderStatusPostUpdate');
@@ -63,6 +76,8 @@ class RebuildConnector extends Module
 
         Configuration::deleteByName('REBUILDCONNECTOR_SETTINGS');
         FcmDeviceService::uninstall();
+        RateLimiterService::uninstall();
+        AuditLogService::uninstall();
 
         return true;
     }
@@ -202,7 +217,13 @@ class RebuildConnector extends Module
             'reference' => $reference,
         ];
 
+        $this->recordAudit('order.created', [
+            'order_id' => $orderId,
+            'reference' => $reference,
+        ]);
+
         $this->notifyDevices($notification, $data);
+        $this->dispatchWebhook('order.created', $data);
     }
 
     /**
@@ -234,7 +255,14 @@ class RebuildConnector extends Module
             'status' => $statusName,
         ];
 
+        $this->recordAudit('order.status.changed', [
+            'order_id' => $orderId,
+            'reference' => $reference,
+            'status' => $statusName,
+        ]);
+
         $this->notifyDevices($notification, $data);
+        $this->dispatchWebhook('order.status.changed', $data);
     }
 
     /**
@@ -319,6 +347,14 @@ class RebuildConnector extends Module
             ->getFcmService()
             ->sendNotification($primaryTokens, $notification, $data, $topics, $fallbackTokens);
 
+        $this->recordAudit('notifications.dispatch', [
+            'event' => $data['event'] ?? null,
+            'success' => $success,
+            'primary_tokens' => count($primaryTokens),
+            'fallback_tokens' => count($fallbackTokens),
+            'topics' => $topics,
+        ]);
+
         if (!$success && $this->isDevMode()) {
             error_log('[RebuildConnector] FCM notification failed (all channels).');
         }
@@ -331,6 +367,24 @@ class RebuildConnector extends Module
         }
 
         return $this->fcmService;
+    }
+
+    private function getWebhookService(): WebhookService
+    {
+        if ($this->webhookService === null) {
+            $this->webhookService = new WebhookService($this->getSettingsService());
+        }
+
+        return $this->webhookService;
+    }
+
+    private function getAuditLogService(): AuditLogService
+    {
+        if ($this->auditLogService === null) {
+            $this->auditLogService = new AuditLogService();
+        }
+
+        return $this->auditLogService;
     }
 
     private function getFcmDeviceService(): FcmDeviceService
@@ -363,6 +417,24 @@ class RebuildConnector extends Module
         }
 
         return $this->translationService;
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    private function dispatchWebhook(string $event, array $data): void
+    {
+        $this->getWebhookService()->dispatch($event, $data);
+    }
+
+    /**
+     * @param array<string, mixed> $context
+     */
+    private function recordAudit(string $event, array $context = []): void
+    {
+        $this->getAuditLogService()->record($event, array_merge($context, [
+            'ip' => Tools::getRemoteAddr(),
+        ]));
     }
 
     /**
