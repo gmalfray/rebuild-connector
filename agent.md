@@ -170,3 +170,11 @@ curl -X PATCH "https://example.com/module/rebuildconnector/api/orders/123/shippi
   - Android : conserver dernière APK stable (internal track).
   - PrestaShop : prévoir zip version N-1, script SQL de rollback si migrations.
   - Restaurer clés API révoquées si retour arrière.
+
+## 11. Règles de développement & qualité continue
+- **Lint & analyse systématiques** : exécuter `find rebuildconnector -type f -name "*.php" -print0 | xargs -0 -n1 -P4 php -l` puis `phpstan analyse -l 6 rebuildconnector` avant chaque PR/commit.
+- **Stubs PrestaShop** : tout nouvel usage d’une classe/constante PrestaShop doit être stubé immédiatement dans `phpstan-bootstrap.php` (`Db`, `DbQuery`, `_PS_MODE_DEV_`, etc.).
+- **Typage strict** : typer explicitement les tableaux (`array<string, mixed>`, `array<int, array<string, mixed>>`), ajouter des annotations `/** @var … */` après un cast `(array)` et éviter les `is_array()` redondants.
+- **Contrôleurs REST** : centraliser la logique commune (`requireAuth`, `isDevMode`, `jsonError`) via `BaseApiController` et réutiliser les helpers plutôt que re-tester les constantes.
+- **Internationalisation** : toute nouvelle chaîne (erreur, succès, notifications) doit être ajoutée en FR et EN dans `TranslationService`.
+- **Workflows CI** : conserver `php_ci.yml` comme référence ; ne pousser que lorsque lint et PHPStan sont verts localement.

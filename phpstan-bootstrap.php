@@ -9,7 +9,7 @@ if (!defined('_DB_PREFIX_')) {
 }
 
 if (!defined('_PS_MODE_DEV_')) {
-    define('_PS_MODE_DEV_', false);
+    define('_PS_MODE_DEV_', true);
 }
 
 function pSQL(string $string, bool $htmlOK = false): string
