@@ -199,7 +199,7 @@ class ProductsService
         }
 
         $cover = Image::getCover($productId);
-        if (!is_array($cover) || !isset($cover['id_image'])) {
+        if ($cover === false || !isset($cover['id_image'])) {
             return null;
         }
 
@@ -279,9 +279,9 @@ class ProductsService
 
         $primaryUrl = $urls['large'] ?? null;
         if ($primaryUrl === null) {
-            $first = reset($urls);
-            if ($first !== false) {
-                $primaryUrl = $first;
+            $firstKey = array_key_first($urls);
+            if ($firstKey !== null) {
+                $primaryUrl = $urls[$firstKey];
             }
         }
 
@@ -329,11 +329,9 @@ class ProductsService
         }
 
         $context = Context::getContext();
-        if ($context->link instanceof Link) {
-            $this->link = $context->link;
-        } else {
-            $this->link = new Link();
-        }
+        /** @var mixed $contextLink */
+        $contextLink = $context->link;
+        $this->link = $contextLink instanceof Link ? $contextLink : new Link();
 
         return $this->link;
     }
@@ -350,7 +348,8 @@ class ProductsService
             return '';
         }
 
-        $linkRewrite = $product->link_rewrite ?? null;
+        /** @var string|array<int, string>|null $linkRewrite */
+        $linkRewrite = $product->link_rewrite;
         if (is_string($linkRewrite) && $linkRewrite !== '') {
             return $linkRewrite;
         }
