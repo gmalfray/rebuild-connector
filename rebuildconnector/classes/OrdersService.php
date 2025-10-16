@@ -198,7 +198,7 @@ class OrdersService
         return (bool) $history->addWithemail(false);
     }
 
-    public function updateShipping(int $orderId, string $trackingNumber): bool
+    public function updateShipping(int $orderId, string $trackingNumber, ?int $carrierId = null): bool
     {
         $order = new Order($orderId);
         if (!Validate::isLoadedObject($order)) {
@@ -212,11 +212,23 @@ class OrdersService
             $orderCarrier = new OrderCarrier($orderCarrierId);
             if (Validate::isLoadedObject($orderCarrier)) {
                 $orderCarrier->tracking_number = $trackingNumber;
+                if ($carrierId !== null && $carrierId > 0) {
+                    $orderCarrier->id_carrier = $carrierId;
+                }
                 $orderCarrier->update();
             }
+        } elseif ($carrierId !== null && $carrierId > 0) {
+            $orderCarrier = new OrderCarrier();
+            $orderCarrier->id_order = (int) $order->id;
+            $orderCarrier->id_carrier = $carrierId;
+            $orderCarrier->tracking_number = $trackingNumber;
+            $orderCarrier->add();
         }
 
         $order->shipping_number = $trackingNumber;
+        if ($carrierId !== null && $carrierId > 0) {
+            $order->id_carrier = $carrierId;
+        }
 
         return (bool) $order->update();
     }

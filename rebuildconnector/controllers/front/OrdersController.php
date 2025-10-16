@@ -137,7 +137,21 @@ class RebuildconnectorOrdersModuleFrontController extends RebuildconnectorBaseAp
                 if ($trackingNumber === '') {
                     throw new \InvalidArgumentException($this->t('orders.error.invalid_shipping', [], 'A tracking number is required.'));
                 }
-                if (!$this->getOrdersService()->updateShipping($orderId, $trackingNumber)) {
+                $carrierId = null;
+                if (array_key_exists('carrier_id', $payload)) {
+                    $rawCarrier = $payload['carrier_id'];
+                    if ($rawCarrier === null || $rawCarrier === '') {
+                        $carrierId = null;
+                    } elseif (is_numeric($rawCarrier)) {
+                        $carrierId = (int) $rawCarrier;
+                        if ($carrierId <= 0) {
+                            throw new \InvalidArgumentException($this->t('orders.error.invalid_carrier', [], 'A valid carrier_id is required when provided.'));
+                        }
+                    } else {
+                        throw new \InvalidArgumentException($this->t('orders.error.invalid_carrier', [], 'A valid carrier_id is required when provided.'));
+                    }
+                }
+                if (!$this->getOrdersService()->updateShipping($orderId, $trackingNumber, $carrierId)) {
                     $this->jsonError(
                         'not_found',
                         $this->t('orders.error.not_found', [], 'Order not found.'),
