@@ -10,6 +10,7 @@ require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/Exceptions/Authorizatio
 require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/TranslationService.php';
 require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/RateLimiterService.php';
 require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/AuditLogService.php';
+require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/WebhookService.php';
 
 abstract class RebuildconnectorBaseApiModuleFrontController extends ModuleFrontController
 {
@@ -27,6 +28,7 @@ abstract class RebuildconnectorBaseApiModuleFrontController extends ModuleFrontC
     private ?TranslationService $translationService = null;
     private ?RateLimiterService $rateLimiterService = null;
     private ?AuditLogService $auditLogService = null;
+    private ?WebhookService $webhookService = null;
     /** @var array<string, bool> */
     private array $rateLimitHits = [];
     private ?string $clientIp = null;
@@ -435,6 +437,16 @@ abstract class RebuildconnectorBaseApiModuleFrontController extends ModuleFrontC
         $this->getAuditLogService()->record($event, $context);
     }
 
+    protected function dispatchWebhookEvent(string $event, array $payload = []): void
+    {
+        $event = trim($event);
+        if ($event === '') {
+            return;
+        }
+
+        $this->getWebhookService()->dispatch($event, $payload);
+    }
+
     private function getAuditLogService(): AuditLogService
     {
         if ($this->auditLogService === null) {
@@ -442,6 +454,15 @@ abstract class RebuildconnectorBaseApiModuleFrontController extends ModuleFrontC
         }
 
         return $this->auditLogService;
+    }
+
+    private function getWebhookService(): WebhookService
+    {
+        if ($this->webhookService === null) {
+            $this->webhookService = new WebhookService($this->getSettingsService());
+        }
+
+        return $this->webhookService;
     }
 
     /**

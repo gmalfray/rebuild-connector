@@ -13,7 +13,7 @@ class BasketsService
      */
     public function getBaskets(array $filters = []): array
     {
-        $limit = $this->sanitizeLimit($filters['limit'] ?? self::DEFAULT_LIMIT);
+        $limit = $this->sanitizeLimit(isset($filters['limit']) ? (int) $filters['limit'] : null);
         $offset = max(0, (int) ($filters['offset'] ?? 0));
 
         $query = new DbQuery();
@@ -350,17 +350,16 @@ class BasketsService
     /**
      * @param mixed $value
      */
-    private function sanitizeLimit($value): int
+    private function sanitizeLimit(?int $value): int
     {
-        $limit = (int) $value;
-        if ($limit <= 0) {
-            $limit = self::DEFAULT_LIMIT;
+        if ($value === null || $value <= 0) {
+            return self::DEFAULT_LIMIT;
         }
 
-        if ($limit > self::MAX_LIMIT) {
-            $limit = self::MAX_LIMIT;
+        if ($value > self::MAX_LIMIT) {
+            return self::MAX_LIMIT;
         }
 
-        return $limit;
+        return $value;
     }
 }

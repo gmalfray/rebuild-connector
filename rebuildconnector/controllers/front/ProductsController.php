@@ -21,8 +21,8 @@ class RebuildconnectorProductsModuleFrontController extends RebuildconnectorBase
                     $this->handleGet();
                     break;
                 case 'PATCH':
-                    $this->requireAuth(['products.write']);
-                    $this->handlePatch();
+                    $authPayload = $this->requireAuth(['products.write']);
+                    $this->handlePatch($authPayload);
                     break;
                 default:
                     header('Allow: GET, PATCH');
@@ -99,7 +99,10 @@ class RebuildconnectorProductsModuleFrontController extends RebuildconnectorBase
         ]);
     }
 
-    private function handlePatch(): void
+    /**
+     * @param array<string, mixed> $authPayload
+     */
+    private function handlePatch(array $authPayload = []): void
     {
         $productId = (int) Tools::getValue('id_product', (int) Tools::getValue('id', 0));
         if ($productId <= 0) {
@@ -137,6 +140,15 @@ class RebuildconnectorProductsModuleFrontController extends RebuildconnectorBase
                 $quantity = (int) $payload['quantity'];
                 $this->getProductsService()->updateStock($productId, $quantity);
                 $product['quantity'] = $quantity;
+                $this->recordAuditEvent('products.stock.updated', [
+                    'product_id' => $productId,
+                    'quantity' => $quantity,
+                    'token_subject' => $authPayload['sub'] ?? null,
+                ]);
+                $this->dispatchWebhookEvent('product.stock.updated', [
+                    'product_id' => (string) $productId,
+                    'quantity' => $quantity,
+                ]);
                 break;
             case 'attributes':
                 if (array_key_exists('active', $payload)) {
@@ -167,7 +179,23 @@ class RebuildconnectorProductsModuleFrontController extends RebuildconnectorBase
                     );
                     return;
                 }
+                $changes = [];
+                if (array_key_exists('active', $payload)) {
+                    $changes['active'] = (bool) $payload['active'];
+                }
+                if (array_key_exists('price_tax_excl', $payload)) {
+                    $changes['price_tax_excl'] = (float) $payload['price_tax_excl'];
+                }
                 $product = $this->getProductsService()->getProductById($productId);
+                $this->recordAuditEvent('products.attributes.updated', [
+                    'product_id' => $productId,
+                    'changes' => $changes,
+                    'token_subject' => $authPayload['sub'] ?? null,
+                ]);
+                $this->dispatchWebhookEvent('product.attributes.updated', [
+                    'product_id' => (string) $productId,
+                    'changes' => $changes,
+                ]);
                 break;
             default:
                 throw new \InvalidArgumentException($this->t('products.error.invalid_action', [], 'Unsupported product action.'));
