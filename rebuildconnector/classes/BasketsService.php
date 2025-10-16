@@ -45,6 +45,19 @@ class BasketsService
             $query->where('c.date_add <= "' . pSQL((string) $filters['date_to']) . '"');
         }
 
+        $hasOrderFilter = $this->normalizeBoolean($filters['has_order'] ?? null);
+        if ($hasOrderFilter === true) {
+            $query->where('EXISTS (SELECT 1 FROM ' . _DB_PREFIX_ . 'orders o2 WHERE o2.id_cart = c.id_cart)');
+        } elseif ($hasOrderFilter === false) {
+            $query->where('NOT EXISTS (SELECT 1 FROM ' . _DB_PREFIX_ . 'orders o2 WHERE o2.id_cart = c.id_cart)');
+        }
+
+        $abandonedDays = isset($filters['abandoned_since_days']) ? (int) $filters['abandoned_since_days'] : 0;
+        if ($abandonedDays > 0) {
+            $query->where('c.date_upd <= DATE_SUB(NOW(), INTERVAL ' . (int) $abandonedDays . ' DAY)');
+            $query->where('NOT EXISTS (SELECT 1 FROM ' . _DB_PREFIX_ . 'orders o3 WHERE o3.id_cart = c.id_cart)');
+        }
+
         $query->orderBy('c.date_upd DESC');
         $query->limit($limit, $offset);
 
@@ -358,5 +371,44 @@ class BasketsService
         }
 
         return $value;
+    }
+
+    /**
+     * @param mixed $value
+     */
+    private function normalizeBoolean($value): ?bool
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        if (is_int($value) || is_float($value)) {
+            $int = (int) $value;
+            if ($int === 1) {
+                return true;
+            }
+            if ($int === 0) {
+                return false;
+            }
+
+            return null;
+        }
+
+        if (is_string($value)) {
+            $normalized = Tools::strtolower(trim($value));
+            if (in_array($normalized, ['1', 'true', 'yes', 'on'], true)) {
+                return true;
+            }
+
+            if (in_array($normalized, ['0', 'false', 'no', 'off'], true)) {
+                return false;
+            }
+        }
+
+        return null;
     }
 }

@@ -2,11 +2,11 @@
 
 defined('_PS_VERSION_') || exit;
 
-require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/BasketsService.php';
+require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/ReportsService.php';
 
-class RebuildconnectorBasketsModuleFrontController extends RebuildconnectorBaseApiModuleFrontController
+class RebuildconnectorReportsModuleFrontController extends RebuildconnectorBaseApiModuleFrontController
 {
-    private ?BasketsService $basketsService = null;
+    private ?ReportsService $reportsService = null;
 
     public function initContent(): void
     {
@@ -25,7 +25,7 @@ class RebuildconnectorBasketsModuleFrontController extends RebuildconnectorBaseA
                 return;
             }
 
-            $this->requireAuth(['baskets.read']);
+            $this->requireAuth(['reports.read']);
             $this->handleGet();
         } catch (AuthenticationException $exception) {
             $this->jsonError(
@@ -53,48 +53,37 @@ class RebuildconnectorBasketsModuleFrontController extends RebuildconnectorBaseA
 
     private function handleGet(): void
     {
-        $cartId = (int) Tools::getValue('id_cart', (int) Tools::getValue('id', 0));
-        if ($cartId > 0) {
-            $basket = $this->getBasketsService()->getBasketById($cartId);
-            if ($basket === []) {
-                $this->jsonError(
-                    'not_found',
-                    $this->t('baskets.error.not_found', [], 'Basket not found.'),
-                    404
-                );
-                return;
-            }
-
-            $this->renderJson([
-                'data' => $basket,
-            ]);
-
-            return;
-        }
-
+        $resource = Tools::strtolower((string) Tools::getValue('resource'));
         $filters = [
             'limit' => Tools::getValue('limit'),
-            'offset' => Tools::getValue('offset'),
-            'customer_id' => Tools::getValue('customer_id'),
             'date_from' => Tools::getValue('date_from'),
             'date_to' => Tools::getValue('date_to'),
-            'has_order' => Tools::getValue('has_order'),
-            'abandoned_since_days' => Tools::getValue('abandoned_since_days'),
         ];
 
-        $baskets = $this->getBasketsService()->getBaskets($filters);
-
-        $this->renderJson([
-            'data' => $baskets,
-        ]);
+        switch ($resource) {
+            case 'bestsellers':
+            case 'best-sellers':
+                $this->renderJson([
+                    'data' => $this->getReportsService()->getBestSellers($filters),
+                ]);
+                return;
+            case 'bestcustomers':
+            case 'best-customers':
+                $this->renderJson([
+                    'data' => $this->getReportsService()->getBestCustomers($filters),
+                ]);
+                return;
+            default:
+                throw new \InvalidArgumentException($this->t('reports.error.unknown_resource', [], 'Unknown report resource.'));
+        }
     }
 
-    private function getBasketsService(): BasketsService
+    private function getReportsService(): ReportsService
     {
-        if ($this->basketsService === null) {
-            $this->basketsService = new BasketsService();
+        if ($this->reportsService === null) {
+            $this->reportsService = new ReportsService();
         }
 
-        return $this->basketsService;
+        return $this->reportsService;
     }
 }

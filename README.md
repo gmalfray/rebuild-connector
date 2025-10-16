@@ -69,6 +69,8 @@ rebuildconnector/
 | GET | /baskets | Liste des paniers |
 | GET | /baskets/{id} | Détail panier |
 | GET | /dashboard/metrics | Statistiques et KPI |
+| GET | /reports?resource=bestsellers | Meilleures ventes |
+| GET | /reports?resource=bestcustomers | Meilleurs clients |
 
 ---
 
