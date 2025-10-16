@@ -51,6 +51,7 @@ abstract class RebuildconnectorBaseApiModuleFrontController extends ModuleFrontC
         http_response_code($statusCode);
         $body = json_encode($payload);
         $this->ajaxRender($body === false ? '{}' : $body);
+        exit;
     }
 
     /**
@@ -481,3 +482,15 @@ abstract class RebuildconnectorBaseApiModuleFrontController extends ModuleFrontC
         error_log($message);
     }
 }
+    public function init(): void
+    {
+        parent::init();
+        $this->ajax = true;
+        $this->content_only = true;
+    }
+
+    public function initContent(): void
+    {
+        // Skip parent implementation to avoid Smarty rendering.
+        $this->ajax = true;
+    }
