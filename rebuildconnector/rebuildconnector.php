@@ -34,7 +34,7 @@ class RebuildConnector extends Module
         $this->need_instance = 0;
         $this->bootstrap = true;
 
-        $this->controllers = ['api', 'orders', 'products', 'customers', 'dashboard', 'notifications', 'baskets'];
+        $this->controllers = ['api', 'orders', 'products', 'customers', 'dashboard', 'notifications', 'baskets', 'reports'];
 
         parent::__construct();
 

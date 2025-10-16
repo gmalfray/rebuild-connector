@@ -51,8 +51,10 @@ Base URL : `https://<boutique>/module/rebuildconnector/api`
 | GET | `/products/{id}` | Détail produit, images, stock | — |
 | PATCH | `/products/{id}` | Mise à jour prix, statut actif | `{ price, active }` |
 | PATCH | `/products/{id}/stock` | MAJ stock disponible | `{ quantity, warehouse_id? }` |
-| GET | `/baskets` | Liste paniers (lecture) | `limit`, `offset`, `customer_id`, `date_from`, `date_to` |
+| GET | `/baskets` | Liste paniers (lecture) | `limit`, `offset`, `customer_id`, `date_from`, `date_to`, `has_order`, `abandoned_since_days` |
 | GET | `/baskets/{id}` | Détail panier + produits | — |
+| GET | `/reports?resource=bestsellers` | Classement meilleures ventes | `limit`, `date_from`, `date_to` |
+| GET | `/reports?resource=bestcustomers` | Classement meilleurs clients | `limit`, `date_from`, `date_to` |
 | GET | `/customers` | Liste clients + stats commandes | `filter[segment]`, `limit` |
 | GET | `/customers/{id}` | Fiche client, historique commandes | — |
 | GET | `/dashboard/metrics` | KPI CA, commandes, top ventes | `period=day|week|month|year`, `from`, `to` |

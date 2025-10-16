@@ -14,6 +14,7 @@ class SettingsService
         'customers.read',
         'dashboard.read',
         'baskets.read',
+        'reports.read',
         'notifications.send',
     ];
 

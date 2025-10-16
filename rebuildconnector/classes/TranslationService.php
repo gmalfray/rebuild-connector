@@ -297,6 +297,10 @@ class TranslationService
             'en' => 'The price_tax_excl field must be a numeric value.',
             'fr' => 'Le champ price_tax_excl doit être une valeur numérique.',
         ],
+        'reports.error.unknown_resource' => [
+            'en' => 'Unknown report resource.',
+            'fr' => 'Ressource de rapport inconnue.',
+        ],
         'baskets.error.not_found' => [
             'en' => 'Basket not found.',
             'fr' => 'Panier introuvable.',

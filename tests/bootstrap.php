@@ -28,6 +28,7 @@ spl_autoload_register(static function (string $class): void {
         'AuditLogService' => __DIR__ . '/../rebuildconnector/classes/AuditLogService.php',
         'WebhookService' => __DIR__ . '/../rebuildconnector/classes/WebhookService.php',
         'BasketsService' => __DIR__ . '/../rebuildconnector/classes/BasketsService.php',
+        'ReportsService' => __DIR__ . '/../rebuildconnector/classes/ReportsService.php',
         'ProductsService' => __DIR__ . '/../rebuildconnector/classes/ProductsService.php',
         'AuthenticationException' => __DIR__ . '/../rebuildconnector/classes/Exceptions/AuthenticationException.php',
         'AuthorizationException' => __DIR__ . '/../rebuildconnector/classes/Exceptions/AuthorizationException.php',
@@ -38,6 +39,7 @@ spl_autoload_register(static function (string $class): void {
         'RebuildconnectorProductsModuleFrontController' => __DIR__ . '/../rebuildconnector/controllers/front/ProductsController.php',
         'RebuildconnectorDashboardModuleFrontController' => __DIR__ . '/../rebuildconnector/controllers/front/DashboardController.php',
         'RebuildconnectorBasketsModuleFrontController' => __DIR__ . '/../rebuildconnector/controllers/front/BasketsController.php',
+        'RebuildconnectorReportsModuleFrontController' => __DIR__ . '/../rebuildconnector/controllers/front/ReportsController.php',
     ];
 
     if (isset($map[$class]) && file_exists($map[$class])) {
