@@ -437,6 +437,9 @@ abstract class RebuildconnectorBaseApiModuleFrontController extends ModuleFrontC
         $this->getAuditLogService()->record($event, $context);
     }
 
+    /**
+     * @param array<string, mixed> $payload
+     */
     protected function dispatchWebhookEvent(string $event, array $payload = []): void
     {
         $event = trim($event);

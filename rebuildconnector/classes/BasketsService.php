@@ -347,9 +347,6 @@ class BasketsService
         return array_values(array_unique($sanitized));
     }
 
-    /**
-     * @param mixed $value
-     */
     private function sanitizeLimit(?int $value): int
     {
         if ($value === null || $value <= 0) {
