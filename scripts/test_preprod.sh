@@ -66,7 +66,7 @@ TMP_TOKEN=$(mktemp)
 trap 'rm -f "$TMP_TOKEN"' EXIT
 
 log "Requesting access token..."
-AUTH_RESPONSE=$(curl -sS -w "\n%{http_code}" -X POST "$API_ENDPOINT/api" \
+AUTH_RESPONSE=$(curl -sS -w "\n%{http_code}" -v -X POST "$API_ENDPOINT/api" \
   -H 'Content-Type: application/json' \
   -d "{\"api_key\":\"$API_KEY\"}") || {
     echo "Failed to contact auth endpoint" >&2
