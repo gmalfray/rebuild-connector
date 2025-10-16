@@ -6,6 +6,7 @@ require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/SettingsService.php';
 require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/JwtService.php';
 require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/AuthService.php';
 require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/Exceptions/AuthenticationException.php';
+require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/Exceptions/AuthorizationException.php';
 require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/TranslationService.php';
 
 abstract class RebuildconnectorBaseApiModuleFrontController extends ModuleFrontController
@@ -54,6 +55,40 @@ abstract class RebuildconnectorBaseApiModuleFrontController extends ModuleFrontC
         }
 
         return $decoded;
+    }
+
+    /**
+     * @param array<int, string> $requiredScopes
+     * @return array<string, mixed>
+     *
+     * @throws AuthenticationException
+     * @throws AuthorizationException
+     */
+    protected function requireAuth(array $requiredScopes = []): array
+    {
+        $payload = $this->validateBearerToken();
+        if ($payload === null) {
+            throw new AuthenticationException('unauthenticated');
+        }
+
+        $payloadScopes = [];
+        if (isset($payload['scopes']) && is_array($payload['scopes'])) {
+            foreach ($payload['scopes'] as $scope) {
+                if (is_string($scope) && $scope !== '') {
+                    $payloadScopes[] = $scope;
+                }
+            }
+        }
+
+        if ($requiredScopes !== []) {
+            foreach ($requiredScopes as $requiredScope) {
+                if (!in_array($requiredScope, $payloadScopes, true)) {
+                    throw new AuthorizationException('forbidden');
+                }
+            }
+        }
+
+        return $payload;
     }
 
     protected function getSettingsService(): SettingsService
@@ -135,9 +170,9 @@ abstract class RebuildconnectorBaseApiModuleFrontController extends ModuleFrontC
 
     private function getCurrentLocale(): string
     {
-        $language = $this->context !== null ? $this->context->language ?? null : null;
-        if ($language instanceof Language) {
-            $code = $language->iso_code;
+        $context = Context::getContext();
+        if ($context->language instanceof Language) {
+            $code = $context->language->iso_code;
             if (is_string($code) && $code !== '') {
                 return $code;
             }
@@ -181,5 +216,13 @@ abstract class RebuildconnectorBaseApiModuleFrontController extends ModuleFrontC
 
         $data = json_decode($decoded, true);
         return is_array($data) ? $data : null;
+    }
+
+    protected function jsonError(string $error, string $message, int $statusCode): void
+    {
+        $this->renderJson([
+            'error' => $error,
+            'message' => $message,
+        ], $statusCode);
     }
 }

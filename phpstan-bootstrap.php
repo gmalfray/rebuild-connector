@@ -201,6 +201,11 @@ class Tools
     {
         return strtolower($string);
     }
+
+    public static function strtoupper(string $string): string
+    {
+        return strtoupper($string);
+    }
 }
 
 class Configuration
@@ -447,6 +452,8 @@ class Customer
     public $lastname = '';
     /** @var string */
     public $email = '';
+    /** @var string */
+    public $date_add = '';
 
     public function __construct(int $id_customer)
     {
@@ -455,6 +462,11 @@ class Customer
 
 class Product
 {
+    /** @var float */
+    public $price = 0.0;
+    /** @var bool */
+    public $active = true;
+
     public function __construct(int $id_product)
     {
     }
@@ -462,6 +474,11 @@ class Product
     public static function getPriceStatic(int $idProduct, bool $withTax): float
     {
         return 0.0;
+    }
+
+    public function update(): bool
+    {
+        return true;
     }
 }
 

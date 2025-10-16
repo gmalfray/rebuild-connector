@@ -104,8 +104,8 @@ class TranslationService
 
         // API & base controller errors
         'api.error.method_not_allowed' => [
-            'en' => 'This endpoint only accepts POST requests.',
-            'fr' => 'Cette route accepte uniquement les requêtes POST.',
+            'en' => 'HTTP method not allowed.',
+            'fr' => 'Méthode HTTP non autorisée.',
         ],
         'api.error.api_key_required' => [
             'en' => 'The api_key field is required.',
@@ -116,8 +116,8 @@ class TranslationService
             'fr' => 'Authentification échouée. Vérifiez votre clé API.',
         ],
         'api.error.unexpected' => [
-            'en' => 'Unexpected error during authentication.',
-            'fr' => 'Erreur inattendue lors de l’authentification.',
+            'en' => 'Unexpected error occurred.',
+            'fr' => 'Une erreur inattendue s’est produite.',
         ],
         'api.error.read_body' => [
             'en' => 'Unable to read request body.',
@@ -126,6 +126,22 @@ class TranslationService
         'api.error.invalid_json' => [
             'en' => 'Request body must be valid JSON.',
             'fr' => 'Le corps de la requête doit être un JSON valide.',
+        ],
+        'api.error.unauthenticated' => [
+            'en' => 'Authentication required.',
+            'fr' => 'Authentification requise.',
+        ],
+        'api.error.forbidden' => [
+            'en' => 'You do not have the required permissions.',
+            'fr' => 'Vous n’avez pas les permissions requises.',
+        ],
+        'api.error.invalid_payload' => [
+            'en' => 'The provided data is invalid.',
+            'fr' => 'Les données fournies sont invalides.',
+        ],
+        'api.error.not_found' => [
+            'en' => 'Resource not found.',
+            'fr' => 'Ressource introuvable.',
         ],
 
         // Notifications
@@ -144,6 +160,38 @@ class TranslationService
         'notifications.order_summary' => [
             'en' => '#%s - %s',
             'fr' => 'Commande #%s - %s',
+        ],
+        'orders.error.not_found' => [
+            'en' => 'Order not found.',
+            'fr' => 'Commande introuvable.',
+        ],
+        'orders.error.invalid_action' => [
+            'en' => 'Unsupported order action.',
+            'fr' => 'Action sur la commande non prise en charge.',
+        ],
+        'orders.error.invalid_status' => [
+            'en' => 'A valid status is required.',
+            'fr' => 'Un statut valide est requis.',
+        ],
+        'orders.error.invalid_shipping' => [
+            'en' => 'A tracking number is required.',
+            'fr' => 'Un numéro de suivi est requis.',
+        ],
+        'products.error.not_found' => [
+            'en' => 'Product not found.',
+            'fr' => 'Produit introuvable.',
+        ],
+        'products.error.invalid_payload' => [
+            'en' => 'Invalid product payload.',
+            'fr' => 'Données produit invalides.',
+        ],
+        'products.error.invalid_action' => [
+            'en' => 'Unsupported product action.',
+            'fr' => 'Action produit non prise en charge.',
+        ],
+        'customers.error.not_found' => [
+            'en' => 'Customer not found.',
+            'fr' => 'Client introuvable.',
         ],
     ];
 
