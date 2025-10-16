@@ -69,6 +69,24 @@ class ProductsService
         return $products;
     }
 
+    /**
+     * @return array<string, mixed>
+     */
+    public function getProductById(int $productId): array
+    {
+        if ($productId <= 0) {
+            return [];
+        }
+
+        $products = $this->getProducts([
+            'ids' => [$productId],
+            'limit' => 1,
+            'offset' => 0,
+        ]);
+
+        return $products[0] ?? [];
+    }
+
     public function updateStock(int $productId, int $quantity): bool
     {
         $product = new Product($productId);
@@ -79,6 +97,32 @@ class ProductsService
         StockAvailable::setQuantity($productId, 0, $quantity);
 
         return true;
+    }
+
+    public function updateProduct(int $productId, array $payload): bool
+    {
+        $product = new Product($productId);
+        if (!Validate::isLoadedObject($product)) {
+            return false;
+        }
+
+        $updated = false;
+
+        if (array_key_exists('active', $payload)) {
+            $product->active = (bool) $payload['active'];
+            $updated = true;
+        }
+
+        if (isset($payload['price_tax_excl'])) {
+            $product->price = (float) $payload['price_tax_excl'];
+            $updated = true;
+        }
+
+        if (!$updated) {
+            return false;
+        }
+
+        return (bool) $product->update();
     }
 
     /**
