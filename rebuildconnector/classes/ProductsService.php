@@ -277,15 +277,11 @@ class ProductsService
             return is_string($value) && $value !== '';
         });
 
-        $primaryUrl = null;
-        if ($urls !== []) {
-            if (isset($urls['large'])) {
-                $primaryUrl = $urls['large'];
-            } else {
-                $first = reset($urls);
-                if (is_string($first) && $first !== '') {
-                    $primaryUrl = $first;
-                }
+        $primaryUrl = $urls['large'] ?? null;
+        if ($primaryUrl === null && $urls !== []) {
+            $first = reset($urls);
+            if ($first !== false) {
+                $primaryUrl = $first;
             }
         }
 
