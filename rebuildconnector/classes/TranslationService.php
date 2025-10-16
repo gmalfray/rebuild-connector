@@ -297,6 +297,10 @@ class TranslationService
             'en' => 'The price_tax_excl field must be a numeric value.',
             'fr' => 'Le champ price_tax_excl doit être une valeur numérique.',
         ],
+        'baskets.error.not_found' => [
+            'en' => 'Basket not found.',
+            'fr' => 'Panier introuvable.',
+        ],
         'products.error.invalid_action' => [
             'en' => 'Unsupported product action.',
             'fr' => 'Action produit non prise en charge.',

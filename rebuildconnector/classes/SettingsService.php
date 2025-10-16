@@ -13,6 +13,7 @@ class SettingsService
         'stock.write',
         'customers.read',
         'dashboard.read',
+        'baskets.read',
         'notifications.send',
     ];
 

@@ -73,6 +73,35 @@ class Link
     }
 }
 
+class Cart
+{
+    /** @var int */
+    public $id;
+
+    public function __construct(int $id = 0)
+    {
+        $this->id = $id;
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    public function getProducts(): array
+    {
+        return [];
+    }
+
+    public function getOrderTotal(bool $withTaxes = true): float
+    {
+        return 0.0;
+    }
+
+    public function getNbProducts(): int
+    {
+        return 0;
+    }
+}
+
 class Image
 {
     /**
