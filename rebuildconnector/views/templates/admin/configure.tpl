@@ -105,6 +105,23 @@
         </div>
 
         <div class="form-group">
+            <label class="control-label col-lg-3" for="rebuildconnector_fcm_topics">
+                {$i18n.topics_label|escape:'htmlall'}
+            </label>
+            <div class="col-lg-9">
+                <textarea
+                    id="rebuildconnector_fcm_topics"
+                    name="REBUILDCONNECTOR_FCM_TOPICS"
+                    rows="4"
+                    class="form-control"
+                >{$settings.fcm_topics|escape:'htmlall'}</textarea>
+                <p class="help-block">
+                    {$i18n.topics_help|escape:'htmlall'}
+                </p>
+            </div>
+        </div>
+
+        <div class="form-group">
             <label class="control-label col-lg-3" for="rebuildconnector_fcm_device_tokens">
                 {$i18n.device_tokens_label|escape:'htmlall'}
             </label>

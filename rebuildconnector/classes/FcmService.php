@@ -17,11 +17,21 @@ class FcmService
      * @param array<int, mixed> $tokens
      * @param array<string, string> $notification
      * @param array<string, mixed> $data
+     * @param array<int, string> $topics
+     * @param array<int, mixed> $fallbackTokens
      */
-    public function sendNotification(array $tokens, array $notification, array $data = []): bool
-    {
-        $filteredTokens = $this->sanitizeTokens($tokens);
-        if ($filteredTokens === []) {
+    public function sendNotification(
+        array $tokens,
+        array $notification,
+        array $data = [],
+        array $topics = [],
+        array $fallbackTokens = []
+    ): bool {
+        $primaryTokens = $this->sanitizeTokens($tokens);
+        $fallbackTokens = $this->sanitizeTokens($fallbackTokens);
+        $topics = $this->sanitizeTopics($topics);
+
+        if ($primaryTokens === [] && $fallbackTokens === [] && $topics === []) {
             return false;
         }
 
@@ -43,26 +53,98 @@ class FcmService
             return false;
         }
 
-        $errors = false;
-        foreach ($filteredTokens as $token) {
-            $message = [
-                'message' => [
-                    'token' => $token,
-                    'notification' => $notification,
-                ],
-            ];
+        $normalizedData = $this->normalizeData($data);
 
-            $normalizedData = $this->normalizeData($data);
-            if ($normalizedData !== []) {
-                $message['message']['data'] = $normalizedData;
-            }
+        $topicDelivered = false;
+        if ($topics !== []) {
+            foreach ($topics as $topic) {
+                $message = [
+                    'message' => [
+                        'topic' => $topic,
+                        'notification' => $notification,
+                    ],
+                ];
 
-            if (!$this->dispatchMessage($projectId, $accessToken, $message)) {
-                $errors = true;
+                if ($normalizedData !== []) {
+                    $message['message']['data'] = $normalizedData;
+                }
+
+                if ($this->dispatchMessage($projectId, $accessToken, $message)) {
+                    $topicDelivered = true;
+                } else {
+                    $this->log(sprintf('FCM topic delivery failed for topic "%s".', $topic));
+                }
             }
         }
 
-        return !$errors;
+        $tokenDelivered = false;
+        if (!$topicDelivered && $primaryTokens !== []) {
+            foreach ($primaryTokens as $token) {
+                $message = [
+                    'message' => [
+                        'token' => $token,
+                        'notification' => $notification,
+                    ],
+                ];
+
+                if ($normalizedData !== []) {
+                    $message['message']['data'] = $normalizedData;
+                }
+
+                if ($this->dispatchMessage($projectId, $accessToken, $message)) {
+                    $tokenDelivered = true;
+                } else {
+                    $this->log(sprintf('FCM delivery failed for token "%s".', $token));
+                }
+            }
+        }
+
+        $fallbackDelivered = false;
+        if (!$topicDelivered && !$tokenDelivered && $fallbackTokens !== []) {
+            foreach ($fallbackTokens as $token) {
+                $message = [
+                    'message' => [
+                        'token' => $token,
+                        'notification' => $notification,
+                    ],
+                ];
+
+                if ($normalizedData !== []) {
+                    $message['message']['data'] = $normalizedData;
+                }
+
+                if ($this->dispatchMessage($projectId, $accessToken, $message)) {
+                    $fallbackDelivered = true;
+                } else {
+                    $this->log(sprintf('FCM fallback delivery failed for token "%s".', $token));
+                }
+            }
+        }
+
+        return $topicDelivered || $tokenDelivered || $fallbackDelivered;
+    }
+
+    /**
+     * @param array<int, mixed> $topics
+     * @return array<int, string>
+     */
+    private function sanitizeTopics(array $topics): array
+    {
+        $normalized = [];
+        foreach ($topics as $topic) {
+            $topic = trim((string) $topic);
+            if ($topic === '') {
+                continue;
+            }
+
+            if (!preg_match('/^[A-Za-z0-9-_.~%]{1,900}$/', $topic)) {
+                continue;
+            }
+
+            $normalized[] = $topic;
+        }
+
+        return array_values(array_unique($normalized));
     }
 
     /**
