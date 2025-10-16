@@ -21,8 +21,8 @@ class RebuildconnectorOrdersModuleFrontController extends RebuildconnectorBaseAp
                     $this->handleGet();
                     break;
                 case 'PATCH':
-                    $this->requireAuth(['orders.write']);
-                    $this->handlePatch();
+                    $authPayload = $this->requireAuth(['orders.write']);
+                    $this->handlePatch($authPayload);
                     break;
                 default:
                     header('Allow: GET, PATCH');
@@ -95,7 +95,10 @@ class RebuildconnectorOrdersModuleFrontController extends RebuildconnectorBaseAp
         ]);
     }
 
-    private function handlePatch(): void
+    /**
+     * @param array<string, mixed> $authPayload
+     */
+    private function handlePatch(array $authPayload = []): void
     {
         $orderId = (int) Tools::getValue('id_order', (int) Tools::getValue('id', 0));
         if ($orderId <= 0) {
@@ -130,6 +133,15 @@ class RebuildconnectorOrdersModuleFrontController extends RebuildconnectorBaseAp
                     );
                     return;
                 }
+                $this->recordAuditEvent('orders.status.updated', [
+                    'order_id' => $orderId,
+                    'status' => $status,
+                    'token_subject' => $authPayload['sub'] ?? null,
+                ]);
+                $this->dispatchWebhookEvent('order.status.updated', [
+                    'order_id' => (string) $orderId,
+                    'status' => $status,
+                ]);
                 $this->renderJson([], 204);
                 return;
             case 'shipping':
@@ -159,6 +171,20 @@ class RebuildconnectorOrdersModuleFrontController extends RebuildconnectorBaseAp
                     );
                     return;
                 }
+                $this->recordAuditEvent('orders.shipping.updated', [
+                    'order_id' => $orderId,
+                    'tracking_number' => $trackingNumber,
+                    'carrier_id' => $carrierId,
+                    'token_subject' => $authPayload['sub'] ?? null,
+                ]);
+                $webhookPayload = [
+                    'order_id' => (string) $orderId,
+                    'tracking_number' => $trackingNumber,
+                ];
+                if ($carrierId !== null) {
+                    $webhookPayload['carrier_id'] = $carrierId;
+                }
+                $this->dispatchWebhookEvent('order.shipping.updated', $webhookPayload);
                 $this->renderJson([], 204);
                 return;
             default:
