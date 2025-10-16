@@ -128,6 +128,8 @@ composer install
 vendor/bin/phpunit --bootstrap tests/bootstrap.php --testdox
 ```
 
+👉 La documentation détaillée des endpoints (authentification, schémas, exemples) est disponible dans [`docs/api.md`](docs/api.md).
+
 ---
 
 ## 📦 CI/CD

@@ -183,4 +183,5 @@ curl -X PATCH "https://example.com/module/rebuildconnector/api/orders/123/shippi
 - **Dev mode** : passer systématiquement par `isDevMode()` (ou équivalent) au lieu d’expressions `defined('_PS_MODE_DEV_') && ...` pour éviter les avertissements statiques.
 - **Internationalisation** : toute nouvelle chaîne (erreur, succès, notifications) doit être ajoutée en FR et EN dans `TranslationService`.
 - **Paramètres BO** : toute nouvelle option de configuration doit passer par `SettingsService` (get/set/export + validations), être exposée dans le template BO, documentée dans `README.md` et `agent.md`, et accompagnée de traductions FR/EN + messages d’erreur cohérents.
+- **Documentation API** : maintenir `docs/api.md` à jour (auth, entrées/sorties, exemples). Toute évolution d’endpoint doit y figurer avant la revue.
 - **Workflows CI** : conserver `php_ci.yml` comme référence ; ne pousser que lorsque lint et PHPStan sont verts localement.
