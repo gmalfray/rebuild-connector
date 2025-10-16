@@ -268,7 +268,7 @@ class FcmService
 
     private function log(string $message): void
     {
-        if (defined('_PS_MODE_DEV_') && _PS_MODE_DEV_) {
+        if (defined('_PS_MODE_DEV_') && (bool) constant('_PS_MODE_DEV_')) {
             error_log('[RebuildConnector] ' . $message);
         }
     }
