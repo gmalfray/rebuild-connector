@@ -167,4 +167,3 @@ class RebuildconnectorProductsModuleFrontController extends RebuildconnectorBase
         return $this->productsService;
     }
 }
-}
