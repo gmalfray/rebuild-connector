@@ -22,18 +22,29 @@ class DashboardService
             'SELECT COUNT(*) FROM ' . _DB_PREFIX_ . 'orders WHERE date_add BETWEEN "' . $fromSql . '" AND "' . $toSql . '"'
         );
 
-        $revenue = (float) $db->getValue(
+        $revenueTaxIncl = (float) $db->getValue(
             'SELECT SUM(total_paid_tax_incl) FROM ' . _DB_PREFIX_ . 'orders WHERE date_add BETWEEN "'
             . $fromSql . '" AND "' . $toSql . '"'
         );
+
+        $revenueTaxExcl = (float) $db->getValue(
+            'SELECT SUM(total_paid_tax_excl) FROM ' . _DB_PREFIX_ . 'orders WHERE date_add BETWEEN "'
+            . $fromSql . '" AND "' . $toSql . '"'
+        );
+
+        $taxCollected = max(0.0, $revenueTaxIncl - $revenueTaxExcl);
 
         $customers = (int) $db->getValue(
             'SELECT COUNT(DISTINCT id_customer) FROM ' . _DB_PREFIX_ . 'orders WHERE date_add BETWEEN "'
             . $fromSql . '" AND "' . $toSql . '"'
         );
 
+        $returns = (int) $db->getValue(
+            'SELECT COUNT(*) FROM ' . _DB_PREFIX_ . 'order_return WHERE date_add BETWEEN "' . $fromSql . '" AND "' . $toSql . '"'
+        );
+
         $currency = $this->resolveCurrencyIso();
-        $averageOrderValue = $ordersCount > 0 ? $revenue / $ordersCount : 0.0;
+        $averageBasket = $ordersCount > 0 ? $revenueTaxIncl / $ordersCount : 0.0;
 
         return [
             'period' => [
@@ -42,9 +53,14 @@ class DashboardService
                 'to' => $to->format(DATE_ATOM),
             ],
             'orders_count' => $ordersCount,
-            'revenue' => $revenue,
-            'average_order_value' => $averageOrderValue,
+            'revenue' => $revenueTaxIncl,
+            'revenue_tax_incl' => $revenueTaxIncl,
+            'revenue_tax_excl' => $revenueTaxExcl,
+            'tax_collected' => $taxCollected,
+            'average_basket' => $averageBasket,
+            'average_order_value' => $averageBasket,
             'customers' => $customers,
+            'returns' => $returns,
             'currency' => $currency,
             'chart' => $this->buildChart($from, $to),
         ];
