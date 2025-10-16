@@ -119,7 +119,7 @@ call_endpoint() {
 
 call_endpoint "Orders list" "/orders?limit=1"
 call_endpoint "Products list" "/products?limit=1"
-call_endpoint "Dashboard metrics" "/dashboard/metrics?period=month&locale=$LOCALE"
+call_endpoint "Dashboard metrics" "/dashboard?period=month&locale=$LOCALE"
 call_endpoint "Baskets list" "/baskets?limit=1&has_order=0"
 call_endpoint "Best sellers" "/reports?resource=bestsellers&limit=5"
 call_endpoint "Best customers" "/reports?resource=bestcustomers&limit=5"
