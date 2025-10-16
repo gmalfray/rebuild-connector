@@ -100,7 +100,7 @@ call_endpoint() {
   local response http body
   response=$(curl -sS -w "\n%{http_code}" -H "Authorization: Bearer $ACCESS_TOKEN" -H "Accept: application/json" "$API_ENDPOINT$path") || {
     echo "✖ $description -> request failed" >&2
-    ((FAIL_COUNT++))
+    ((FAIL_COUNT+=1))
     return
   }
 
@@ -109,11 +109,11 @@ call_endpoint() {
 
   if [[ "$http" == "$expected" ]]; then
     echo "✔ $description (HTTP $http)"
-    ((PASS_COUNT++))
+    ((PASS_COUNT+=1))
   else
     echo "✖ $description (HTTP $http, expected $expected)" >&2
     echo "$body" >&2
-    ((FAIL_COUNT++))
+    ((FAIL_COUNT+=1))
   fi
 }
 
