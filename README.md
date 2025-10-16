@@ -121,6 +121,13 @@ Déploiement :
 - Tests d’intégration API : Postman/Newman
 - Tests manuels dans PS 1.7.8 & PS 8.x
 
+Installation locale :
+
+```bash
+composer install
+vendor/bin/phpunit --bootstrap tests/bootstrap.php --testdox
+```
+
 ---
 
 ## 📦 CI/CD

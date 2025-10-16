@@ -163,6 +163,7 @@ curl -X PATCH "https://example.com/module/rebuildconnector/api/orders/123/shippi
   - PHPStan, PHPUnit, tests Postman sur endpoints critiques.
   - Vérifier configuration hooks, traductions FR/EN, droits d’écriture.
   - Mettre à jour `config.xml` (version, compatibilité 1.7–8.x).
+  - `vendor/bin/phpunit --bootstrap tests/bootstrap.php --testdox` (couverture FCM + filtres + endpoints).
 - **Post-release** :
   - Monitorer Crashlytics, logs PrestaShop, métriques d’adoption.
   - Collecter feedback utilisateurs (via formulaire in-app).
