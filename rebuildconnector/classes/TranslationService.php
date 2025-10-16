@@ -89,6 +89,14 @@ class TranslationService
             'en' => 'Paste the JSON content of your Firebase service account used for HTTP v1 notifications.',
             'fr' => 'Collez le contenu JSON de votre compte de service Firebase utilisé pour les notifications HTTP v1.',
         ],
+        'admin.form.topics_label' => [
+            'en' => 'FCM topics',
+            'fr' => 'Topics FCM',
+        ],
+        'admin.form.topics_help' => [
+            'en' => 'Optional list of topics (one per line) used as the primary broadcast channel.',
+            'fr' => 'Liste optionnelle de topics (un par ligne) utilisée comme canal principal de diffusion.',
+        ],
         'admin.form.device_tokens_label' => [
             'en' => 'Fallback device tokens',
             'fr' => 'Jetons d’appareils de secours',
@@ -161,6 +169,14 @@ class TranslationService
             'en' => '#%s - %s',
             'fr' => 'Commande #%s - %s',
         ],
+        'notifications.error.token_required' => [
+            'en' => 'Device token is required.',
+            'fr' => 'Le jeton d’appareil est requis.',
+        ],
+        'notifications.error.topic_required' => [
+            'en' => 'At least one topic must be provided.',
+            'fr' => 'Au moins un topic doit être fourni.',
+        ],
         'orders.error.not_found' => [
             'en' => 'Order not found.',
             'fr' => 'Commande introuvable.',
@@ -231,6 +247,8 @@ class TranslationService
             'regenerate_confirm' => $this->translate('admin.form.regenerate_confirm', $locale),
             'service_account_label' => $this->translate('admin.form.service_account_label', $locale),
             'service_account_help' => $this->translate('admin.form.service_account_help', $locale),
+            'topics_label' => $this->translate('admin.form.topics_label', $locale),
+            'topics_help' => $this->translate('admin.form.topics_help', $locale),
             'device_tokens_label' => $this->translate('admin.form.device_tokens_label', $locale),
             'device_tokens_help' => $this->translate('admin.form.device_tokens_help', $locale),
             'save_button' => $this->translate('admin.form.save_button', $locale),

@@ -5,6 +5,7 @@ if (!defined('_PS_VERSION_')) {
 }
 
 require_once __DIR__ . '/classes/SettingsService.php';
+require_once __DIR__ . '/classes/FcmDeviceService.php';
 require_once __DIR__ . '/classes/FcmService.php';
 require_once __DIR__ . '/classes/Exceptions/AuthenticationException.php';
 require_once __DIR__ . '/classes/JwtService.php';
@@ -16,18 +17,19 @@ class RebuildConnector extends Module
     private ?FcmService $fcmService = null;
     private ?SettingsService $settingsService = null;
     private ?TranslationService $translationService = null;
+    private ?FcmDeviceService $fcmDeviceService = null;
     private bool $settingsBootstrapped = false;
 
     public function __construct()
     {
         $this->name = 'rebuildconnector';
         $this->tab = 'administration';
-        $this->version = '0.1.0';
+        $this->version = '0.2.0';
         $this->author = 'Rebuild IT';
         $this->need_instance = 0;
         $this->bootstrap = true;
 
-        $this->controllers = ['api', 'orders', 'products', 'customers', 'dashboard'];
+        $this->controllers = ['api', 'orders', 'products', 'customers', 'dashboard', 'notifications'];
 
         parent::__construct();
 
@@ -44,6 +46,10 @@ class RebuildConnector extends Module
 
         $this->getSettingsService()->ensureDefaults();
 
+        if (!FcmDeviceService::install()) {
+            return false;
+        }
+
         return $this
             ->registerHook('actionValidateOrder')
             && $this->registerHook('actionOrderStatusPostUpdate');
@@ -56,6 +62,7 @@ class RebuildConnector extends Module
         }
 
         Configuration::deleteByName('REBUILDCONNECTOR_SETTINGS');
+        FcmDeviceService::uninstall();
 
         return true;
     }
@@ -100,6 +107,9 @@ class RebuildConnector extends Module
 
             $deviceTokens = (string) Tools::getValue('REBUILDCONNECTOR_FCM_DEVICE_TOKENS', '');
             $settingsService->setFcmDeviceTokens($deviceTokens);
+
+            $topics = (string) Tools::getValue('REBUILDCONNECTOR_FCM_TOPICS', '');
+            $settingsService->setFcmTopics($topics);
 
             if ($errors === []) {
                 $messages[] = $this->t('admin.message.settings_updated');
@@ -258,23 +268,21 @@ class RebuildConnector extends Module
      */
     private function notifyDevices(array $notification, array $data): void
     {
-        $tokens = $this->getDeviceTokens();
-        if ($tokens === []) {
+        $topics = $this->getSettingsService()->getFcmTopics();
+        $primaryTokens = $this->getFcmDeviceService()->getTokens($topics);
+        $fallbackTokens = $this->getSettingsService()->getFcmDeviceTokens();
+
+        if ($topics === [] && $primaryTokens === [] && $fallbackTokens === []) {
             return;
         }
 
-        $success = $this->getFcmService()->sendNotification($tokens, $notification, $data);
-        if (!$success && $this->isDevMode()) {
-            error_log('[RebuildConnector] FCM notification failed.');
-        }
-    }
+        $success = $this
+            ->getFcmService()
+            ->sendNotification($primaryTokens, $notification, $data, $topics, $fallbackTokens);
 
-    /**
-     * @return array<int, string>
-     */
-    private function getDeviceTokens(): array
-    {
-        return $this->getSettingsService()->getFcmDeviceTokens();
+        if (!$success && $this->isDevMode()) {
+            error_log('[RebuildConnector] FCM notification failed (all channels).');
+        }
     }
 
     private function getFcmService(): FcmService
@@ -284,6 +292,15 @@ class RebuildConnector extends Module
         }
 
         return $this->fcmService;
+    }
+
+    private function getFcmDeviceService(): FcmDeviceService
+    {
+        if ($this->fcmDeviceService === null) {
+            $this->fcmDeviceService = new FcmDeviceService();
+        }
+
+        return $this->fcmDeviceService;
     }
 
     private function getSettingsService(): SettingsService

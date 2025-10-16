@@ -238,7 +238,7 @@ class SettingsService
     public function setFcmDeviceTokens(string $tokens): void
     {
         $settings = $this->all();
-        $settings['fcm_device_tokens'] = $tokens;
+        $settings['fcm_device_tokens'] = trim($tokens);
         $this->save($settings);
     }
 
@@ -275,6 +275,55 @@ class SettingsService
         return array_values(array_unique($tokens));
     }
 
+    public function getFcmTopicsRaw(): string
+    {
+        $settings = $this->all();
+        if (!isset($settings['fcm_topics'])) {
+            return '';
+        }
+
+        $topics = $settings['fcm_topics'];
+        if (is_string($topics)) {
+            return trim($topics);
+        }
+
+        if (is_array($topics)) {
+            return implode("\n", $this->sanitizeTopics($topics));
+        }
+
+        return '';
+    }
+
+    public function setFcmTopics(string $topics): void
+    {
+        $settings = $this->all();
+        $parts = preg_split('/[\r\n,]+/', $topics) ?: [];
+        $settings['fcm_topics'] = implode("\n", $this->sanitizeTopics($parts));
+        $this->save($settings);
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    public function getFcmTopics(): array
+    {
+        $settings = $this->all();
+        if (!isset($settings['fcm_topics'])) {
+            return [];
+        }
+
+        $raw = $settings['fcm_topics'];
+        if (is_string($raw)) {
+            $parts = preg_split('/[\r\n,]+/', $raw) ?: [];
+        } elseif (is_array($raw)) {
+            $parts = $raw;
+        } else {
+            return [];
+        }
+
+        return $this->sanitizeTopics($parts);
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -294,6 +343,8 @@ class SettingsService
                 ? $settings['fcm_service_account']
                 : '',
             'fcm_device_tokens' => $this->getFcmDeviceTokensRaw(),
+            'fcm_topics' => $this->getFcmTopicsRaw(),
+            'fcm_topics_list' => $this->getFcmTopics(),
             'scopes' => $this->getScopes(),
             'scopes_text' => implode("\n", $this->getScopes()),
         ];
@@ -332,5 +383,32 @@ class SettingsService
     public function clearCache(): void
     {
         $this->cache = null;
+    }
+
+    /**
+     * @param array<int, string> $topics
+     * @return array<int, string>
+     */
+    private function sanitizeTopics(array $topics): array
+    {
+        $normalized = [];
+        foreach ($topics as $topic) {
+            if (!is_string($topic)) {
+                continue;
+            }
+
+            $topic = trim($topic);
+            if ($topic === '') {
+                continue;
+            }
+
+            if (!preg_match('/^[A-Za-z0-9-_.~%]{1,900}$/', $topic)) {
+                continue;
+            }
+
+            $normalized[] = $topic;
+        }
+
+        return array_values(array_unique($normalized));
     }
 }
