@@ -88,7 +88,7 @@ class CustomersService
         $query->orderBy($orderBy);
         $query->limit($limit + 1, $offset);
 
-        $rows = (array) Db::getInstance()->executeS($query);
+        $rows = $this->executeCustomerQuery($query);
         $hasMore = count($rows) > $limit;
         if ($hasMore) {
             array_pop($rows);
@@ -197,6 +197,14 @@ class CustomersService
             FROM ' . _DB_PREFIX_ . 'orders o3
             WHERE o3.id_customer = c.id_customer
         )';
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    protected function executeCustomerQuery(DbQuery $query): array
+    {
+        return (array) Db::getInstance()->executeS($query);
     }
 
     private function applySegmentFilter(DbQuery $query, string $segment): void

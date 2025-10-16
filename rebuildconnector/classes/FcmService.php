@@ -180,7 +180,7 @@ class FcmService
     /**
      * @param array<string, mixed> $serviceAccount
      */
-    private function fetchAccessToken(array $serviceAccount): ?string
+    protected function fetchAccessToken(array $serviceAccount): ?string
     {
         if (!isset($serviceAccount['client_email'], $serviceAccount['private_key'])) {
             return null;
@@ -254,7 +254,7 @@ class FcmService
     /**
      * @param array<string, mixed> $message
      */
-    private function dispatchMessage(string $projectId, string $accessToken, array $message): bool
+    protected function dispatchMessage(string $projectId, string $accessToken, array $message): bool
     {
         $endpoint = sprintf(
             'https://fcm.googleapis.com/v1/projects/%s/messages:send',
@@ -304,7 +304,7 @@ class FcmService
     /**
      * @param array<int, string> $headers
      */
-    private function performHttpRequest(string $url, string $body, array $headers): ?string
+    protected function performHttpRequest(string $url, string $body, array $headers): ?string
     {
         if (!function_exists('curl_init')) {
             return null;
