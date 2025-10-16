@@ -28,8 +28,8 @@ repo-root/
 ## 3. Environnements & secrets
 - **Boutique PrestaShop** : environnements `preprod` et `prod`, HTTPS obligatoire avec certificat valide et HSTS.
 - **Module Rebuild Connector** :
-  - Variables config : URL service FCM, JSON du compte de service Firebase (stocké chiffré), clé secrète JWT (HS256) ou paire RSA (RS256).
-  - Table `ps_configuration` pour conserver `REBUILDCONNECTOR_FCM_SERVICE_ACCOUNT`, `REBUILDCONNECTOR_API_SCOPES`.
+  - Variables config : URL service FCM, JSON du compte de service Firebase (stocké chiffré), clé secrète JWT (HS256) ou paire RSA (RS256), URL webhook + secret HMAC, liste blanche IP/CIDR, limite de requêtes par minute, overrides d’environnement (`KEY=VALUE`).
+  - Table `ps_configuration` pour conserver `REBUILDCONNECTOR_FCM_SERVICE_ACCOUNT`, `REBUILDCONNECTOR_API_SCOPES`, `REBUILDCONNECTOR_RATE_LIMIT`, `REBUILDCONNECTOR_ALLOWED_IPS`, `REBUILDCONNECTOR_ENV_OVERRIDES`, etc.
 - **Application Android** :
   - `google-services.json` (Firebase), `prestaservice.keystore` pour signature, `gradle.properties` contenant `REBUILDCONNECTOR_BASE_URL`, `CLIENT_ID`, `CLIENT_SECRET`.
   - Utiliser EncryptedSharedPrefs + Android Keystore pour stocker la clé API et le token JWT.
@@ -180,4 +180,5 @@ curl -X PATCH "https://example.com/module/rebuildconnector/api/orders/123/shippi
 - **Contrôleurs REST** : centraliser la logique commune (`requireAuth`, `isDevMode`, `jsonError`) via `BaseApiController` et réutiliser les helpers plutôt que re-tester les constantes.
 - **Dev mode** : passer systématiquement par `isDevMode()` (ou équivalent) au lieu d’expressions `defined('_PS_MODE_DEV_') && ...` pour éviter les avertissements statiques.
 - **Internationalisation** : toute nouvelle chaîne (erreur, succès, notifications) doit être ajoutée en FR et EN dans `TranslationService`.
+- **Paramètres BO** : toute nouvelle option de configuration doit passer par `SettingsService` (get/set/export + validations), être exposée dans le template BO, documentée dans `README.md` et `agent.md`, et accompagnée de traductions FR/EN + messages d’erreur cohérents.
 - **Workflows CI** : conserver `php_ci.yml` comme référence ; ne pousser que lorsque lint et PHPStan sont verts localement.

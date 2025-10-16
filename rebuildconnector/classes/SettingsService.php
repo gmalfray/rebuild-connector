@@ -77,6 +77,36 @@ class SettingsService
             $updated = true;
         }
 
+        if (!isset($settings['webhook_url']) || !is_string($settings['webhook_url'])) {
+            $settings['webhook_url'] = '';
+            $updated = true;
+        }
+
+        if (!isset($settings['webhook_secret']) || !is_string($settings['webhook_secret'])) {
+            $settings['webhook_secret'] = '';
+            $updated = true;
+        }
+
+        if (!isset($settings['allowed_ips'])) {
+            $settings['allowed_ips'] = '';
+            $updated = true;
+        }
+
+        if (!isset($settings['rate_limit_enabled'])) {
+            $settings['rate_limit_enabled'] = false;
+            $updated = true;
+        }
+
+        if (!isset($settings['rate_limit'])) {
+            $settings['rate_limit'] = 60;
+            $updated = true;
+        }
+
+        if (!isset($settings['env_overrides'])) {
+            $settings['env_overrides'] = '';
+            $updated = true;
+        }
+
         if ($updated) {
             $this->save($settings);
         }
@@ -184,6 +214,47 @@ class SettingsService
     {
         $parts = preg_split('/[\r\n,]+/', $scopes) ?: [];
         $this->setScopes($parts);
+    }
+
+    public function getWebhookUrl(): string
+    {
+        $settings = $this->all();
+        if (!isset($settings['webhook_url']) || !is_string($settings['webhook_url'])) {
+            return '';
+        }
+
+        return trim($settings['webhook_url']);
+    }
+
+    public function setWebhookUrl(string $url): void
+    {
+        $settings = $this->all();
+        $settings['webhook_url'] = trim($url);
+        $this->save($settings);
+    }
+
+    public function getWebhookSecret(): string
+    {
+        $settings = $this->all();
+        if (!isset($settings['webhook_secret']) || !is_string($settings['webhook_secret'])) {
+            return '';
+        }
+
+        return (string) $settings['webhook_secret'];
+    }
+
+    public function setWebhookSecret(string $secret): void
+    {
+        $settings = $this->all();
+        $settings['webhook_secret'] = $secret;
+        $this->save($settings);
+    }
+
+    public function clearWebhookSecret(): void
+    {
+        $settings = $this->all();
+        $settings['webhook_secret'] = '';
+        $this->save($settings);
     }
 
     /**
@@ -324,6 +395,139 @@ class SettingsService
         return $this->sanitizeTopics($parts);
     }
 
+    public function getAllowedIpRangesRaw(): string
+    {
+        $settings = $this->all();
+        if (!isset($settings['allowed_ips'])) {
+            return '';
+        }
+
+        $value = $settings['allowed_ips'];
+        if (is_array($value)) {
+            return implode("\n", array_map('trim', $value));
+        }
+
+        return is_string($value) ? trim($value) : '';
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    public function getAllowedIpRanges(): array
+    {
+        $raw = $this->getAllowedIpRangesRaw();
+        if ($raw === '') {
+            return [];
+        }
+
+        $parts = preg_split('/[\r\n,]+/', $raw) ?: [];
+
+        $ranges = [];
+        foreach ($parts as $part) {
+            if (!is_string($part)) {
+                continue;
+            }
+            $normalized = $this->sanitizeIpRange($part);
+            if ($normalized !== null) {
+                $ranges[] = $normalized;
+            }
+        }
+
+        return array_values(array_unique($ranges));
+    }
+
+    /**
+     * @throws \InvalidArgumentException
+     */
+    public function setAllowedIpRanges(string $list): void
+    {
+        $parts = preg_split('/[\r\n,]+/', $list) ?: [];
+        $normalized = [];
+        foreach ($parts as $part) {
+            if (!is_string($part)) {
+                continue;
+            }
+            $candidate = $this->sanitizeIpRange($part);
+            if ($candidate === null && trim($part) !== '') {
+                throw new \InvalidArgumentException('Invalid IP range: ' . $part);
+            }
+            if ($candidate !== null) {
+                $normalized[] = $candidate;
+            }
+        }
+
+        $settings = $this->all();
+        $settings['allowed_ips'] = implode("\n", array_values(array_unique($normalized)));
+        $this->save($settings);
+    }
+
+    public function isRateLimitEnabled(): bool
+    {
+        $settings = $this->all();
+        return isset($settings['rate_limit_enabled']) ? (bool) $settings['rate_limit_enabled'] : false;
+    }
+
+    public function setRateLimitEnabled(bool $enabled): void
+    {
+        $settings = $this->all();
+        $settings['rate_limit_enabled'] = $enabled;
+        $this->save($settings);
+    }
+
+    public function getRateLimit(): int
+    {
+        $settings = $this->all();
+        $limit = isset($settings['rate_limit']) ? (int) $settings['rate_limit'] : 60;
+
+        return $limit > 0 ? $limit : 60;
+    }
+
+    public function setRateLimit(int $limit): void
+    {
+        $limit = max(1, $limit);
+        $settings = $this->all();
+        $settings['rate_limit'] = $limit;
+        $this->save($settings);
+    }
+
+    public function getEnvOverridesRaw(): string
+    {
+        $settings = $this->all();
+        if (!isset($settings['env_overrides'])) {
+            return '';
+        }
+
+        return is_string($settings['env_overrides']) ? trim($settings['env_overrides']) : '';
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function getEnvOverrides(): array
+    {
+        return $this->parseEnvOverrides($this->getEnvOverridesRaw());
+    }
+
+    /**
+     * @throws \InvalidArgumentException
+     */
+    public function setEnvOverrides(string $overrides): void
+    {
+        $normalized = $this->parseEnvOverrides($overrides, true);
+
+        $settings = $this->all();
+        $settings['env_overrides'] = $normalized === []
+            ? ''
+            : implode("\n", array_map(
+                static function ($key, $value): string {
+                    return $key . '=' . $value;
+                },
+                array_keys($normalized),
+                $normalized
+            ));
+        $this->save($settings);
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -347,6 +551,12 @@ class SettingsService
             'fcm_topics_list' => $this->getFcmTopics(),
             'scopes' => $this->getScopes(),
             'scopes_text' => implode("\n", $this->getScopes()),
+            'webhook_url' => $this->getWebhookUrl(),
+            'webhook_secret_preview' => $this->renderSecretPreview($this->getWebhookSecret()),
+            'allowed_ips' => $this->getAllowedIpRangesRaw(),
+            'rate_limit_enabled' => $this->isRateLimitEnabled(),
+            'rate_limit' => $this->getRateLimit(),
+            'env_overrides' => $this->getEnvOverridesRaw(),
         ];
     }
 
@@ -406,5 +616,97 @@ class SettingsService
         }
 
         return array_values(array_unique($normalized));
+    }
+
+    private function sanitizeIpRange(string $range): ?string
+    {
+        $range = trim($range);
+        if ($range === '') {
+            return null;
+        }
+
+        if (strpos($range, '/') === false) {
+            return filter_var($range, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 | FILTER_FLAG_IPV6)
+                ? $range
+                : null;
+        }
+
+        [$ip, $mask] = explode('/', $range, 2);
+        $ip = trim($ip);
+        $mask = trim($mask);
+
+        if ($ip === '' || $mask === '') {
+            return null;
+        }
+
+        $validatedIp = filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 | FILTER_FLAG_IPV6);
+        if ($validatedIp === false) {
+            return null;
+        }
+
+        if (!ctype_digit($mask)) {
+            return null;
+        }
+
+        $maskValue = (int) $mask;
+        $maxMask = strpos($validatedIp, ':') !== false ? 128 : 32;
+        if ($maskValue < 0 || $maskValue > $maxMask) {
+            return null;
+        }
+
+        return $validatedIp . '/' . $maskValue;
+    }
+
+    /**
+     * @return array<string, string>
+     * @throws \InvalidArgumentException
+     */
+    private function parseEnvOverrides(string $raw, bool $validate = false): array
+    {
+        $raw = trim($raw);
+        if ($raw === '') {
+            return [];
+        }
+
+        $lines = preg_split('/\r\n|\r|\n/', $raw) ?: [];
+        $result = [];
+
+        foreach ($lines as $line) {
+            $line = trim($line);
+            if ($line === '' || strpos($line, '#') === 0) {
+                continue;
+            }
+
+            $position = strpos($line, '=');
+            if ($position === false) {
+                if ($validate) {
+                    throw new \InvalidArgumentException('Invalid env override line: ' . $line);
+                }
+                continue;
+            }
+
+            $key = trim(substr($line, 0, $position));
+            $value = trim(substr($line, $position + 1));
+
+            if ($key === '') {
+                if ($validate) {
+                    throw new \InvalidArgumentException('Invalid env override line: ' . $line);
+                }
+
+                continue;
+            }
+
+            if (!preg_match('/^[A-Z0-9_]+$/', $key)) {
+                if ($validate) {
+                    throw new \InvalidArgumentException('Invalid env key: ' . $key);
+                }
+
+                continue;
+            }
+
+            $result[$key] = $value;
+        }
+
+        return $result;
     }
 }
