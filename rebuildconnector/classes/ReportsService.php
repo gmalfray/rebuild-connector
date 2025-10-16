@@ -93,6 +93,9 @@ class ReportsService
         return $results;
     }
 
+    /**
+     * @param array<string, mixed> $filters
+     */
     private function applyDateFilters(DbQuery $query, string $column, array $filters): void
     {
         if (!empty($filters['date_from'])) {
@@ -124,17 +127,16 @@ class ReportsService
         return (int) Configuration::get('PS_SHOP_DEFAULT');
     }
 
-    private function sanitizeLimit($value): int
+    private function sanitizeLimit(?int $value): int
     {
-        $limit = (int) $value;
-        if ($limit <= 0) {
-            $limit = self::DEFAULT_LIMIT;
+        if ($value === null || $value <= 0) {
+            return self::DEFAULT_LIMIT;
         }
 
-        if ($limit > self::MAX_LIMIT) {
-            $limit = self::MAX_LIMIT;
+        if ($value > self::MAX_LIMIT) {
+            return self::MAX_LIMIT;
         }
 
-        return $limit;
+        return $value;
     }
 }
