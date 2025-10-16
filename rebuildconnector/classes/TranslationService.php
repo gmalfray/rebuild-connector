@@ -35,6 +35,22 @@ class TranslationService
             'en' => 'The FCM service account must contain valid JSON.',
             'fr' => 'Le compte de service FCM doit contenir un JSON valide.',
         ],
+        'admin.error.invalid_webhook_url' => [
+            'en' => 'The webhook URL must be a valid HTTPS address.',
+            'fr' => 'L’URL du webhook doit être une adresse HTTPS valide.',
+        ],
+        'admin.error.invalid_ip_range' => [
+            'en' => 'One or more IP ranges are invalid. Use plain IPs or CIDR notation.',
+            'fr' => 'Une ou plusieurs adresses IP sont invalides. Utilisez des IPs simples ou en notation CIDR.',
+        ],
+        'admin.error.invalid_env_overrides' => [
+            'en' => 'Environment overrides must follow the KEY=VALUE format (uppercase keys).',
+            'fr' => 'Les overrides d’environnement doivent respecter le format KEY=VALUE (clés en majuscules).',
+        ],
+        'admin.error.invalid_rate_limit' => [
+            'en' => 'Rate limit must be a positive integer.',
+            'fr' => 'La limite de requêtes doit être un entier positif.',
+        ],
 
         // Admin form labels & help
         'admin.form.title' => [
@@ -104,6 +120,66 @@ class TranslationService
         'admin.form.device_tokens_help' => [
             'en' => 'Optional static tokens (one per line) used until the app registers users automatically.',
             'fr' => 'Jetons statiques optionnels (un par ligne) utilisés jusqu’à l’enregistrement automatique des appareils par l’application.',
+        ],
+        'admin.form.webhook_url_label' => [
+            'en' => 'Webhook URL',
+            'fr' => 'URL du webhook',
+        ],
+        'admin.form.webhook_url_help' => [
+            'en' => 'Optional HTTPS endpoint that receives real-time events (e.g. order updates).',
+            'fr' => 'Endpoint HTTPS optionnel recevant les événements en temps réel (ex. mises à jour commandes).',
+        ],
+        'admin.form.webhook_secret_label' => [
+            'en' => 'Webhook secret',
+            'fr' => 'Secret webhook',
+        ],
+        'admin.form.webhook_secret_help' => [
+            'en' => 'Provide a shared secret for HMAC signatures. Leave empty to keep the current secret.',
+            'fr' => 'Fournissez un secret partagé pour les signatures HMAC. Laissez vide pour conserver le secret actuel.',
+        ],
+        'admin.form.webhook_secret_placeholder' => [
+            'en' => 'New secret…',
+            'fr' => 'Nouveau secret…',
+        ],
+        'admin.form.webhook_secret_clear_label' => [
+            'en' => 'Reset webhook secret',
+            'fr' => 'Réinitialiser le secret webhook',
+        ],
+        'admin.form.rate_limit_enabled_label' => [
+            'en' => 'Rate limiting',
+            'fr' => 'Limitation de débit',
+        ],
+        'admin.form.rate_limit_enabled_toggle' => [
+            'en' => 'Enable API rate limiting',
+            'fr' => 'Activer la limitation de requêtes API',
+        ],
+        'admin.form.rate_limit_enabled_help' => [
+            'en' => 'When enabled, incoming requests exceeding the threshold are rejected with HTTP 429.',
+            'fr' => 'Lorsque activé, les requêtes dépassant le seuil sont rejetées avec un HTTP 429.',
+        ],
+        'admin.form.rate_limit_label' => [
+            'en' => 'Requests per minute',
+            'fr' => 'Requêtes par minute',
+        ],
+        'admin.form.rate_limit_help' => [
+            'en' => 'Maximum number of API calls allowed per minute from a single token/IP.',
+            'fr' => 'Nombre maximal d’appels API autorisés par minute pour un jeton/IP.',
+        ],
+        'admin.form.allowed_ips_label' => [
+            'en' => 'Allowed IP ranges',
+            'fr' => 'Plages IP autorisées',
+        ],
+        'admin.form.allowed_ips_help' => [
+            'en' => 'Restrict access to specific IPs or CIDR ranges (one per line). Leave empty to allow all.',
+            'fr' => 'Restreignez l’accès à certaines IP ou plages CIDR (une par ligne). Laissez vide pour tout autoriser.',
+        ],
+        'admin.form.env_overrides_label' => [
+            'en' => 'Environment overrides',
+            'fr' => 'Overrides d’environnement',
+        ],
+        'admin.form.env_overrides_help' => [
+            'en' => 'Dynamic configuration injected as KEY=VALUE pairs. Lines starting with # are ignored.',
+            'fr' => 'Configuration dynamique injectée sous forme de paires KEY=VALUE. Les lignes commençant par # sont ignorées.',
         ],
         'admin.form.save_button' => [
             'en' => 'Save settings',
@@ -311,6 +387,21 @@ class TranslationService
             'topics_help' => $this->translate('admin.form.topics_help', $locale),
             'device_tokens_label' => $this->translate('admin.form.device_tokens_label', $locale),
             'device_tokens_help' => $this->translate('admin.form.device_tokens_help', $locale),
+            'webhook_url_label' => $this->translate('admin.form.webhook_url_label', $locale),
+            'webhook_url_help' => $this->translate('admin.form.webhook_url_help', $locale),
+            'webhook_secret_label' => $this->translate('admin.form.webhook_secret_label', $locale),
+            'webhook_secret_help' => $this->translate('admin.form.webhook_secret_help', $locale),
+            'webhook_secret_placeholder' => $this->translate('admin.form.webhook_secret_placeholder', $locale),
+            'webhook_secret_clear_label' => $this->translate('admin.form.webhook_secret_clear_label', $locale),
+            'rate_limit_enabled_label' => $this->translate('admin.form.rate_limit_enabled_label', $locale),
+            'rate_limit_enabled_toggle' => $this->translate('admin.form.rate_limit_enabled_toggle', $locale),
+            'rate_limit_enabled_help' => $this->translate('admin.form.rate_limit_enabled_help', $locale),
+            'rate_limit_label' => $this->translate('admin.form.rate_limit_label', $locale),
+            'rate_limit_help' => $this->translate('admin.form.rate_limit_help', $locale),
+            'allowed_ips_label' => $this->translate('admin.form.allowed_ips_label', $locale),
+            'allowed_ips_help' => $this->translate('admin.form.allowed_ips_help', $locale),
+            'env_overrides_label' => $this->translate('admin.form.env_overrides_label', $locale),
+            'env_overrides_help' => $this->translate('admin.form.env_overrides_help', $locale),
             'save_button' => $this->translate('admin.form.save_button', $locale),
         ];
     }

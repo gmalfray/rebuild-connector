@@ -246,6 +246,18 @@ class Validate
     {
         return $object !== null;
     }
+
+    /**
+     * @param mixed $url
+     */
+    public static function isUrl($url): bool
+    {
+        if (!is_string($url) || $url === '') {
+            return false;
+        }
+
+        return filter_var($url, FILTER_VALIDATE_URL) !== false;
+    }
 }
 
 class Db

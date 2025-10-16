@@ -111,6 +111,45 @@ class RebuildConnector extends Module
             $topics = (string) Tools::getValue('REBUILDCONNECTOR_FCM_TOPICS', '');
             $settingsService->setFcmTopics($topics);
 
+            $webhookUrl = trim((string) Tools::getValue('REBUILDCONNECTOR_WEBHOOK_URL'));
+            if ($webhookUrl !== '' && !Validate::isUrl($webhookUrl)) {
+                $errors[] = $this->t('admin.error.invalid_webhook_url');
+            } else {
+                $settingsService->setWebhookUrl($webhookUrl);
+            }
+
+            $webhookSecret = trim((string) Tools::getValue('REBUILDCONNECTOR_WEBHOOK_SECRET'));
+            $webhookSecretClear = Tools::getValue('REBUILDCONNECTOR_WEBHOOK_SECRET_CLEAR') === '1';
+            if ($webhookSecretClear) {
+                $settingsService->clearWebhookSecret();
+            } elseif ($webhookSecret !== '') {
+                $settingsService->setWebhookSecret($webhookSecret);
+            }
+
+            $allowedIpRanges = (string) Tools::getValue('REBUILDCONNECTOR_ALLOWED_IPS', '');
+            try {
+                $settingsService->setAllowedIpRanges($allowedIpRanges);
+            } catch (\InvalidArgumentException $exception) {
+                $errors[] = $this->t('admin.error.invalid_ip_range');
+            }
+
+            $rateLimitEnabled = Tools::getValue('REBUILDCONNECTOR_RATE_LIMIT_ENABLED') === '1';
+            $settingsService->setRateLimitEnabled($rateLimitEnabled);
+
+            $rateLimitRaw = Tools::getValue('REBUILDCONNECTOR_RATE_LIMIT', 60);
+            if (!is_numeric($rateLimitRaw) || (int) $rateLimitRaw <= 0) {
+                $errors[] = $this->t('admin.error.invalid_rate_limit');
+            } else {
+                $settingsService->setRateLimit((int) $rateLimitRaw);
+            }
+
+            $envOverrides = trim((string) Tools::getValue('REBUILDCONNECTOR_ENV_OVERRIDES'));
+            try {
+                $settingsService->setEnvOverrides($envOverrides);
+            } catch (\InvalidArgumentException $exception) {
+                $errors[] = $this->t('admin.error.invalid_env_overrides');
+            }
+
             if ($errors === []) {
                 $messages[] = $this->t('admin.message.settings_updated');
         }
