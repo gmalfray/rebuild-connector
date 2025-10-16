@@ -2,6 +2,7 @@
 
 defined('_PS_VERSION_') || exit;
 
+require_once __DIR__ . '/BaseApiController.php';
 require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/CustomersService.php';
 
 class RebuildconnectorCustomersModuleFrontController extends RebuildconnectorBaseApiModuleFrontController
