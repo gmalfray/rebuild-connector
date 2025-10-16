@@ -139,6 +139,26 @@ class RebuildconnectorProductsModuleFrontController extends RebuildconnectorBase
                 $product['quantity'] = $quantity;
                 break;
             case 'attributes':
+                if (array_key_exists('active', $payload)) {
+                    $normalizedActive = $this->normalizeBooleanValue($payload['active']);
+                    if ($normalizedActive === null) {
+                        throw new \InvalidArgumentException(
+                            $this->t('products.error.invalid_active', [], 'The active field is invalid.')
+                        );
+                    }
+                    $payload['active'] = $normalizedActive;
+                }
+
+                if (array_key_exists('price_tax_excl', $payload)) {
+                    $rawPrice = $payload['price_tax_excl'];
+                    if (!is_numeric($rawPrice)) {
+                        throw new \InvalidArgumentException(
+                            $this->t('products.error.invalid_price', [], 'The price_tax_excl field must be numeric.')
+                        );
+                    }
+                    $payload['price_tax_excl'] = (float) $rawPrice;
+                }
+
                 if (!$this->getProductsService()->updateProduct($productId, $payload)) {
                     $this->jsonError(
                         'invalid_payload',
@@ -165,5 +185,50 @@ class RebuildconnectorProductsModuleFrontController extends RebuildconnectorBase
         }
 
         return $this->productsService;
+    }
+
+    /**
+     * @param mixed $value
+     */
+    private function normalizeBooleanValue($value): ?bool
+    {
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        if (is_int($value)) {
+            if ($value === 1) {
+                return true;
+            }
+            if ($value === 0) {
+                return false;
+            }
+
+            return null;
+        }
+
+        if (is_float($value)) {
+            if ((int) $value === 1) {
+                return true;
+            }
+            if ((int) $value === 0) {
+                return false;
+            }
+
+            return null;
+        }
+
+        if (is_string($value)) {
+            $normalized = Tools::strtolower(trim($value));
+            if (in_array($normalized, ['1', 'true', 'yes', 'on'], true)) {
+                return true;
+            }
+
+            if (in_array($normalized, ['0', 'false', 'no', 'off'], true)) {
+                return false;
+            }
+        }
+
+        return null;
     }
 }

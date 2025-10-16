@@ -289,6 +289,14 @@ class TranslationService
             'en' => 'Invalid product payload.',
             'fr' => 'Données produit invalides.',
         ],
+        'products.error.invalid_active' => [
+            'en' => 'The active field must be a boolean-compatible value.',
+            'fr' => 'Le champ active doit être une valeur booléenne valide.',
+        ],
+        'products.error.invalid_price' => [
+            'en' => 'The price_tax_excl field must be a numeric value.',
+            'fr' => 'Le champ price_tax_excl doit être une valeur numérique.',
+        ],
         'products.error.invalid_action' => [
             'en' => 'Unsupported product action.',
             'fr' => 'Action produit non prise en charge.',

@@ -87,10 +87,32 @@ curl -X PATCH "https://example.com/module/rebuildconnector/api/orders/123/shippi
   "id": 88,
   "name": "T-shirt noir",
   "reference": "TSHIRT-BLACK",
-  "price": 24.90,
   "active": true,
-  "stock": { "quantity": 12, "stock_available_id": 120 },
-  "images": [{ "id": 501, "url": "https://..." }]
+  "price_tax_excl": 24.90,
+  "price_tax_incl": 29.88,
+  "quantity": 12,
+  "cover_image": {
+    "id": 501,
+    "is_cover": true,
+    "url": "https://example.com/img/88-501-large_default.jpg",
+    "urls": {
+      "thumbnail": "https://example.com/img/88-501-home_default.jpg",
+      "large": "https://example.com/img/88-501-large_default.jpg"
+    }
+  },
+  "images": [
+    {
+      "id": 501,
+      "is_cover": true,
+      "legend": "Face avant",
+      "position": 1,
+      "url": "https://example.com/img/88-501-large_default.jpg",
+      "urls": {
+        "thumbnail": "https://example.com/img/88-501-home_default.jpg",
+        "large": "https://example.com/img/88-501-large_default.jpg"
+      }
+    }
+  ]
 }
 
 // StockAvailableDTO

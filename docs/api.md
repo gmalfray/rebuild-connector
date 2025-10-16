@@ -87,6 +87,69 @@ Liste ou recherche produit.
 | `filter[active]`   | bool   | `1` actifs / `0` inactifs       |
 | `search`           | string | Nom, référence                  |
 
+**Réponse 200 (extrait)**
+
+```json
+{
+  "data": [
+    {
+      "id": 88,
+      "name": "T-shirt noir",
+      "reference": "TSHIRT-BLACK",
+      "price_tax_excl": 15.9,
+      "price_tax_incl": 19.08,
+      "quantity": 24,
+      "cover_image": {
+        "id": 101,
+        "is_cover": true,
+        "url": "https://example.com/img/88-101-large_default.jpg",
+        "urls": {
+          "thumbnail": "https://example.com/img/88-101-home_default.jpg",
+          "large": "https://example.com/img/88-101-large_default.jpg"
+        }
+      }
+    }
+  ]
+}
+```
+
+### GET `/products/{id}`
+
+Renvoie la fiche produit détaillée (équivalent d’un `GET /products` ciblé) avec la liste complète des images.
+
+**Réponse 200 (extrait)**
+
+```json
+{
+  "data": {
+    "id": 88,
+    "name": "T-shirt noir",
+    "cover_image": {
+      "id": 101,
+      "is_cover": true,
+      "url": "https://example.com/img/88-101-large_default.jpg",
+      "urls": {
+        "thumbnail": "https://example.com/img/88-101-home_default.jpg",
+        "large": "https://example.com/img/88-101-large_default.jpg"
+      }
+    },
+    "images": [
+      {
+        "id": 101,
+        "is_cover": true,
+        "legend": "Face avant",
+        "position": 1,
+        "url": "https://example.com/img/88-101-large_default.jpg",
+        "urls": {
+          "thumbnail": "https://example.com/img/88-101-home_default.jpg",
+          "large": "https://example.com/img/88-101-large_default.jpg"
+        }
+      }
+    ]
+  }
+}
+```
+
 ### PATCH `/products/{id}/stock`
 
 ```http

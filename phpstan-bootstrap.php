@@ -31,6 +31,8 @@ class Context
     public $shop;
     /** @var Employee|null */
     public $employee;
+    /** @var Link */
+    public $link;
 
     public function __construct()
     {
@@ -38,6 +40,7 @@ class Context
         $this->language = null;
         $this->shop = new Shop();
         $this->employee = new Employee();
+        $this->link = new Link();
     }
 
     public static function getContext(): self
@@ -60,6 +63,33 @@ class Shop
 {
     /** @var int */
     public $id = 1;
+}
+
+class Link
+{
+    public function getImageLink(string $rewrite, string $idImage, string $type = 'large_default'): string
+    {
+        return 'https://example.com/img/' . $idImage . '.jpg';
+    }
+}
+
+class Image
+{
+    /**
+     * @return array<string, mixed>|false
+     */
+    public static function getCover(int $idProduct)
+    {
+        return ['id_image' => 0];
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    public static function getImages(int $idLang, int $idProduct): array
+    {
+        return [];
+    }
 }
 
 class Employee
@@ -530,8 +560,10 @@ class Product
     public $price = 0.0;
     /** @var bool */
     public $active = true;
+    /** @var string|array<int, string> */
+    public $link_rewrite = '';
 
-    public function __construct(int $id_product)
+    public function __construct(int $id_product, bool $full = false, ?int $id_lang = null, ?int $id_shop = null)
     {
     }
 

@@ -64,6 +64,7 @@ rebuildconnector/
 | PATCH | /orders/{id}/status | Modifier le statut |
 | PATCH | /orders/{id}/shipping | Ajouter/modifier un numéro de suivi |
 | GET | /products | Liste des produits |
+| GET | /products/{id} | Détail produit + images |
 | PATCH | /products/{id}/stock | Mettre à jour le stock |
 | GET | /dashboard/metrics | Statistiques et KPI |
 
