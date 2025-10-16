@@ -52,7 +52,7 @@ class RebuildconnectorOrdersModuleFrontController extends RebuildconnectorBaseAp
                 400
             );
         } catch (\Throwable $exception) {
-            $message = _PS_MODE_DEV_ ? $exception->getMessage() : $this->t('api.error.unexpected', [], 'Unexpected error during authentication.');
+            $message = $this->isDevMode() ? $exception->getMessage() : $this->t('api.error.unexpected', [], 'Unexpected error occurred.');
             $this->jsonError('server_error', $message, 500);
         }
     }

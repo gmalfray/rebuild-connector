@@ -218,6 +218,11 @@ abstract class RebuildconnectorBaseApiModuleFrontController extends ModuleFrontC
         return is_array($data) ? $data : null;
     }
 
+    protected function isDevMode(): bool
+    {
+        return defined('_PS_MODE_DEV_') && (bool) constant('_PS_MODE_DEV_');
+    }
+
     protected function jsonError(string $error, string $message, int $statusCode): void
     {
         $this->renderJson([
