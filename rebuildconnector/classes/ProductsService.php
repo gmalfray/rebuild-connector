@@ -273,12 +273,19 @@ class ProductsService
             'large' => $this->resolveImageUrl($linkRewrite, $productId, $imageId, 'large_default'),
         ];
 
-        $urls = array_filter($urls);
+        $urls = array_filter($urls, static function (?string $value): bool {
+            return is_string($value) && $value !== '';
+        });
+
         $primaryUrl = null;
         if ($urls !== []) {
-            $candidate = $urls['large'] ?? reset($urls);
-            if (is_string($candidate) && $candidate !== '') {
-                $primaryUrl = $candidate;
+            if (isset($urls['large'])) {
+                $primaryUrl = $urls['large'];
+            } else {
+                $first = reset($urls);
+                if (is_string($first) && $first !== '') {
+                    $primaryUrl = $first;
+                }
             }
         }
 
@@ -347,11 +354,8 @@ class ProductsService
             return '';
         }
 
-        if (!property_exists($product, 'link_rewrite')) {
-            return '';
-        }
-
-        $linkRewrite = $product->link_rewrite;
+        /** @var string|array<int, string>|null $linkRewrite */
+        $linkRewrite = $product->link_rewrite ?? null;
         if (is_string($linkRewrite) && $linkRewrite !== '') {
             return $linkRewrite;
         }
