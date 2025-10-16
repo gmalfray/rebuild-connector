@@ -164,7 +164,7 @@ curl -X PATCH "https://example.com/module/rebuildconnector/api/orders/123/shippi
 - **Changement d’état** : utilisateur mobile modifie statut → PATCH `/orders/{id}/status` → PrestaShop met à jour `order_history` et déclenche `actionOrderStatusPostUpdate` → FcmService notifie les profils abonnés.
 - **Scan numéro de suivi** : app scanne/encode tracking → PATCH `/orders/{id}/shipping` → mise à jour `order_carrier` (fallback `orders`) → option notification `order.shipped`.
 - **MAJ stock hors ligne** : saisie en mode offline → ajout dans file d’attente → synchro automatique dès réseau + confirmation visuelle (badge) → en cas d’échec 409 (conflit), invite à recharger la fiche.
-- **Dashboard** : app requête `/dashboard/metrics?period=` → module calcule agrégats (CA, top ventes, meilleurs clients) → cache 5 min pour éviter surcharge.
+- **Dashboard** : app requête `/dashboard/metrics?period=` → module calcule agrégats (CA TTC/HT, TVA collectée, panier moyen, #retours, top ventes à venir) → cache 5 min pour éviter surcharge.
 
 ## 7. Guides build & qualité
 - **Android (dossier `android/`)** :
