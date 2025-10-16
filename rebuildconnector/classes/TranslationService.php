@@ -121,6 +121,14 @@ class TranslationService
             'en' => 'Optional static tokens (one per line) used until the app registers users automatically.',
             'fr' => 'Jetons statiques optionnels (un par ligne) utilisés jusqu’à l’enregistrement automatique des appareils par l’application.',
         ],
+        'admin.form.shipping_notif_label' => [
+            'en' => 'Shipping notification',
+            'fr' => 'Notification d’expédition',
+        ],
+        'admin.form.shipping_notif_help' => [
+            'en' => 'Send an FCM alert when a tracking number is added or updated.',
+            'fr' => 'Envoyer une alerte FCM lorsqu’un numéro de suivi est ajouté ou mis à jour.',
+        ],
         'admin.form.webhook_url_label' => [
             'en' => 'Webhook URL',
             'fr' => 'URL du webhook',
@@ -301,6 +309,14 @@ class TranslationService
             'en' => 'Unknown report resource.',
             'fr' => 'Ressource de rapport inconnue.',
         ],
+        'notifications.order_shipping_title' => [
+            'en' => 'Order shipped',
+            'fr' => 'Commande expédiée',
+        ],
+        'notifications.order_shipping_body' => [
+            'en' => 'Tracking number %s is now available.',
+            'fr' => 'Le numéro de suivi %s est disponible.',
+        ],
         'baskets.error.not_found' => [
             'en' => 'Basket not found.',
             'fr' => 'Panier introuvable.',
@@ -415,6 +431,8 @@ class TranslationService
             'topics_help' => $this->translate('admin.form.topics_help', $locale),
             'device_tokens_label' => $this->translate('admin.form.device_tokens_label', $locale),
             'device_tokens_help' => $this->translate('admin.form.device_tokens_help', $locale),
+            'shipping_notif_label' => $this->translate('admin.form.shipping_notif_label', $locale),
+            'shipping_notif_help' => $this->translate('admin.form.shipping_notif_help', $locale),
             'webhook_url_label' => $this->translate('admin.form.webhook_url_label', $locale),
             'webhook_url_help' => $this->translate('admin.form.webhook_url_help', $locale),
             'webhook_secret_label' => $this->translate('admin.form.webhook_secret_label', $locale),

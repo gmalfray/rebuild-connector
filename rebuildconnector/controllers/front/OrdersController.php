@@ -3,6 +3,8 @@
 defined('_PS_VERSION_') || exit;
 
 require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/OrdersService.php';
+require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/FcmService.php';
+require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/FcmDeviceService.php';
 
 class RebuildconnectorOrdersModuleFrontController extends RebuildconnectorBaseApiModuleFrontController
 {
@@ -185,10 +187,48 @@ class RebuildconnectorOrdersModuleFrontController extends RebuildconnectorBaseAp
                     $webhookPayload['carrier_id'] = $carrierId;
                 }
                 $this->dispatchWebhookEvent('order.shipping.updated', $webhookPayload);
+                $this->notifyShippingUpdate($orderId, $trackingNumber, $carrierId);
                 $this->renderJson([], 204);
                 return;
             default:
                 throw new \InvalidArgumentException($this->t('orders.error.invalid_action', [], 'Unsupported order action.'));
+        }
+    }
+
+    private function notifyShippingUpdate(int $orderId, string $trackingNumber, ?int $carrierId): void
+    {
+        $settings = $this->getSettingsService();
+        if (!$settings->isShippingNotificationEnabled()) {
+            return;
+        }
+
+        $topics = $settings->getFcmTopics();
+        $tokens = (new FcmDeviceService())->getTokens($topics);
+        $fallbackTokens = $settings->getFcmDeviceTokens();
+
+        if ($topics === [] && $tokens === [] && $fallbackTokens === []) {
+            return;
+        }
+
+        $notification = [
+            'title' => $this->t('notifications.order_shipping_title'),
+            'body' => $this->t('notifications.order_shipping_body', [$trackingNumber], sprintf('Tracking %s is now available.', $trackingNumber)),
+        ];
+
+        $data = [
+            'event' => 'order.shipping.updated',
+            'order_id' => (string) $orderId,
+            'tracking_number' => $trackingNumber,
+        ];
+
+        if ($carrierId !== null) {
+            $data['carrier_id'] = (string) $carrierId;
+        }
+
+        $success = (new FcmService($settings))->sendNotification($tokens, $notification, $data, $topics, $fallbackTokens);
+
+        if (!$success && $this->isDevMode()) {
+            error_log('[RebuildConnector] FCM shipping notification failed.');
         }
     }
 

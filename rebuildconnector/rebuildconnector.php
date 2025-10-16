@@ -29,7 +29,7 @@ class RebuildConnector extends Module
     {
         $this->name = 'rebuildconnector';
         $this->tab = 'administration';
-        $this->version = '0.2.0';
+        $this->version = '0.3.0';
         $this->author = 'Rebuild IT';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -125,6 +125,9 @@ class RebuildConnector extends Module
 
             $topics = (string) Tools::getValue('REBUILDCONNECTOR_FCM_TOPICS', '');
             $settingsService->setFcmTopics($topics);
+
+            $shippingNotifEnabled = Tools::getValue('REBUILDCONNECTOR_SHIPPING_NOTIFICATION') === '1';
+            $settingsService->setShippingNotificationEnabled($shippingNotifEnabled);
 
             $webhookUrl = trim((string) Tools::getValue('REBUILDCONNECTOR_WEBHOOK_URL'));
             if ($webhookUrl !== '' && !Validate::isUrl($webhookUrl)) {

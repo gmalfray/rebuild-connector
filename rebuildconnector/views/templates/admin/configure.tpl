@@ -138,6 +138,24 @@
             </div>
         </div>
 
+        <div class="form-group">
+            <label class="control-label col-lg-3">
+                {$i18n.shipping_notif_label|escape:'htmlall'}
+            </label>
+            <div class="col-lg-9">
+                <input type="hidden" name="REBUILDCONNECTOR_SHIPPING_NOTIFICATION" value="0">
+                <label class="checkbox-inline">
+                    <input
+                        type="checkbox"
+                        name="REBUILDCONNECTOR_SHIPPING_NOTIFICATION"
+                        value="1"
+                        {if $settings.shipping_notification_enabled}checked{/if}
+                    >
+                    {$i18n.shipping_notif_help|escape:'htmlall'}
+                </label>
+            </div>
+        </div>
+
         <hr>
 
         <div class="form-group">
