@@ -193,6 +193,9 @@ class RebuildconnectorCustomersModuleFrontController extends RebuildconnectorBas
         return $this->customersService;
     }
 
+    /**
+     * @param mixed $value
+     */
     private function parseLimit($value): int
     {
         if ($value === null || $value === '') {
@@ -219,6 +222,9 @@ class RebuildconnectorCustomersModuleFrontController extends RebuildconnectorBas
         return $limit;
     }
 
+    /**
+     * @param mixed $value
+     */
     private function parseOffset($value): int
     {
         if ($value === null || $value === '') {
