@@ -218,14 +218,10 @@ class BasketsService
             return [];
         }
 
-        if (!is_array($products)) {
-            return [];
-        }
-
         $formatted = [];
 
         foreach ($products as $product) {
-            if (!is_array($product) || !isset($product['id_product'])) {
+            if (!isset($product['id_product'])) {
                 continue;
             }
 
@@ -292,18 +288,14 @@ class BasketsService
      */
     private function getLink()
     {
-        if (class_exists('Context')) {
-            $context = Context::getContext();
-            if (isset($context->link) && $context->link instanceof Link) {
-                return $context->link;
-            }
+        if (!class_exists('Link')) {
+            return null;
         }
 
-        if (class_exists('Link')) {
-            return new Link();
-        }
+        $context = class_exists('Context') ? Context::getContext() : null;
+        $contextLink = $context !== null ? $context->link : null;
 
-        return null;
+        return $contextLink instanceof Link ? $contextLink : new Link();
     }
 
     /**
@@ -355,6 +347,9 @@ class BasketsService
         return array_values(array_unique($sanitized));
     }
 
+    /**
+     * @param mixed $value
+     */
     private function sanitizeLimit($value): int
     {
         $limit = (int) $value;
