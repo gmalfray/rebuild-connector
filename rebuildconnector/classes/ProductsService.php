@@ -278,7 +278,7 @@ class ProductsService
         });
 
         $primaryUrl = $urls['large'] ?? null;
-        if ($primaryUrl === null && $urls !== []) {
+        if ($primaryUrl === null) {
             $first = reset($urls);
             if ($first !== false) {
                 $primaryUrl = $first;
@@ -350,7 +350,6 @@ class ProductsService
             return '';
         }
 
-        /** @var string|array<int, string>|null $linkRewrite */
         $linkRewrite = $product->link_rewrite ?? null;
         if (is_string($linkRewrite) && $linkRewrite !== '') {
             return $linkRewrite;
