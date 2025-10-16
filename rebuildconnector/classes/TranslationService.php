@@ -209,6 +209,66 @@ class TranslationService
             'en' => 'Customer not found.',
             'fr' => 'Client introuvable.',
         ],
+        'customers.error.invalid_limit' => [
+            'en' => 'The limit parameter must be a positive integer.',
+            'fr' => 'Le paramètre limit doit être un entier positif.',
+        ],
+        'customers.error.invalid_offset' => [
+            'en' => 'The offset parameter must be a non-negative integer.',
+            'fr' => 'Le paramètre offset doit être un entier supérieur ou égal à zéro.',
+        ],
+        'customers.error.invalid_email' => [
+            'en' => 'The email filter must contain a valid email address.',
+            'fr' => 'Le filtre email doit contenir une adresse email valide.',
+        ],
+        'customers.error.invalid_segment' => [
+            'en' => 'The provided segment filter is not supported.',
+            'fr' => 'Le segment fourni n’est pas pris en charge.',
+        ],
+        'customers.error.invalid_min_orders' => [
+            'en' => 'The min_orders filter must be a positive integer.',
+            'fr' => 'Le filtre min_orders doit être un entier positif.',
+        ],
+        'customers.error.invalid_max_orders' => [
+            'en' => 'The max_orders filter must be a positive integer.',
+            'fr' => 'Le filtre max_orders doit être un entier positif.',
+        ],
+        'customers.error.invalid_orders_range' => [
+            'en' => 'The min_orders filter cannot be greater than max_orders.',
+            'fr' => 'Le filtre min_orders ne peut pas être supérieur à max_orders.',
+        ],
+        'customers.error.invalid_min_spent' => [
+            'en' => 'The min_spent filter must be a positive number.',
+            'fr' => 'Le filtre min_spent doit être un nombre positif.',
+        ],
+        'customers.error.invalid_max_spent' => [
+            'en' => 'The max_spent filter must be a positive number.',
+            'fr' => 'Le filtre max_spent doit être un nombre positif.',
+        ],
+        'customers.error.invalid_spent_range' => [
+            'en' => 'The min_spent filter cannot be greater than max_spent.',
+            'fr' => 'Le filtre min_spent ne peut pas être supérieur à max_spent.',
+        ],
+        'customers.error.invalid_created_from' => [
+            'en' => 'The created_from filter must contain a valid date.',
+            'fr' => 'Le filtre created_from doit contenir une date valide.',
+        ],
+        'customers.error.invalid_created_to' => [
+            'en' => 'The created_to filter must contain a valid date.',
+            'fr' => 'Le filtre created_to doit contenir une date valide.',
+        ],
+        'customers.error.invalid_created_range' => [
+            'en' => 'The created_from filter cannot be greater than created_to.',
+            'fr' => 'Le filtre created_from ne peut pas être supérieur à created_to.',
+        ],
+        'customers.error.invalid_sort' => [
+            'en' => 'The requested sort value is not supported.',
+            'fr' => 'La valeur de tri demandée n’est pas prise en charge.',
+        ],
+        'customers.error.invalid_ids' => [
+            'en' => 'The ids filter must be a list of customer identifiers.',
+            'fr' => 'Le filtre ids doit être une liste d’identifiants clients.',
+        ],
     ];
 
     /**
