@@ -138,6 +138,10 @@ class Module
 
 class ModuleFrontController extends Module
 {
+    public function init(): void
+    {
+    }
+
     public function initContent(): void
     {
     }
@@ -174,6 +178,11 @@ class Tools
     public static function getShopDomainSsl(bool $http = false): string
     {
         return 'https://example.com';
+    }
+
+    public static function getRemoteAddr(): string
+    {
+        return '127.0.0.1';
     }
 
     /**
