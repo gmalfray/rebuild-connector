@@ -104,6 +104,11 @@ class SettingsService
             $updated = true;
         }
 
+        if (!isset($settings['shipping_notification_enabled'])) {
+            $settings['shipping_notification_enabled'] = false;
+            $updated = true;
+        }
+
         if (!isset($settings['env_overrides'])) {
             $settings['env_overrides'] = '';
             $updated = true;
@@ -553,7 +558,21 @@ class SettingsService
             'rate_limit_enabled' => $this->isRateLimitEnabled(),
             'rate_limit' => $this->getRateLimit(),
             'env_overrides' => $this->getEnvOverridesRaw(),
+            'shipping_notification_enabled' => $this->isShippingNotificationEnabled(),
         ];
+    }
+
+    public function isShippingNotificationEnabled(): bool
+    {
+        $settings = $this->all();
+        return isset($settings['shipping_notification_enabled']) ? (bool) $settings['shipping_notification_enabled'] : false;
+    }
+
+    public function setShippingNotificationEnabled(bool $enabled): void
+    {
+        $settings = $this->all();
+        $settings['shipping_notification_enabled'] = $enabled;
+        $this->save($settings);
     }
 
     private function generateApiKey(): string
