@@ -268,8 +268,19 @@ class FcmService
 
     private function log(string $message): void
     {
-        if (defined('_PS_MODE_DEV_') && (bool) constant('_PS_MODE_DEV_')) {
-            error_log('[RebuildConnector] ' . $message);
+        if (!$this->isDevMode()) {
+            return;
         }
+
+        error_log('[RebuildConnector] ' . $message);
+    }
+
+    private function isDevMode(): bool
+    {
+        if (!defined('_PS_MODE_DEV_')) {
+            return false;
+        }
+
+        return (bool) constant('_PS_MODE_DEV_');
     }
 }

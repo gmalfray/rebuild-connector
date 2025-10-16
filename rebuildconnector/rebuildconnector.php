@@ -264,7 +264,7 @@ class RebuildConnector extends Module
         }
 
         $success = $this->getFcmService()->sendNotification($tokens, $notification, $data);
-        if (!$success && defined('_PS_MODE_DEV_') && _PS_MODE_DEV_) {
+        if (!$success && $this->isDevMode()) {
             error_log('[RebuildConnector] FCM notification failed.');
         }
     }
@@ -319,14 +319,23 @@ class RebuildConnector extends Module
 
     private function getCurrentLocale(): string
     {
-        $language = $this->context !== null ? $this->context->language ?? null : null;
-        if ($language instanceof Language) {
-            $code = $language->iso_code;
+        $context = Context::getContext();
+        if ($context->language instanceof Language) {
+            $code = $context->language->iso_code;
             if (is_string($code) && $code !== '') {
                 return $code;
             }
         }
 
         return 'en';
+    }
+
+    private function isDevMode(): bool
+    {
+        if (!defined('_PS_MODE_DEV_')) {
+            return false;
+        }
+
+        return (bool) constant('_PS_MODE_DEV_');
     }
 }

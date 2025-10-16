@@ -220,7 +220,11 @@ abstract class RebuildconnectorBaseApiModuleFrontController extends ModuleFrontC
 
     protected function isDevMode(): bool
     {
-        return defined('_PS_MODE_DEV_') && (bool) constant('_PS_MODE_DEV_');
+        if (!defined('_PS_MODE_DEV_')) {
+            return false;
+        }
+
+        return (bool) constant('_PS_MODE_DEV_');
     }
 
     protected function jsonError(string $error, string $message, int $statusCode): void
