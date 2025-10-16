@@ -191,6 +191,10 @@ class TranslationService
             'en' => 'HTTP method not allowed.',
             'fr' => 'Méthode HTTP non autorisée.',
         ],
+        'api.error.forbidden_ip' => [
+            'en' => 'Access denied from your IP address.',
+            'fr' => 'Accès refusé depuis votre adresse IP.',
+        ],
         'api.error.api_key_required' => [
             'en' => 'The api_key field is required.',
             'fr' => 'Le champ api_key est obligatoire.',
@@ -198,6 +202,10 @@ class TranslationService
         'api.error.auth_failed' => [
             'en' => 'Authentication failed. Check your API key.',
             'fr' => 'Authentification échouée. Vérifiez votre clé API.',
+        ],
+        'api.error.rate_limited' => [
+            'en' => 'Too many requests. Please try again later.',
+            'fr' => 'Trop de requêtes. Veuillez réessayer plus tard.',
         ],
         'api.error.unexpected' => [
             'en' => 'Unexpected error occurred.',

@@ -8,6 +8,8 @@ require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/AuthService.php';
 require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/Exceptions/AuthenticationException.php';
 require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/Exceptions/AuthorizationException.php';
 require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/TranslationService.php';
+require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/RateLimiterService.php';
+require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/AuditLogService.php';
 
 abstract class RebuildconnectorBaseApiModuleFrontController extends ModuleFrontController
 {
@@ -23,6 +25,20 @@ abstract class RebuildconnectorBaseApiModuleFrontController extends ModuleFrontC
     private ?JwtService $jwtService = null;
     private ?AuthService $authService = null;
     private ?TranslationService $translationService = null;
+    private ?RateLimiterService $rateLimiterService = null;
+    private ?AuditLogService $auditLogService = null;
+    /** @var array<string, bool> */
+    private array $rateLimitHits = [];
+    private ?string $clientIp = null;
+    private bool $auditRecorded = false;
+
+    public function init(): void
+    {
+        parent::init();
+        $this->clientIp = $this->resolveClientIp();
+        $this->enforceIpAllowlist();
+        $this->enforceRateLimit();
+    }
 
     /**
      * @param array<string, mixed> $payload
@@ -86,6 +102,21 @@ abstract class RebuildconnectorBaseApiModuleFrontController extends ModuleFrontC
                     throw new AuthorizationException('forbidden');
                 }
             }
+        }
+
+        $tokenIdentifier = $this->buildTokenRateLimitIdentifier($payload);
+        if ($tokenIdentifier !== null) {
+            $this->enforceRateLimit($tokenIdentifier);
+        }
+
+        if (!$this->auditRecorded) {
+            $this->auditRecorded = true;
+            $this->recordAuditEvent('api.request', [
+                'token_subject' => isset($payload['sub']) && is_string($payload['sub']) ? $payload['sub'] : null,
+                'scopes' => $payloadScopes,
+                'method' => isset($_SERVER['REQUEST_METHOD']) ? (string) $_SERVER['REQUEST_METHOD'] : '',
+                'path' => isset($_SERVER['REQUEST_URI']) ? (string) $_SERVER['REQUEST_URI'] : '',
+            ]);
         }
 
         return $payload;
@@ -233,5 +264,196 @@ abstract class RebuildconnectorBaseApiModuleFrontController extends ModuleFrontC
             'error' => $error,
             'message' => $message,
         ], $statusCode);
+    }
+
+    private function enforceIpAllowlist(): void
+    {
+        $allowedRanges = $this->getSettingsService()->getAllowedIpRanges();
+        if ($allowedRanges === []) {
+            return;
+        }
+
+        $ip = $this->clientIp;
+        if ($ip === null) {
+            return;
+        }
+
+        foreach ($allowedRanges as $range) {
+            if ($this->ipMatchesRange($ip, $range)) {
+                return;
+            }
+        }
+
+        $this->recordAuditEvent('security.ip_denied', ['ip' => $ip]);
+        $this->logSecurityIncident('ip_denied', ['ip' => $ip]);
+        $this->jsonError(
+            'forbidden',
+            $this->t('api.error.forbidden_ip', [], 'Access denied from your IP address.'),
+            403
+        );
+        exit;
+    }
+
+    private function enforceRateLimit(?string $identifier = null): void
+    {
+        if (!$this->getSettingsService()->isRateLimitEnabled()) {
+            return;
+        }
+
+        $identifier = $identifier ?? $this->getDefaultRateLimitIdentifier();
+        if ($identifier === null) {
+            return;
+        }
+
+        if (isset($this->rateLimitHits[$identifier])) {
+            return;
+        }
+
+        $limit = $this->getSettingsService()->getRateLimit();
+        if (!$this->getRateLimiterService()->isAllowed($identifier, $limit)) {
+            $this->recordAuditEvent('security.rate_limited', [
+                'identifier' => $identifier,
+                'limit' => $limit,
+            ]);
+            $this->logSecurityIncident('rate_limited', ['identifier' => $identifier, 'limit' => $limit]);
+            $this->jsonError(
+                'too_many_requests',
+                $this->t('api.error.rate_limited', [], 'Too many requests. Please try again later.'),
+                429
+            );
+            exit;
+        }
+
+        $this->rateLimitHits[$identifier] = true;
+    }
+
+    private function getDefaultRateLimitIdentifier(): ?string
+    {
+        if ($this->clientIp === null) {
+            return null;
+        }
+
+        return 'ip:' . $this->clientIp;
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     */
+    private function buildTokenRateLimitIdentifier(array $payload): ?string
+    {
+        $identifier = '';
+
+        if (isset($payload['jti']) && is_string($payload['jti']) && $payload['jti'] !== '') {
+            $identifier = (string) $payload['jti'];
+        } elseif (isset($payload['sub']) && is_string($payload['sub']) && $payload['sub'] !== '') {
+            $identifier = (string) $payload['sub'];
+        }
+
+        if ($identifier === '') {
+            return null;
+        }
+
+        $suffix = $this->clientIp !== null ? '@' . $this->clientIp : '';
+
+        return 'token:' . $identifier . $suffix;
+    }
+
+    private function getRateLimiterService(): RateLimiterService
+    {
+        if ($this->rateLimiterService === null) {
+            $this->rateLimiterService = new RateLimiterService();
+        }
+
+        return $this->rateLimiterService;
+    }
+
+    private function resolveClientIp(): ?string
+    {
+        $ip = Tools::getRemoteAddr();
+        if (!is_string($ip) || $ip === '') {
+            return null;
+        }
+
+        return $ip;
+    }
+
+    private function ipMatchesRange(string $ip, string $range): bool
+    {
+        $ipBinary = @inet_pton($ip);
+        if ($ipBinary === false) {
+            return false;
+        }
+
+        if (strpos($range, '/') === false) {
+            return $ip === $range;
+        }
+
+        [$subnet, $maskBitsRaw] = explode('/', $range, 2);
+        $subnetBinary = @inet_pton($subnet);
+        if ($subnetBinary === false || $maskBitsRaw === '') {
+            return false;
+        }
+
+        $maskBits = (int) $maskBitsRaw;
+        if ($maskBits < 0) {
+            return false;
+        }
+
+        $length = strlen($ipBinary);
+        if ($length !== strlen($subnetBinary)) {
+            return false;
+        }
+
+        $fullBytes = intdiv($maskBits, 8);
+        $remainingBits = $maskBits % 8;
+
+        if ($fullBytes > 0 && substr($ipBinary, 0, $fullBytes) !== substr($subnetBinary, 0, $fullBytes)) {
+            return false;
+        }
+
+        if ($remainingBits === 0) {
+            return true;
+        }
+
+        if (!isset($ipBinary[$fullBytes], $subnetBinary[$fullBytes])) {
+            return false;
+        }
+
+        $mask = ~((1 << (8 - $remainingBits)) - 1) & 0xFF;
+        $ipByte = ord($ipBinary[$fullBytes]);
+        $subnetByte = ord($subnetBinary[$fullBytes]);
+
+        return ($ipByte & $mask) === ($subnetByte & $mask);
+    }
+
+    /**
+     * @param array<string, mixed> $context
+     */
+    protected function recordAuditEvent(string $event, array $context = []): void
+    {
+        $context['ip'] = $context['ip'] ?? $this->clientIp;
+        $this->getAuditLogService()->record($event, $context);
+    }
+
+    private function getAuditLogService(): AuditLogService
+    {
+        if ($this->auditLogService === null) {
+            $this->auditLogService = new AuditLogService();
+        }
+
+        return $this->auditLogService;
+    }
+
+    /**
+     * @param array<string, mixed> $context
+     */
+    private function logSecurityIncident(string $type, array $context = []): void
+    {
+        if (!$this->isDevMode()) {
+            return;
+        }
+
+        $message = '[RebuildConnector] Security ' . $type . ': ' . json_encode($context, JSON_UNESCAPED_SLASHES);
+        error_log($message);
     }
 }

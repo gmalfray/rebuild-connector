@@ -150,7 +150,10 @@ curl -X PATCH "https://example.com/module/rebuildconnector/api/orders/123/shippi
 - Stockage sécurisé : EncryptedSharedPrefs + Keystore (Android), configuration module chiffrée côté PrestaShop.
 - Permissions Android minimales (CAMERA pour scan, POST_NOTIFICATIONS).
 - Audit trail : journaliser (UserID, action, endpoint, timestamp, IP).
-- Rate limiting configurable (par défaut 60 req/min/IP).
+- Rate limiting configurable (par défaut 60 req/min/IP) avec stockage `rebuildconnector_rate_limit` (IP + jeton) et audit des dépassements 429.
+- Allowlist IP appliquée côté API (403 si l’adresse ne correspond pas aux plages autorisées).
+- Webhooks HTTPS signés HMAC (`WebhookService`) déclenchés sur `order.created` / `order.status.changed`.
+- Table `rebuildconnector_audit_log` pour tracer les événements (`api.request`, notifications, incidents sécurité).
 - Conformité RGPD : minimiser les données, purger logs sensibles, masquage automatique des emails/phones non nécessaires.
 
 ## 10. Checklists
