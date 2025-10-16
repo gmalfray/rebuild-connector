@@ -424,10 +424,7 @@ class SettingsService
 
         $ranges = [];
         foreach ($parts as $part) {
-            if (!is_string($part)) {
-                continue;
-            }
-            $normalized = $this->sanitizeIpRange($part);
+            $normalized = $this->sanitizeIpRange((string) $part);
             if ($normalized !== null) {
                 $ranges[] = $normalized;
             }
@@ -444,11 +441,8 @@ class SettingsService
         $parts = preg_split('/[\r\n,]+/', $list) ?: [];
         $normalized = [];
         foreach ($parts as $part) {
-            if (!is_string($part)) {
-                continue;
-            }
-            $candidate = $this->sanitizeIpRange($part);
-            if ($candidate === null && trim($part) !== '') {
+            $candidate = $this->sanitizeIpRange((string) $part);
+            if ($candidate === null && trim((string) $part) !== '') {
                 throw new \InvalidArgumentException('Invalid IP range: ' . $part);
             }
             if ($candidate !== null) {
