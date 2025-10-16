@@ -173,7 +173,8 @@ curl -X PATCH "https://example.com/module/rebuildconnector/api/orders/123/shippi
 
 ## 11. Règles de développement & qualité continue
 - **Lint & analyse systématiques** : exécuter `find rebuildconnector -type f -name "*.php" -print0 | xargs -0 -n1 -P4 php -l` puis `phpstan analyse -l 6 rebuildconnector` avant chaque PR/commit.
-- **Stubs PrestaShop** : tout nouvel usage d’une classe/constante PrestaShop doit être stubé immédiatement dans `phpstan-bootstrap.php` (`Db`, `DbQuery`, `_PS_MODE_DEV_`, etc.).
+- **Stubs PrestaShop** : tout nouvel usage d’une classe/constante PrestaShop doit être stubé immédiatement dans `phpstan-bootstrap.php` (`Db`, `DbQuery`, `_PS_MODE_DEV_`, etc.). Ajoutez systématiquement les méthodes CRUD (`Db::insert`, `Db::update`, `Db::delete`, `Db::execute`) et les constantes comme `_MYSQL_ENGINE_` dès que vous les consommez pour éviter des régressions PHPStan.
+- **Typage des itérables** : documentez les tableaux passés aux services (`@param array<int, string> $topics`, etc.) pour éviter les erreurs `missingType.iterableValue` et simplifier la lecture des reviewers.
 - **Typage strict** : typer explicitement les tableaux (`array<string, mixed>`, `array<int, array<string, mixed>>`), ajouter des annotations `/** @var … */` après un cast `(array)` et éviter les `is_array()` redondants.
 - **Contrôleurs REST** : centraliser la logique commune (`requireAuth`, `isDevMode`, `jsonError`) via `BaseApiController` et réutiliser les helpers plutôt que re-tester les constantes.
 - **Dev mode** : passer systématiquement par `isDevMode()` (ou équivalent) au lieu d’expressions `defined('_PS_MODE_DEV_') && ...` pour éviter les avertissements statiques.
