@@ -31,7 +31,7 @@ class Context
     public $shop;
     /** @var Employee|null */
     public $employee;
-    /** @var Link */
+    /** @var Link|null */
     public $link;
 
     public function __construct()
@@ -40,7 +40,7 @@ class Context
         $this->language = null;
         $this->shop = new Shop();
         $this->employee = new Employee();
-        $this->link = new Link();
+        $this->link = null;
     }
 
     public static function getContext(): self
@@ -84,9 +84,9 @@ class Image
     }
 
     /**
-     * @return array<int, array<string, mixed>>
+     * @return array<int, array<string, mixed>>|false
      */
-    public static function getImages(int $idLang, int $idProduct): array
+    public static function getImages(int $idLang, int $idProduct)
     {
         return [];
     }

@@ -227,8 +227,9 @@ class ProductsService
             return [];
         }
 
+        /** @var array<int, array<string, mixed>>|false $images */
         $images = Image::getImages($langId, $productId);
-        if (!is_array($images)) {
+        if ($images === false) {
             return [];
         }
 
@@ -236,7 +237,7 @@ class ProductsService
         $formatted = [];
 
         foreach ($images as $image) {
-            if (!is_array($image) || !isset($image['id_image'])) {
+            if (!isset($image['id_image'])) {
                 continue;
             }
 
@@ -273,14 +274,20 @@ class ProductsService
         ];
 
         $urls = array_filter($urls);
-        $primaryUrl = $urls['large'] ?? (reset($urls) ?: null);
+        $primaryUrl = null;
+        if ($urls !== []) {
+            $candidate = $urls['large'] ?? reset($urls);
+            if (is_string($candidate) && $candidate !== '') {
+                $primaryUrl = $candidate;
+            }
+        }
 
         return [
             'id' => $imageId,
             'is_cover' => $isCover,
             'legend' => $legend,
             'position' => $position,
-            'url' => $primaryUrl !== false ? $primaryUrl : null,
+            'url' => $primaryUrl,
             'urls' => $urls,
         ];
     }
@@ -319,7 +326,7 @@ class ProductsService
         }
 
         $context = Context::getContext();
-        if (isset($context->link) && $context->link instanceof Link) {
+        if ($context->link instanceof Link) {
             $this->link = $context->link;
         } else {
             $this->link = new Link();
@@ -340,17 +347,19 @@ class ProductsService
             return '';
         }
 
-        if (isset($product->link_rewrite)) {
-            $linkRewrite = $product->link_rewrite;
-            if (is_string($linkRewrite) && $linkRewrite !== '') {
-                return $linkRewrite;
-            }
+        if (!property_exists($product, 'link_rewrite')) {
+            return '';
+        }
 
-            if (is_array($linkRewrite)) {
-                $value = $linkRewrite[$langId] ?? reset($linkRewrite);
-                if (is_string($value)) {
-                    return $value;
-                }
+        $linkRewrite = $product->link_rewrite;
+        if (is_string($linkRewrite) && $linkRewrite !== '') {
+            return $linkRewrite;
+        }
+
+        if (is_array($linkRewrite)) {
+            $value = $linkRewrite[$langId] ?? reset($linkRewrite);
+            if (is_string($value) && $value !== '') {
+                return $value;
             }
         }
 
