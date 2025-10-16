@@ -66,6 +66,8 @@ rebuildconnector/
 | GET | /products | Liste des produits |
 | GET | /products/{id} | Détail produit + images |
 | PATCH | /products/{id}/stock | Mettre à jour le stock |
+| GET | /baskets | Liste des paniers |
+| GET | /baskets/{id} | Détail panier |
 | GET | /dashboard/metrics | Statistiques et KPI |
 
 ---

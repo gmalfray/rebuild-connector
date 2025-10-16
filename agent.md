@@ -51,6 +51,8 @@ Base URL : `https://<boutique>/module/rebuildconnector/api`
 | GET | `/products/{id}` | Détail produit, images, stock | — |
 | PATCH | `/products/{id}` | Mise à jour prix, statut actif | `{ price, active }` |
 | PATCH | `/products/{id}/stock` | MAJ stock disponible | `{ quantity, warehouse_id? }` |
+| GET | `/baskets` | Liste paniers (lecture) | `limit`, `offset`, `customer_id`, `date_from`, `date_to` |
+| GET | `/baskets/{id}` | Détail panier + produits | — |
 | GET | `/customers` | Liste clients + stats commandes | `filter[segment]`, `limit` |
 | GET | `/customers/{id}` | Fiche client, historique commandes | — |
 | GET | `/dashboard/metrics` | KPI CA, commandes, top ventes | `period=day|week|month|year`, `from`, `to` |
@@ -111,6 +113,27 @@ curl -X PATCH "https://example.com/module/rebuildconnector/api/orders/123/shippi
         "thumbnail": "https://example.com/img/88-501-home_default.jpg",
         "large": "https://example.com/img/88-501-large_default.jpg"
       }
+    }
+  ]
+}
+
+// BasketDTO
+{
+  "id": 450,
+  "customer": { "id": 32, "firstname": "Anna", "lastname": "Dupont" },
+  "currency": { "id": 1, "iso": "EUR" },
+  "totals": { "tax_excl": 42.5, "tax_incl": 51.0 },
+  "items_count": 3,
+  "has_order": false,
+  "products": [
+    {
+      "product_id": 88,
+      "product_attribute_id": 12,
+      "name": "T-shirt noir",
+      "quantity": 2,
+      "total_tax_incl": 25.5,
+      "total_tax_excl": 21.25,
+      "image": "https://example.com/img/88-101-home_default.jpg"
     }
   ]
 }
