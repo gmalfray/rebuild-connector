@@ -23,6 +23,61 @@
         </div>
 
         <div class="form-group">
+            <label class="control-label col-lg-3">
+                {$i18n.api_url_label|escape:'htmlall'}
+            </label>
+            <div class="col-lg-9">
+                <p class="form-control-static">
+                    <code>{$settings.api_pretty_url|escape:'htmlall'}</code>
+                </p>
+                {if $settings.api_legacy_url && $settings.api_legacy_url ne $settings.api_pretty_url}
+                    <p class="form-control-static">
+                        <code>{$settings.api_legacy_url|escape:'htmlall'}</code>
+                    </p>
+                {/if}
+                <p class="help-block">
+                    {$i18n.api_url_help|escape:'htmlall'}
+                </p>
+                {if $settings.shop_url}
+                    <p class="help-block">
+                        <strong>{$i18n.shop_url_label|escape:'htmlall'}:</strong>
+                        <code>{$settings.shop_url|escape:'htmlall'}</code>
+                    </p>
+                {/if}
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label class="control-label col-lg-3">
+                {$i18n.qr_label|escape:'htmlall'}
+            </label>
+            <div class="col-lg-9">
+                <div
+                    id="rebuildconnector_qr_container"
+                    class="well text-center"
+                    data-config="{$qr_config_json|escape:'htmlall'}"
+                >
+                    <div data-role="qr-target"></div>
+                </div>
+                <button
+                    type="button"
+                    class="btn btn-default"
+                    id="rebuildconnector_qr_refresh"
+                >
+                    <i class="icon-refresh"></i>
+                    {$i18n.qr_refresh|escape:'htmlall'}
+                </button>
+                <p class="help-block">
+                    <strong>{$i18n.qr_last_refresh|escape:'htmlall'}</strong>
+                    <span data-role="qr-status">—</span>
+                </p>
+                <p class="help-block">
+                    {$i18n.qr_help|escape:'htmlall'}
+                </p>
+            </div>
+        </div>
+
+        <div class="form-group">
             <label class="control-label col-lg-3" for="rebuildconnector_token_ttl">
                 {$i18n.token_ttl_label|escape:'htmlall'}
             </label>
@@ -292,3 +347,8 @@
         </div>
     </form>
 </div>
+
+{if isset($qr_config_json)}
+    <script type="text/javascript" src="{$module_dir|escape:'htmlall'}views/js/vendor/qrcode.js"></script>
+    <script type="text/javascript" src="{$module_dir|escape:'htmlall'}views/js/admin/configure-qrcode.js"></script>
+{/if}

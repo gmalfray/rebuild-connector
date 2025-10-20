@@ -65,6 +65,18 @@ class TranslationService
             'en' => 'Key dedicated to the PrestaFlow mobile app. Share it securely with your team only.',
             'fr' => 'Clé dédiée à l’application mobile PrestaFlow. Partagez-la uniquement au sein de votre équipe, de façon sécurisée.',
         ],
+        'admin.form.api_url_label' => [
+            'en' => 'API base URL',
+            'fr' => 'URL de base de l’API',
+        ],
+        'admin.form.api_url_help' => [
+            'en' => 'Share this URL with PrestaFlow if scanning the QR code is not possible. The legacy format appears when friendly URLs are disabled.',
+            'fr' => 'Partagez cette URL avec PrestaFlow si le scan du QR code est impossible. Le format legacy apparaît lorsque les URL simplifiées sont désactivées.',
+        ],
+        'admin.form.shop_url_label' => [
+            'en' => 'Shop URL',
+            'fr' => 'URL de la boutique',
+        ],
         'admin.form.token_ttl_label' => [
             'en' => 'Token lifetime (seconds)',
             'fr' => 'Durée de vie du jeton (secondes)',
@@ -88,6 +100,22 @@ class TranslationService
         'admin.form.jwt_help' => [
             'en' => 'Used to sign the tokens sent to the mobile app. Regenerate if you suspect a leak.',
             'fr' => 'Utilisé pour signer les jetons envoyés à l’application mobile. Régénérez-le en cas de suspicion de fuite.',
+        ],
+        'admin.form.qr_label' => [
+            'en' => 'Mobile setup QR code',
+            'fr' => 'QR code de configuration mobile',
+        ],
+        'admin.form.qr_help' => [
+            'en' => 'Scan this code from the PrestaFlow app to pre-fill the API URL and key. Regenerate it after rotating credentials.',
+            'fr' => 'Scannez ce code depuis l’application PrestaFlow pour préremplir l’URL API et la clé. Régénérez-le après toute rotation d’identifiants.',
+        ],
+        'admin.form.qr_refresh' => [
+            'en' => 'Regenerate QR code',
+            'fr' => 'Régénérer le QR code',
+        ],
+        'admin.form.qr_last_refresh' => [
+            'en' => 'Last generation:',
+            'fr' => 'Dernière génération :',
         ],
         'admin.form.regenerate_button' => [
             'en' => 'Regenerate secret',
@@ -417,12 +445,19 @@ class TranslationService
             'title' => $this->translate('admin.form.title', $locale),
             'api_key_label' => $this->translate('admin.form.api_key_label', $locale),
             'api_key_help' => $this->translate('admin.form.api_key_help', $locale),
+            'api_url_label' => $this->translate('admin.form.api_url_label', $locale),
+            'api_url_help' => $this->translate('admin.form.api_url_help', $locale),
+            'shop_url_label' => $this->translate('admin.form.shop_url_label', $locale),
             'token_ttl_label' => $this->translate('admin.form.token_ttl_label', $locale),
             'token_ttl_help' => $this->translate('admin.form.token_ttl_help', $locale),
             'scopes_label' => $this->translate('admin.form.scopes_label', $locale),
             'scopes_help' => $this->translate('admin.form.scopes_help', $locale),
             'jwt_label' => $this->translate('admin.form.jwt_label', $locale),
             'jwt_help' => $this->translate('admin.form.jwt_help', $locale),
+            'qr_label' => $this->translate('admin.form.qr_label', $locale),
+            'qr_help' => $this->translate('admin.form.qr_help', $locale),
+            'qr_refresh' => $this->translate('admin.form.qr_refresh', $locale),
+            'qr_last_refresh' => $this->translate('admin.form.qr_last_refresh', $locale),
             'regenerate_button' => $this->translate('admin.form.regenerate_button', $locale),
             'regenerate_confirm' => $this->translate('admin.form.regenerate_confirm', $locale),
             'service_account_label' => $this->translate('admin.form.service_account_label', $locale),

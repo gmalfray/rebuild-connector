@@ -99,6 +99,7 @@ rebuildconnector/
 L’onglet *Rebuild Connector* du back-office expose les réglages suivants :
 
 - **Clé API / JWT / Scopes** : génération et rotation des secrets d’authentification ainsi que la liste des scopes autorisés.
+- **Configuration mobile** : QR code prêt à scanner dans PrestaFlow (payload JSON `{"version":1,"shopUrl":"https://…","apiKey":"…"}`) pour injecter automatiquement l’URL API et la clé.
 - **Firebase Cloud Messaging** : compte de service HTTP v1, topics par défaut et jetons fallback pour tester les notifications.
 - **Webhooks** : URL de callback HTTPS, secret HMAC (aperçu + régénération) et reset possible.
 - **Protection d’accès** : liste blanche d’IP/CIDR, limitation de débit configurable (requêtes/minute), activation/désactivation rapide.
