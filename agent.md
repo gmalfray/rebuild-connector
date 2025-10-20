@@ -30,6 +30,11 @@ repo-root/
 - **Module Rebuild Connector** :
   - Variables config : URL service FCM, JSON du compte de service Firebase (stocké chiffré), clé secrète JWT (HS256) ou paire RSA (RS256), URL webhook + secret HMAC, liste blanche IP/CIDR, limite de requêtes par minute, overrides d’environnement (`KEY=VALUE`).
   - Table `ps_configuration` pour conserver `REBUILDCONNECTOR_FCM_SERVICE_ACCOUNT`, `REBUILDCONNECTOR_API_SCOPES`, `REBUILDCONNECTOR_RATE_LIMIT`, `REBUILDCONNECTOR_ALLOWED_IPS`, `REBUILDCONNECTOR_ENV_OVERRIDES`, etc.
+- **Module PrestaShot** :
+  - Code situé dans `prestashot/`. Fournit une page BO (Modules > PrestaShot) permettant d’enregistrer la clé API dédiée à l’app mobile et de générer un QR code.
+  - Payload QR : `{"version":1,"shopUrl":"<https://.../>","apiKey":"<clé>"}` encodé en Base64 et exposé via l’URL schéma `prestaflow://setup?data=<base64Payload>`.
+  - Boutons d’aide : rafraîchir le QR, copier le JSON ou le lien deep-link. Les QR sont servis via `https://api.qrserver.com/v1/create-qr-code/` (dépendance externe sans clé).
+  - Après modification de la clé, recommander de rescanner côté mobile; pas de signature pour l’instant, la rotation de clé reste manuelle.
 - **Application Android** :
   - `google-services.json` (Firebase), `prestaservice.keystore` pour signature, `gradle.properties` contenant `REBUILDCONNECTOR_BASE_URL`, `CLIENT_ID`, `CLIENT_SECRET`.
   - Utiliser EncryptedSharedPrefs + Android Keystore pour stocker la clé API et le token JWT.
