@@ -181,10 +181,30 @@ class RebuildConnector extends Module
             $output .= $this->displayConfirmation($message);
         }
 
+        $settingsForTemplate = $settingsService->exportForTemplate();
+        $apiEndpoints = $this->getApiEndpoints();
+        $shopBaseUrl = $this->getShopBaseUrl();
+
+        $settingsForTemplate['api_pretty_url'] = $apiEndpoints['pretty'];
+        $settingsForTemplate['api_legacy_url'] = $apiEndpoints['legacy'];
+        $settingsForTemplate['shop_url'] = $shopBaseUrl;
+
+        $qrConfig = [
+            'module' => $this->name,
+            'version' => 1,
+            'shopUrl' => $shopBaseUrl,
+            'apiKey' => $settingsForTemplate['api_key'] ?? '',
+            'api_base_url' => $apiEndpoints['pretty'],
+            'api_legacy_url' => $apiEndpoints['legacy'],
+        ];
+
+        $qrConfigJson = Tools::jsonEncode($qrConfig);
+
         $this->context->smarty->assign([
             'module_dir' => $this->_path,
-            'settings' => $settingsService->exportForTemplate(),
+            'settings' => $settingsForTemplate,
             'i18n' => $this->getTranslationService()->getAdminFormStrings($this->getCurrentLocale()),
+            'qr_config_json' => is_string($qrConfigJson) ? $qrConfigJson : '{}',
         ]);
 
         return $output . $this->display(__FILE__, 'views/templates/admin/configure.tpl');
@@ -446,6 +466,60 @@ class RebuildConnector extends Module
     private function t(string $key, array $parameters = [], ?string $fallback = null): string
     {
         return $this->getTranslationService()->translate($key, $this->getCurrentLocale(), $parameters, $fallback);
+    }
+
+    /**
+     * @return array{pretty: string, legacy: string}
+     */
+    private function getApiEndpoints(): array
+    {
+        $link = $this->context !== null ? $this->context->link : null;
+
+        if ($link === null) {
+            return [
+                'pretty' => '',
+                'legacy' => '',
+            ];
+        }
+
+        $legacyUrl = $link->getModuleLink($this->name, 'api', [], true);
+        $baseLink = $link->getBaseLink(null, true);
+        $baseLink = rtrim($baseLink, '/');
+        $baseUri = trim(__PS_BASE_URI__, '/');
+
+        if ($baseUri !== '') {
+            $baseLink .= '/' . $baseUri;
+        }
+
+        $prettyUrl = $baseLink . '/module/' . $this->name . '/api';
+
+        return [
+            'pretty' => $prettyUrl,
+            'legacy' => $legacyUrl,
+        ];
+    }
+
+    private function getShopBaseUrl(): string
+    {
+        $baseDomain = Tools::getShopDomainSsl(true);
+        $baseDomain = is_string($baseDomain) ? trim($baseDomain) : '';
+        if ($baseDomain === '') {
+            return '';
+        }
+
+        $baseDomain = preg_replace('#^http://#i', 'https://', $baseDomain);
+        if (strpos($baseDomain, 'https://') !== 0) {
+            $baseDomain = 'https://' . ltrim($baseDomain, '/');
+        }
+
+        $baseDomain = rtrim($baseDomain, '/');
+        $baseUri = trim(__PS_BASE_URI__, '/');
+
+        if ($baseUri !== '') {
+            $baseDomain .= '/' . $baseUri;
+        }
+
+        return $baseDomain;
     }
 
     private function getCurrentLocale(): string

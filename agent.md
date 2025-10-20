@@ -183,6 +183,7 @@ curl -X PATCH "https://example.com/module/rebuildconnector/api/orders/123/shippi
   - Tests : `composer install` (si nécessaire), `vendor/bin/phpunit`, `vendor/bin/phpstan analyse`.
   - Packaging : `zip -r rebuildconnector.zip rebuildconnector/`.
   - Déploiement : upload dans `/modules/`, installation via back-office.
+  - Configuration BO : QR code JSON (`{"version":1,"shopUrl":"https://…","apiKey":"…"}`) pour renseigner automatiquement URL API + clé dans PrestaFlow (HTTPS forcé, legacy URL encore exposée en secours).
 - **Documentation/diagrammes** : stocker dans `docs/` + exporter version PNG/PDF pour les diagrammes Mermaid.
 - **Internationalisation** : tout nouveau texte doit passer par `TranslationService` avec variantes FR/EN ; vérifier la présence des deux langues dans les revues.
 
