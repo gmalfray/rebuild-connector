@@ -148,10 +148,9 @@ class CustomersService
             'firstname' => isset($row['firstname']) ? (string) $row['firstname'] : '',
             'lastname' => isset($row['lastname']) ? (string) $row['lastname'] : '',
             'email' => isset($row['email']) ? (string) $row['email'] : '',
-            'date_add' => isset($row['date_add']) ? (string) $row['date_add'] : null,
             'orders_count' => isset($row['orders_count']) ? (int) $row['orders_count'] : 0,
             'total_spent' => isset($row['total_spent']) ? (float) $row['total_spent'] : 0.0,
-            'last_order_date' => isset($row['last_order_date']) ? (string) $row['last_order_date'] : null,
+            'last_order_at' => isset($row['last_order_date']) ? (string) $row['last_order_date'] : null,
         ];
     }
 

@@ -67,7 +67,7 @@ class RebuildconnectorCustomersModuleFrontController extends RebuildconnectorBas
             }
 
             $this->renderJson([
-                'data' => $customer,
+                'customer' => $customer,
             ]);
 
             return;
@@ -177,11 +177,8 @@ class RebuildconnectorCustomersModuleFrontController extends RebuildconnectorBas
         $result = $this->getCustomersService()->getCustomers($filters);
 
         $this->renderJson([
-            'data' => $result['items'],
-            'meta' => [
-                'pagination' => $result['pagination'],
-                'filters' => $this->buildFiltersMeta($filters),
-            ],
+            'customers' => $result['items'],
+            'pagination' => $result['pagination'],
         ]);
     }
 

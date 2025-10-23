@@ -73,7 +73,7 @@ class RebuildconnectorProductsModuleFrontController extends RebuildconnectorBase
             }
 
             $this->renderJson([
-                'data' => $product,
+                'product' => $product,
             ]);
 
             return;
@@ -96,7 +96,7 @@ class RebuildconnectorProductsModuleFrontController extends RebuildconnectorBase
         $products = $this->getProductsService()->getProducts($filters);
 
         $this->renderJson([
-            'data' => $products,
+            'products' => $products,
         ]);
     }
 
@@ -140,7 +140,6 @@ class RebuildconnectorProductsModuleFrontController extends RebuildconnectorBase
                 }
                 $quantity = (int) $payload['quantity'];
                 $this->getProductsService()->updateStock($productId, $quantity);
-                $product['quantity'] = $quantity;
                 $this->recordAuditEvent('products.stock.updated', [
                     'product_id' => $productId,
                     'quantity' => $quantity,
@@ -202,8 +201,10 @@ class RebuildconnectorProductsModuleFrontController extends RebuildconnectorBase
                 throw new \InvalidArgumentException($this->t('products.error.invalid_action', [], 'Unsupported product action.'));
         }
 
+        $product = $this->getProductsService()->getProductById($productId);
+
         $this->renderJson([
-            'data' => $product,
+            'product' => $product,
         ]);
     }
 

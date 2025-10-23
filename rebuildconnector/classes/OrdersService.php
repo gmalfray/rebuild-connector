@@ -239,27 +239,24 @@ class OrdersService
      */
     private function formatOrderRow(array $row): array
     {
+        $statusName = '';
+        if (!empty($row['status_name'])) {
+            $statusName = (string) $row['status_name'];
+        } elseif (isset($row['current_state'])) {
+            $statusName = (string) $row['current_state'];
+        }
+
         return [
             'id' => isset($row['id_order']) ? (int) $row['id_order'] : 0,
             'reference' => isset($row['reference']) ? (string) $row['reference'] : '',
-            'status' => [
-                'id' => isset($row['current_state']) ? (int) $row['current_state'] : 0,
-                'name' => isset($row['status_name']) ? (string) $row['status_name'] : null,
-            ],
+            'status' => $statusName,
+            'total_paid' => isset($row['total_paid_tax_incl']) ? (float) $row['total_paid_tax_incl'] : 0.0,
+            'currency' => isset($row['currency_iso']) ? (string) $row['currency_iso'] : '',
+            'date_upd' => isset($row['date_upd']) ? (string) $row['date_upd'] : null,
             'customer' => [
                 'id' => isset($row['id_customer']) ? (int) $row['id_customer'] : 0,
                 'firstname' => isset($row['firstname']) ? (string) $row['firstname'] : '',
                 'lastname' => isset($row['lastname']) ? (string) $row['lastname'] : '',
-                'email' => isset($row['email']) ? (string) $row['email'] : '',
-            ],
-            'totals' => [
-                'paid_tax_incl' => isset($row['total_paid_tax_incl']) ? (float) $row['total_paid_tax_incl'] : 0.0,
-                'paid_tax_excl' => isset($row['total_paid_tax_excl']) ? (float) $row['total_paid_tax_excl'] : 0.0,
-                'currency' => isset($row['currency_iso']) ? (string) $row['currency_iso'] : null,
-            ],
-            'dates' => [
-                'created_at' => isset($row['date_add']) ? (string) $row['date_add'] : null,
-                'updated_at' => isset($row['date_upd']) ? (string) $row['date_upd'] : null,
             ],
         ];
     }
