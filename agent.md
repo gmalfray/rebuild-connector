@@ -6,6 +6,7 @@
 - Extensions prévues : compatibilité PrestaShop 9, thèmes personnalisables, analytics avancés.
 - Hors périmètre initial : multi-boutiques, relance de paniers, automatisations marketing tant que le module dédié n’est pas disponible.
 - Objectifs de l’assistant : conserver la cohérence entre cahier des charges et implémentations, documenter les dépendances, tracer les questions en suspens (section 13 du cahier), garantir que tout contenu (texte, notifications, e-mails, écrans) soit disponible en français et en anglais.
+- Version courante : **Rebuild Connector 1.1.2** (avril 2025) — payloads REST plats compatibles avec l’app PrestaFlow `main`.
 
 ## 2. Arborescence du dépôt
 ```
@@ -21,7 +22,8 @@ repo-root/
 │  ├─ app/                           # Module applicatif
 │  ├─ build.gradle                   # Build global
 │  └─ google-services.json           # Config Firebase (non versionné)
-└─ scripts/                          # Outils CI/CD, packaging, migrations – à créer
+└─ scripts/                          # Outils CI/CD & QA
+   └─ test_preprod.sh                # Script fumée curl (login + GET clés)
 ```
 > Noter la présence éventuelle d’un répertoire `docs/` pour stocker diagrammes et spécifications complémentaires.
 
@@ -43,28 +45,28 @@ repo-root/
 - Politique : aucune clé en clair dans Git, secrets injectés via vault ou CI, traductions maintenues dans `TranslationService` (FR & EN obligatoires).
 
 ## 4. Endpoints PrestaShop (REST JSON)
-Base URL : `https://<boutique>/module/rebuildconnector/api`
+Base URL : `https://<boutique>/module/rebuildconnector/api` — module **1.1.2** renvoie des payloads plats (pas de clé `data`).
 
-| Méthode | Endpoint | Description | Paramètres majeurs |
-|---------|----------|-------------|--------------------|
-| POST | `/connector/login` | Authentifie l’utilisateur via clé API → JWT court | `{ api_key, shop_url }` |
-| GET | `/orders` | Liste des commandes avec filtres | `filter[state]`, `limit`, `offset`, `sort` |
-| GET | `/orders/{id}` | Détail commande, items, suivi | — |
-| PATCH | `/orders/{id}/status` | Changement d’état | `{ status, comment? }` |
-| PATCH | `/orders/{id}/shipping` | Ajout/édition numéro de suivi + transporteur | `{ tracking_number, carrier_id? }` |
-| GET | `/products` | Catalogue avec pagination | `filter[active]`, `search`, `limit` |
-| GET | `/products/{id}` | Détail produit, images, stock | — |
-| PATCH | `/products/{id}` | Mise à jour prix, statut actif | `{ price, active }` |
-| PATCH | `/products/{id}/stock` | MAJ stock disponible | `{ quantity, warehouse_id? }` |
-| GET | `/baskets` | Liste paniers (lecture) | `limit`, `offset`, `customer_id`, `date_from`, `date_to`, `has_order`, `abandoned_since_days` |
-| GET | `/baskets/{id}` | Détail panier + produits | — |
-| GET | `/reports?resource=bestsellers` | Classement meilleures ventes | `limit`, `date_from`, `date_to` |
-| GET | `/reports?resource=bestcustomers` | Classement meilleurs clients | `limit`, `date_from`, `date_to` |
-| GET | `/customers` | Liste clients + stats commandes | `filter[segment]`, `limit` |
-| GET | `/customers/{id}` | Fiche client, historique commandes | — |
-| GET | `/dashboard/metrics` | KPI CA, commandes, top ventes | `period=day|week|month|year`, `from`, `to` |
+| Méthode | Endpoint | Description | Payload |
+|---------|----------|-------------|---------|
+| POST | `/connector/login` | Auth via clé API → JWT | Réponse `{ "token": "...", "access_token": "...", "expires_in": 3600, "scopes": [...] }`. |
+| GET | `/orders` | Liste commandes paginée | `{ "orders": [ { "id", "reference", "status", "total_paid", "currency", "date_upd", "customer": { "firstname", "lastname" } } ] }`. |
+| GET | `/orders/{id}` | Détail commande | `{ "order": { ... } }` (structure complète : items, shipping, history). |
+| PATCH | `/orders/{id}/status` | Changer état | Corps `{ "status": "<id|name>" }`. |
+| PATCH | `/orders/{id}/shipping` | MAJ tracking | Corps `{ "tracking_number": "...", "carrier_id": 3? }`. |
+| GET | `/products` | Catalogue produits | `{ "products": [ { "id", "name", "reference", "price", "active", "stock": { "quantity", "warehouse_id", "updated_at" }, "images": [{ "id", "url" }], "updated_at" } ], "pagination": {...} }`. |
+| GET | `/products/{id}` | Détail produit | `{ "product": { ... } }`. |
+| PATCH | `/products/{id}` | MAJ prix/statut | Champs gérés : `price_tax_excl`, `active`. |
+| PATCH | `/products/{id}/stock` | MAJ stock | `{ "quantity": 42, "warehouse_id": null }`. |
+| GET | `/customers` | Liste clients | `{ "customers": [ { "id", "firstname", "lastname", "email", "orders_count", "total_spent", "last_order_at" } ], "pagination": {...} }`. |
+| GET | `/customers/{id}` | Fiche client | `{ "customer": { ..., "orders": [...] } }`. |
+| GET | `/customers/top` | Alias best customers | Identique à `reports?resource=bestcustomers`. |
+| GET | `/reports?resource=bestsellers` | Top ventes | `{ "products": [ { "product_id", "quantity", "total_tax_incl", ... } ] }`. |
+| GET | `/reports?resource=bestcustomers` | Top clients | `{ "customers": [ { "id", "firstname", "lastname", "total_spent", "last_order_at" } ] }`. |
+| GET | `/dashboard/metrics` | KPI | `{ "turnover", "orders_count", "customers_count", "products_count", "currency", "chart": [{ "label", "turnover", "orders", "customers" }] }`. |
+| GET | `/baskets` | Paniers (lecture) | `{ "baskets": [...] }` – endpoints prêts, vue app à implémenter. |
 
-Exemple `curl` (commande avec tracking) :
+Exemple `curl` :
 ```bash
 curl -X PATCH "https://example.com/module/rebuildconnector/api/orders/123/shipping" \
   -H "Authorization: Bearer <JWT>" \
@@ -72,97 +74,104 @@ curl -X PATCH "https://example.com/module/rebuildconnector/api/orders/123/shippi
   -d '{"tracking_number":"6A123456789FR","carrier_id":3}'
 ```
 
-## 5. DTO / Schémas de données
+## 5. DTO / Schémas de données (réponses réelles)
 ```json
-// OrderDTO
+// GET /orders
 {
-  "id": 123,
-  "reference": "ABCD123",
-  "status": "shipped",
-  "total_paid": 72.90,
-  "currency": "EUR",
-  "created_at": "2025-02-10T14:25:13Z",
-  "updated_at": "2025-02-11T09:02:45Z",
-  "customer": { "id": 45, "firstname": "Anna", "lastname": "Dupont" },
-  "items": [
-    { "product_id": 88, "name": "T-shirt noir", "quantity": 2, "price": 18.00 }
-  ],
-  "shipping": { "carrier_id": 3, "carrier_name": "Colissimo", "tracking_number": "6A123456789FR" },
-  "payments": [{ "method": "CB", "amount": 72.90, "state": "paid" }]
-}
-
-// ProductDTO
-{
-  "id": 88,
-  "name": "T-shirt noir",
-  "reference": "TSHIRT-BLACK",
-  "active": true,
-  "price_tax_excl": 24.90,
-  "price_tax_incl": 29.88,
-  "quantity": 12,
-  "cover_image": {
-    "id": 501,
-    "is_cover": true,
-    "url": "https://example.com/img/88-501-large_default.jpg",
-    "urls": {
-      "thumbnail": "https://example.com/img/88-501-home_default.jpg",
-      "large": "https://example.com/img/88-501-large_default.jpg"
-    }
-  },
-  "images": [
+  "orders": [
     {
-      "id": 501,
-      "is_cover": true,
-      "legend": "Face avant",
-      "position": 1,
-      "url": "https://example.com/img/88-501-large_default.jpg",
-      "urls": {
-        "thumbnail": "https://example.com/img/88-501-home_default.jpg",
-        "large": "https://example.com/img/88-501-large_default.jpg"
-      }
+      "id": 123,
+      "reference": "ABCD123",
+      "status": "shipped",
+      "total_paid": 72.9,
+      "currency": "EUR",
+      "date_upd": "2025-02-11 09:02:45",
+      "customer": { "firstname": "Anna", "lastname": "Dupont" }
     }
   ]
 }
 
-// BasketDTO
+// GET /orders/123
 {
-  "id": 450,
-  "customer": { "id": 32, "firstname": "Anna", "lastname": "Dupont" },
-  "currency": { "id": 1, "iso": "EUR" },
-  "totals": { "tax_excl": 42.5, "tax_incl": 51.0 },
-  "items_count": 3,
-  "has_order": false,
+  "order": {
+    "id": 123,
+    "reference": "ABCD123",
+    "status": { "id": 4, "name": "Shipped" },
+    "totals": {
+      "paid_tax_incl": 72.9,
+      "paid_tax_excl": 60.75,
+      "currency": "EUR"
+    },
+    "customer": {
+      "id": 45,
+      "firstname": "Anna",
+      "lastname": "Dupont",
+      "email": "anna@example.com"
+    },
+    "shipping": {
+      "carrier_id": 3,
+      "carrier_name": "Colissimo",
+      "tracking_number": "6A123456789FR"
+    },
+    "items": [
+      { "product_id": 88, "name": "T-shirt noir", "quantity": 2, "price_tax_incl": 36.45 }
+    ],
+    "history": [
+      { "order_state_id": 4, "status": "Shipped", "date_add": "2025-02-11 09:02:45" }
+    ]
+  }
+}
+
+// GET /products
+{
   "products": [
     {
-      "product_id": 88,
-      "product_attribute_id": 12,
+      "id": 88,
       "name": "T-shirt noir",
-      "quantity": 2,
-      "total_tax_incl": 25.5,
-      "total_tax_excl": 21.25,
-      "image": "https://example.com/img/88-101-home_default.jpg"
+      "reference": "TSHIRT-BLACK",
+      "price": 29.88,
+      "active": true,
+      "stock": {
+        "quantity": 12,
+        "warehouse_id": null,
+        "updated_at": "2025-02-11T09:00:00Z"
+      },
+      "images": [
+        { "id": 501, "url": "https://example.com/img/88-501-large_default.jpg" }
+      ],
+      "updated_at": "2025-02-10 08:30:00"
     }
+  ],
+  "pagination": { "limit": 50, "offset": 0, "count": 1, "has_next": false }
+}
+
+// GET /customers
+{
+  "customers": [
+    {
+      "id": 45,
+      "firstname": "Anna",
+      "lastname": "Dupont",
+      "email": "anna@example.com",
+      "orders_count": 3,
+      "total_spent": 240.5,
+      "last_order_at": "2025-02-10 14:25:13"
+    }
+  ],
+  "pagination": { "limit": 20, "offset": 0, "count": 1, "has_next": false }
+}
+
+// GET /dashboard/metrics
+{
+  "turnover": 12500.42,
+  "orders_count": 182,
+  "customers_count": 95,
+  "products_count": 340,
+  "currency": "EUR",
+  "chart": [
+    { "label": "2025-02-05", "turnover": 1520.0, "orders": 18, "customers": 12 },
+    { "label": "2025-02-06", "turnover": 980.0, "orders": 11, "customers": 9 }
   ]
-}
-
-// StockAvailableDTO
-{
-  "id": 120,
-  "product_id": 88,
-  "attribute_id": 0,
-  "physical_quantity": 14,
-  "available_quantity": 12,
-  "warehouse_id": null,
-  "updated_at": "2025-02-11T09:00:00Z"
-}
-
-// OrderCarrierDTO
-{
-  "order_id": 123,
-  "carrier_id": 3,
-  "tracking_number": "6A123456789FR",
-  "shipping_number": "6A123456789FR",   // fallback orders.shipping_number
-  "date_add": "2025-02-10T15:00:00Z"
 }
 ```
 
@@ -181,6 +190,7 @@ curl -X PATCH "https://example.com/module/rebuildconnector/api/orders/123/shippi
   - Distribution : GitHub Actions → APK (preprod) puis bundle AAB (prod).
 - **Module PrestaShop (`rebuildconnector/`)** :
   - Tests : `composer install` (si nécessaire), `vendor/bin/phpunit`, `vendor/bin/phpstan analyse`.
+  - Smoke test HTTP : `scripts/test_preprod.sh --base-url https://shop --api-key XXX` (login + GET orders/products/dashboard/clients).
   - Packaging : `zip -r rebuildconnector.zip rebuildconnector/`.
   - Déploiement : upload dans `/modules/`, installation via back-office.
   - Configuration BO : QR code JSON (`{"version":1,"shopUrl":"https://…","apiKey":"…"}`) pour renseigner automatiquement URL API + clé dans PrestaFlow (HTTPS forcé, legacy URL encore exposée en secours).
