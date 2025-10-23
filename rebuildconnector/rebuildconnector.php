@@ -29,7 +29,7 @@ class RebuildConnector extends Module
     {
         $this->name = 'rebuildconnector';
         $this->tab = 'administration';
-        $this->version = '1.1.0';
+        $this->version = '1.1.1';
         $this->author = 'Rebuild IT';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -64,7 +64,8 @@ class RebuildConnector extends Module
         }
 
         return $this
-            ->registerHook('actionValidateOrder')
+            ->registerHook('moduleRoutes')
+            && $this->registerHook('actionValidateOrder')
             && $this->registerHook('actionOrderStatusPostUpdate');
     }
 
@@ -466,6 +467,225 @@ class RebuildConnector extends Module
     private function t(string $key, array $parameters = [], ?string $fallback = null): string
     {
         return $this->getTranslationService()->translate($key, $this->getCurrentLocale(), $parameters, $fallback);
+    }
+
+    /**
+     * Déclare les routes "pretty URLs" utilisées par l'application PrestaFlow.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    public function hookModuleRoutes(): array
+    {
+        $module = $this->name;
+        $baseRule = 'module/' . $module . '/api';
+
+        return [
+            'module-' . $module . '-api-root' => [
+                'controller' => 'api',
+                'rule' => $baseRule,
+                'keywords' => [],
+                'params' => [
+                    'fc' => 'module',
+                    'module' => $module,
+                ],
+            ],
+            'module-' . $module . '-api-login' => [
+                'controller' => 'api',
+                'rule' => $baseRule . '/connector/login',
+                'keywords' => [],
+                'params' => [
+                    'fc' => 'module',
+                    'module' => $module,
+                ],
+            ],
+            'module-' . $module . '-api-orders' => [
+                'controller' => 'orders',
+                'rule' => $baseRule . '/orders',
+                'keywords' => [],
+                'params' => [
+                    'fc' => 'module',
+                    'module' => $module,
+                ],
+            ],
+            'module-' . $module . '-api-orders-id' => [
+                'controller' => 'orders',
+                'rule' => $baseRule . '/orders/{id}',
+                'keywords' => [
+                    'id' => [
+                        'regexp' => '[0-9]+',
+                        'param' => 'id',
+                    ],
+                ],
+                'params' => [
+                    'fc' => 'module',
+                    'module' => $module,
+                ],
+            ],
+            'module-' . $module . '-api-orders-action' => [
+                'controller' => 'orders',
+                'rule' => $baseRule . '/orders/{id}/{action}',
+                'keywords' => [
+                    'id' => [
+                        'regexp' => '[0-9]+',
+                        'param' => 'id',
+                    ],
+                    'action' => [
+                        'regexp' => '(status|shipping)',
+                        'param' => 'action',
+                    ],
+                ],
+                'params' => [
+                    'fc' => 'module',
+                    'module' => $module,
+                ],
+            ],
+            'module-' . $module . '-api-products' => [
+                'controller' => 'products',
+                'rule' => $baseRule . '/products',
+                'keywords' => [],
+                'params' => [
+                    'fc' => 'module',
+                    'module' => $module,
+                ],
+            ],
+            'module-' . $module . '-api-products-id' => [
+                'controller' => 'products',
+                'rule' => $baseRule . '/products/{id}',
+                'keywords' => [
+                    'id' => [
+                        'regexp' => '[0-9]+',
+                        'param' => 'id',
+                    ],
+                ],
+                'params' => [
+                    'fc' => 'module',
+                    'module' => $module,
+                ],
+            ],
+            'module-' . $module . '-api-products-stock' => [
+                'controller' => 'products',
+                'rule' => $baseRule . '/products/{id}/stock',
+                'keywords' => [
+                    'id' => [
+                        'regexp' => '[0-9]+',
+                        'param' => 'id',
+                    ],
+                ],
+                'params' => [
+                    'fc' => 'module',
+                    'module' => $module,
+                    'action' => 'stock',
+                ],
+            ],
+            'module-' . $module . '-api-baskets' => [
+                'controller' => 'baskets',
+                'rule' => $baseRule . '/baskets',
+                'keywords' => [],
+                'params' => [
+                    'fc' => 'module',
+                    'module' => $module,
+                ],
+            ],
+            'module-' . $module . '-api-baskets-id' => [
+                'controller' => 'baskets',
+                'rule' => $baseRule . '/baskets/{id}',
+                'keywords' => [
+                    'id' => [
+                        'regexp' => '[0-9]+',
+                        'param' => 'id',
+                    ],
+                ],
+                'params' => [
+                    'fc' => 'module',
+                    'module' => $module,
+                ],
+            ],
+            'module-' . $module . '-api-dashboard-metrics' => [
+                'controller' => 'dashboard',
+                'rule' => $baseRule . '/dashboard/metrics',
+                'keywords' => [],
+                'params' => [
+                    'fc' => 'module',
+                    'module' => $module,
+                ],
+            ],
+            'module-' . $module . '-api-customers' => [
+                'controller' => 'customers',
+                'rule' => $baseRule . '/customers',
+                'keywords' => [],
+                'params' => [
+                    'fc' => 'module',
+                    'module' => $module,
+                ],
+            ],
+            'module-' . $module . '-api-customers-id' => [
+                'controller' => 'customers',
+                'rule' => $baseRule . '/customers/{id}',
+                'keywords' => [
+                    'id' => [
+                        'regexp' => '[0-9]+',
+                        'param' => 'id',
+                    ],
+                ],
+                'params' => [
+                    'fc' => 'module',
+                    'module' => $module,
+                ],
+            ],
+            'module-' . $module . '-api-customers-top' => [
+                'controller' => 'reports',
+                'rule' => $baseRule . '/customers/top',
+                'keywords' => [],
+                'params' => [
+                    'fc' => 'module',
+                    'module' => $module,
+                    'resource' => 'bestcustomers',
+                ],
+            ],
+            'module-' . $module . '-api-reports-bestsellers' => [
+                'controller' => 'reports',
+                'rule' => $baseRule . '/reports/bestsellers',
+                'keywords' => [],
+                'params' => [
+                    'fc' => 'module',
+                    'module' => $module,
+                    'resource' => 'bestsellers',
+                ],
+            ],
+            'module-' . $module . '-api-reports-bestcustomers' => [
+                'controller' => 'reports',
+                'rule' => $baseRule . '/reports/bestcustomers',
+                'keywords' => [],
+                'params' => [
+                    'fc' => 'module',
+                    'module' => $module,
+                    'resource' => 'bestcustomers',
+                ],
+            ],
+            'module-' . $module . '-api-notifications-devices' => [
+                'controller' => 'notifications',
+                'rule' => $baseRule . '/notifications/devices',
+                'keywords' => [],
+                'params' => [
+                    'fc' => 'module',
+                    'module' => $module,
+                ],
+            ],
+            'module-' . $module . '-api-notifications-devices-token' => [
+                'controller' => 'notifications',
+                'rule' => $baseRule . '/notifications/devices/{token}',
+                'keywords' => [
+                    'token' => [
+                        'regexp' => '[A-Za-z0-9._:-]+',
+                        'param' => 'token',
+                    ],
+                ],
+                'params' => [
+                    'fc' => 'module',
+                    'module' => $module,
+                ],
+            ],
+        ];
     }
 
     /**
