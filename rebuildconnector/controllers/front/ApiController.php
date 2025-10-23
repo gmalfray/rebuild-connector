@@ -68,9 +68,11 @@ class RebuildconnectorApiModuleFrontController extends RebuildconnectorBaseApiMo
             return;
         }
 
+        $rawToken = $token['token'] ?? '';
         $response = [
             'token_type' => $token['token_type'] ?? 'Bearer',
-            'access_token' => $token['token'] ?? '',
+            'access_token' => $rawToken,
+            'token' => $rawToken,
             'expires_in' => $token['expires_in'] ?? 0,
             'issued_at' => $token['issued_at'] ?? null,
             'expires_at' => $token['expires_at'] ?? null,
