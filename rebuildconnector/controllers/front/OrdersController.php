@@ -75,7 +75,7 @@ class RebuildconnectorOrdersModuleFrontController extends RebuildconnectorBaseAp
             }
 
             $this->renderJson([
-                'data' => $order,
+                'order' => $order,
             ]);
 
             return;
@@ -94,7 +94,7 @@ class RebuildconnectorOrdersModuleFrontController extends RebuildconnectorBaseAp
         $orders = $this->getOrdersService()->getOrders($filters);
 
         $this->renderJson([
-            'data' => $orders,
+            'orders' => $orders,
         ]);
     }
 

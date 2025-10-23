@@ -34,7 +34,7 @@ class DashboardService
 
         $taxCollected = max(0.0, $revenueTaxIncl - $revenueTaxExcl);
 
-        $customers = (int) $db->getValue(
+        $customersCount = (int) $db->getValue(
             'SELECT COUNT(DISTINCT id_customer) FROM ' . _DB_PREFIX_ . 'orders WHERE date_add BETWEEN "'
             . $fromSql . '" AND "' . $toSql . '"'
         );
@@ -52,14 +52,16 @@ class DashboardService
                 'from' => $from->format(DATE_ATOM),
                 'to' => $to->format(DATE_ATOM),
             ],
+            'turnover' => $revenueTaxIncl,
             'orders_count' => $ordersCount,
+            'customers_count' => $customersCount,
+            'products_count' => $this->countActiveProducts(),
             'revenue' => $revenueTaxIncl,
             'revenue_tax_incl' => $revenueTaxIncl,
             'revenue_tax_excl' => $revenueTaxExcl,
             'tax_collected' => $taxCollected,
             'average_basket' => $averageBasket,
             'average_order_value' => $averageBasket,
-            'customers' => $customers,
             'returns' => $returns,
             'currency' => $currency,
             'chart' => $this->buildChart($from, $to),
@@ -108,9 +110,12 @@ class DashboardService
         $toSql = pSQL($to->format('Y-m-d H:i:s'));
 
         $query = new DbQuery();
-        $query->select('DATE(date_add) AS day, SUM(total_paid_tax_incl) AS revenue, COUNT(*) AS orders');
-        $query->from('orders');
-        $query->where('date_add BETWEEN "' . $fromSql . '" AND "' . $toSql . '"');
+        $query->select('DATE(o.date_add) AS day');
+        $query->select('SUM(o.total_paid_tax_incl) AS revenue');
+        $query->select('COUNT(*) AS orders');
+        $query->select('COUNT(DISTINCT o.id_customer) AS customers');
+        $query->from('orders', 'o');
+        $query->where('o.date_add BETWEEN "' . $fromSql . '" AND "' . $toSql . '"');
         $query->groupBy('day');
         $query->orderBy('day ASC');
 
@@ -126,6 +131,7 @@ class DashboardService
             $indexed[$day] = [
                 'revenue' => isset($row['revenue']) ? (float) $row['revenue'] : 0.0,
                 'orders' => isset($row['orders']) ? (int) $row['orders'] : 0,
+                'customers' => isset($row['customers']) ? (int) $row['customers'] : 0,
             ];
         }
 
@@ -138,14 +144,25 @@ class DashboardService
 
         foreach ($period as $date) {
             $key = $date->format('Y-m-d');
+            $data = $indexed[$key] ?? ['revenue' => 0.0, 'orders' => 0, 'customers' => 0];
             $chart[] = [
-                'date' => $key,
-                'revenue' => isset($indexed[$key]) ? $indexed[$key]['revenue'] : 0.0,
-                'orders' => isset($indexed[$key]) ? $indexed[$key]['orders'] : 0,
+                'label' => $key,
+                'turnover' => (float) $data['revenue'],
+                'orders' => (int) $data['orders'],
+                'customers' => (int) $data['customers'],
             ];
         }
 
         return $chart;
+    }
+
+    private function countActiveProducts(): int
+    {
+        $result = Db::getInstance()->getValue(
+            'SELECT COUNT(*) FROM ' . _DB_PREFIX_ . 'product WHERE active = 1'
+        );
+
+        return $result !== false ? (int) $result : 0;
     }
 
     private function resolveCurrencyIso(): ?string

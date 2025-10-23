@@ -65,6 +65,7 @@ class ReportsService
         $query->select('COUNT(o.id_order) AS orders_count');
         $query->select('SUM(o.total_paid_tax_incl) AS total_tax_incl');
         $query->select('SUM(o.total_paid_tax_excl) AS total_tax_excl');
+        $query->select('MAX(o.date_add) AS last_order_at');
         $query->from('orders', 'o');
         $query->leftJoin('customer', 'cu', 'cu.id_customer = o.id_customer');
 
@@ -80,13 +81,13 @@ class ReportsService
         $results = [];
         foreach ($rows as $row) {
             $results[] = [
-                'customer_id' => isset($row['id_customer']) ? (int) $row['id_customer'] : 0,
+                'id' => isset($row['id_customer']) ? (int) $row['id_customer'] : 0,
                 'firstname' => isset($row['firstname']) ? (string) $row['firstname'] : null,
                 'lastname' => isset($row['lastname']) ? (string) $row['lastname'] : null,
                 'email' => isset($row['email']) ? (string) $row['email'] : null,
                 'orders_count' => isset($row['orders_count']) ? (int) $row['orders_count'] : 0,
-                'total_tax_incl' => isset($row['total_tax_incl']) ? (float) $row['total_tax_incl'] : 0.0,
-                'total_tax_excl' => isset($row['total_tax_excl']) ? (float) $row['total_tax_excl'] : 0.0,
+                'total_spent' => isset($row['total_tax_incl']) ? (float) $row['total_tax_incl'] : 0.0,
+                'last_order_at' => isset($row['last_order_at']) ? (string) $row['last_order_at'] : null,
             ];
         }
 

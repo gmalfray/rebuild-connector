@@ -20,7 +20,7 @@ class ProductsService
         $offset = isset($filters['offset']) ? max(0, (int) $filters['offset']) : 0;
 
         $query = new DbQuery();
-        $query->select('p.id_product, pl.name, pl.link_rewrite, p.reference, p.active');
+        $query->select('p.id_product, pl.name, pl.link_rewrite, p.reference, p.active, p.date_upd');
         $query->select('IFNULL(ps.price, p.price) AS base_price');
         $query->select('sa.quantity, sa.id_stock_available');
         $query->from('product', 'p');
@@ -94,16 +94,15 @@ class ProductsService
         }
 
         $product = $products[0];
-        $product['images'] = $this->getProductImages($productId, $langId, $shopId);
-
-        if ($product['cover_image'] === null) {
-            foreach ($product['images'] as $image) {
-                if (!empty($image['is_cover'])) {
-                    $product['cover_image'] = $image;
-                    break;
-                }
-            }
-        }
+        $images = $this->getProductImages($productId, $langId, $shopId);
+        $product['images'] = array_values(array_filter(array_map(static function (array $image): array {
+            return [
+                'id' => $image['id'],
+                'url' => $image['url'],
+            ];
+        }, $images), static function (array $image): bool {
+            return isset($image['url']) && is_string($image['url']) && $image['url'] !== '';
+        }));
 
         return $product;
     }
@@ -170,58 +169,39 @@ class ProductsService
         $priceTaxIncl = $idProduct > 0 ? (float) Product::getPriceStatic($idProduct, true) : $priceTaxExcl;
         $linkRewrite = isset($row['link_rewrite']) ? (string) $row['link_rewrite'] : '';
 
-        $product = [
+        $images = $this->getProductImages($idProduct, $langId, $shopId, $linkRewrite);
+        $imagePayload = array_map(static function (array $image): array {
+            return [
+                'id' => $image['id'],
+                'url' => $image['url'],
+            ];
+        }, $images);
+        $imagePayload = array_values(array_filter($imagePayload, static function (array $image): bool {
+            return isset($image['url']) && is_string($image['url']) && $image['url'] !== '';
+        }));
+
+        $updatedAt = isset($row['date_upd']) ? (string) $row['date_upd'] : null;
+
+        return [
             'id' => $idProduct,
             'name' => isset($row['name']) ? (string) $row['name'] : '',
             'reference' => isset($row['reference']) ? (string) $row['reference'] : '',
+            'price' => $priceTaxIncl,
             'active' => isset($row['active']) ? (bool) $row['active'] : false,
-            'price_tax_excl' => $priceTaxExcl,
-            'price_tax_incl' => $priceTaxIncl,
-            'quantity' => isset($row['quantity']) ? (int) $row['quantity'] : 0,
-            'cover_image' => null,
+            'stock' => [
+                'quantity' => isset($row['quantity']) ? (int) $row['quantity'] : 0,
+                'warehouse_id' => null,
+                'updated_at' => $updatedAt,
+            ],
+            'images' => $imagePayload,
+            'updated_at' => $updatedAt,
         ];
-
-        $coverImage = $this->getCoverImageData($idProduct, $linkRewrite, $langId, $shopId);
-        if ($coverImage !== null) {
-            $product['cover_image'] = $coverImage;
-        }
-
-        return $product;
-    }
-
-    /**
-     * @return array<string, mixed>|null
-     */
-    private function getCoverImageData(int $productId, string $linkRewrite, int $langId, int $shopId): ?array
-    {
-        if ($productId <= 0 || !class_exists('Image')) {
-            return null;
-        }
-
-        $cover = Image::getCover($productId);
-        if ($cover === false || !isset($cover['id_image'])) {
-            return null;
-        }
-
-        $imageId = (int) $cover['id_image'];
-        if ($imageId <= 0) {
-            return null;
-        }
-
-        if ($linkRewrite === '') {
-            $linkRewrite = $this->resolveProductLinkRewrite($productId, $langId, $shopId);
-        }
-
-        $legend = isset($cover['legend']) && is_string($cover['legend']) ? $cover['legend'] : null;
-        $position = isset($cover['position']) ? (int) $cover['position'] : null;
-
-        return $this->formatImageData($productId, $imageId, $linkRewrite, true, $legend, $position);
     }
 
     /**
      * @return array<int, array<string, mixed>>
      */
-    private function getProductImages(int $productId, int $langId, int $shopId): array
+    private function getProductImages(int $productId, int $langId, int $shopId, ?string $linkRewrite = null): array
     {
         if ($productId <= 0 || !class_exists('Image')) {
             return [];
@@ -233,7 +213,9 @@ class ProductsService
             return [];
         }
 
-        $linkRewrite = $this->resolveProductLinkRewrite($productId, $langId, $shopId);
+        if ($linkRewrite === null || $linkRewrite === '') {
+            $linkRewrite = $this->resolveProductLinkRewrite($productId, $langId, $shopId);
+        }
         $formatted = [];
 
         foreach ($images as $image) {

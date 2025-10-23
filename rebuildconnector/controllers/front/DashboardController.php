@@ -57,9 +57,7 @@ class RebuildconnectorDashboardModuleFrontController extends RebuildconnectorBas
 
         $metrics = $this->getDashboardService()->getMetrics($period);
 
-        $this->renderJson([
-            'data' => $metrics,
-        ]);
+        $this->renderJson($metrics);
     }
 
     private function getDashboardService(): DashboardService

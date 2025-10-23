@@ -65,13 +65,13 @@ class RebuildconnectorReportsModuleFrontController extends RebuildconnectorBaseA
             case 'bestsellers':
             case 'best-sellers':
                 $this->renderJson([
-                    'data' => $this->getReportsService()->getBestSellers($filters),
+                    'products' => $this->getReportsService()->getBestSellers($filters),
                 ]);
                 return;
             case 'bestcustomers':
             case 'best-customers':
                 $this->renderJson([
-                    'data' => $this->getReportsService()->getBestCustomers($filters),
+                    'customers' => $this->getReportsService()->getBestCustomers($filters),
                 ]);
                 return;
             default:
