@@ -199,7 +199,7 @@ class RebuildConnector extends Module
             'api_legacy_url' => $apiEndpoints['legacy'],
         ];
 
-        $qrConfigJson = Tools::jsonEncode($qrConfig);
+        $qrConfigJson = json_encode($qrConfig);
 
         $this->context->smarty->assign([
             'module_dir' => $this->_path,
