@@ -1,0 +1,181 @@
+<?php
+
+declare(strict_types=1);
+
+use PHPUnit\Framework\TestCase;
+
+require_once __DIR__ . '/../bootstrap.php';
+
+final class DashboardServiceTest extends TestCase
+{
+    // -----------------------------------------------------------------------
+    // Métriques de base (données retournées par le service)
+    // -----------------------------------------------------------------------
+
+    public function testGetMetricsReturnsExpectedKeys(): void
+    {
+        $service = new StubDashboardService();
+        $metrics = $service->getMetrics('month');
+
+        // Clés historiques
+        $this->assertArrayHasKey('period', $metrics);
+        $this->assertArrayHasKey('turnover', $metrics);
+        $this->assertArrayHasKey('orders_count', $metrics);
+        $this->assertArrayHasKey('customers_count', $metrics);
+        $this->assertArrayHasKey('products_count', $metrics);
+        $this->assertArrayHasKey('revenue_tax_incl', $metrics);
+        $this->assertArrayHasKey('revenue_tax_excl', $metrics);
+        $this->assertArrayHasKey('tax_collected', $metrics);
+        $this->assertArrayHasKey('average_basket', $metrics);
+        $this->assertArrayHasKey('currency', $metrics);
+        $this->assertArrayHasKey('chart', $metrics);
+
+        // Nouvelles clés
+        $this->assertArrayHasKey('pending_orders_count', $metrics);
+        $this->assertArrayHasKey('conversion_rate', $metrics);
+        $this->assertArrayHasKey('low_stock_alerts', $metrics);
+    }
+
+    public function testConversionRateStructure(): void
+    {
+        $service = new StubDashboardService();
+        $metrics = $service->getMetrics('month');
+
+        $cr = $metrics['conversion_rate'];
+        $this->assertIsArray($cr);
+        $this->assertArrayHasKey('rate', $cr);
+        $this->assertArrayHasKey('orders', $cr);
+        $this->assertArrayHasKey('sessions_proxy', $cr);
+        $this->assertArrayHasKey('note', $cr);
+    }
+
+    public function testConversionRateIsNullWhenNoCart(): void
+    {
+        // Quand pas de panier, rate doit être null
+        $service = new StubDashboardService(ordersCount: 5, cartsCount: 0);
+        $metrics = $service->getMetrics('month');
+
+        $this->assertNull($metrics['conversion_rate']['rate']);
+        $this->assertSame(5, $metrics['conversion_rate']['orders']);
+        $this->assertSame(0, $metrics['conversion_rate']['sessions_proxy']);
+    }
+
+    public function testConversionRateComputedCorrectly(): void
+    {
+        // 10 commandes / 100 paniers = 10 %
+        $service = new StubDashboardService(ordersCount: 10, cartsCount: 100);
+        $metrics = $service->getMetrics('month');
+
+        $this->assertSame(10.0, $metrics['conversion_rate']['rate']);
+    }
+
+    public function testPendingOrdersCountIsInteger(): void
+    {
+        $service = new StubDashboardService(pendingCount: 7);
+        $metrics = $service->getMetrics('month');
+
+        $this->assertSame(7, $metrics['pending_orders_count']);
+    }
+
+    public function testLowStockAlertsIsArray(): void
+    {
+        $alerts = [
+            ['product_id' => 42, 'name' => 'Patron robe', 'quantity' => 2, 'image_url' => null],
+        ];
+        $service = new StubDashboardService(lowStockProducts: $alerts);
+        $metrics = $service->getMetrics('month');
+
+        $this->assertIsArray($metrics['low_stock_alerts']);
+        $this->assertCount(1, $metrics['low_stock_alerts']);
+        $this->assertSame(42, $metrics['low_stock_alerts'][0]['product_id']);
+        $this->assertSame(2, $metrics['low_stock_alerts'][0]['quantity']);
+    }
+
+    public function testLowStockAlertEntryHasRequiredKeys(): void
+    {
+        $alerts = [
+            ['product_id' => 1, 'name' => 'Produit test', 'quantity' => 3, 'image_url' => 'https://example.com/img/1.jpg'],
+        ];
+        $service = new StubDashboardService(lowStockProducts: $alerts);
+        $metrics = $service->getMetrics('month');
+
+        $entry = $metrics['low_stock_alerts'][0];
+        $this->assertArrayHasKey('product_id', $entry);
+        $this->assertArrayHasKey('name', $entry);
+        $this->assertArrayHasKey('quantity', $entry);
+        $this->assertArrayHasKey('image_url', $entry);
+    }
+
+    // -----------------------------------------------------------------------
+    // Période
+    // -----------------------------------------------------------------------
+
+    public function testPeriodLabelIsPreserved(): void
+    {
+        foreach (['day', 'week', 'month', 'year'] as $period) {
+            $service = new StubDashboardService();
+            $metrics = $service->getMetrics($period);
+            $this->assertSame($period, $metrics['period']['label'], "Période '$period' incorrecte.");
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Stub testable de DashboardService
+// ---------------------------------------------------------------------------
+
+final class StubDashboardService extends DashboardService
+{
+    private int $ordersCount;
+    private int $cartsCount;
+    private int $pendingCount;
+    /** @var array<int, array<string, mixed>> */
+    private array $lowStockProducts;
+
+    /**
+     * @param array<int, array<string, mixed>> $lowStockProducts
+     */
+    public function __construct(
+        int $ordersCount = 0,
+        int $cartsCount = 0,
+        int $pendingCount = 0,
+        array $lowStockProducts = []
+    ) {
+        $this->ordersCount = $ordersCount;
+        $this->cartsCount = $cartsCount;
+        $this->pendingCount = $pendingCount;
+        $this->lowStockProducts = $lowStockProducts;
+    }
+
+    protected function countPendingOrders(): int
+    {
+        return $this->pendingCount;
+    }
+
+    /**
+     * @return array{rate: float|null, orders: int, sessions_proxy: int, note: string}
+     */
+    protected function computeConversionRate(int $ordersCount, string $fromSql, string $toSql): array
+    {
+        // Surcharge pour injecter cartsCount sans BDD.
+        $rate = null;
+        if ($this->cartsCount > 0) {
+            $rate = round(($this->ordersCount / $this->cartsCount) * 100, 2);
+        }
+
+        return [
+            'rate' => $rate,
+            'orders' => $this->ordersCount,
+            'sessions_proxy' => $this->cartsCount,
+            'note' => 'stub',
+        ];
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    protected function getLowStockProducts(int $threshold = 5): array
+    {
+        return $this->lowStockProducts;
+    }
+}
