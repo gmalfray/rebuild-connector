@@ -40,6 +40,7 @@ spl_autoload_register(static function (string $class): void {
         'RebuildconnectorDashboardModuleFrontController' => __DIR__ . '/../rebuildconnector/controllers/front/DashboardController.php',
         'RebuildconnectorBasketsModuleFrontController' => __DIR__ . '/../rebuildconnector/controllers/front/BasketsController.php',
         'RebuildconnectorReportsModuleFrontController' => __DIR__ . '/../rebuildconnector/controllers/front/ReportsController.php',
+        'RebuildconnectorInvoiceModuleFrontController' => __DIR__ . '/../rebuildconnector/controllers/front/InvoiceController.php',
     ];
 
     if (isset($map[$class]) && file_exists($map[$class])) {

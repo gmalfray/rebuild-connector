@@ -613,3 +613,40 @@ class StockAvailable
     {
     }
 }
+
+class OrderInvoice
+{
+    /** @var int */
+    public $id = 0;
+    /** @var int */
+    public $id_order = 0;
+    /** @var int */
+    public $number = 0;
+
+    /**
+     * @return array<int, static>
+     */
+    public static function getByOrderId(int $idOrder): array
+    {
+        return [];
+    }
+}
+
+class PDF
+{
+    public const TEMPLATE_INVOICE = 'Invoice';
+
+    /**
+     * @param array<int, mixed> $objects
+     * @param string $template
+     * @param mixed $smarty
+     */
+    public function __construct(array $objects, string $template, $smarty)
+    {
+    }
+
+    public function render(bool $display = true): string
+    {
+        return '';
+    }
+}
