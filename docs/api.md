@@ -1,137 +1,297 @@
-# Rebuild Connector API Reference
+# Rebuild Connector — Référence API
 
-Toutes les routes sont exposées sous `https://<boutique>/module/rebuildconnector`. L’API accepte et retourne du JSON UTF‑8.
+Toutes les routes sont exposées sous `https://<boutique>/module/rebuildconnector/api/...`.
+L'API accepte et retourne du JSON UTF-8.
 
-## Authentication
+## Authentification
 
-```http
-POST /module/rebuildconnector/api
-Content-Type: application/json
+### POST `.../api/connector/login`
 
-{
-  "api_key": "<clé fournie dans le back-office>",
-  "shop_url": "https://example.com" // optionnel
-}
-```
+Scopes requis : aucun (endpoint public)
+
+Corps JSON :
+
+| Champ      | Type   | Requis | Description                            |
+|------------|--------|--------|----------------------------------------|
+| `api_key`  | string | oui    | Clé API configurée dans le back-office |
+| `shop_url` | string | non    | URL de la boutique (optionnel, ajouté au JWT) |
 
 **Réponse 200**
 
 ```json
 {
   "token_type": "Bearer",
-  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI...",
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
   "expires_in": 3600,
-  "issued_at": "2025-02-01T10:00:00Z",
-  "expires_at": "2025-02-01T11:00:00Z",
-  "scopes": ["orders.read", "products.write"]
+  "issued_at": "2025-06-19T10:00:00+00:00",
+  "expires_at": "2025-06-19T11:00:00+00:00",
+  "scopes": ["orders.read", "orders.write", "products.read", "products.write", "customers.read", "dashboard.read", "reports.read", "baskets.read", "notifications.send"]
 }
 ```
 
-Ensuite ajouter l’en-tête `Authorization: Bearer <access_token>` sur chaque requête.
+> Les champs `access_token` et `token` sont identiques (les deux existent pour compatibilité).
 
-## Endpoints
+Ajouter ensuite l'en-tête `Authorization: Bearer <access_token>` sur chaque requête protégée.
 
-### GET `/orders`
+**Erreurs**
+
+| Code | `error`           | Raison                            |
+|------|-------------------|-----------------------------------|
+| 400  | `invalid_request` | `api_key` absent ou corps non-JSON|
+| 401  | `unauthorized`    | Clé API incorrecte                |
+| 500  | `server_error`    | Erreur interne inattendue         |
+
+---
+
+## Commandes
+
+### GET `.../api/orders`
+
+Scope requis : `orders.read`
 
 Liste paginée des commandes.
 
-| Paramètre     | Type   | Description                          |
-|---------------|--------|--------------------------------------|
-| `limit`       | int    | 1–100 (défaut 20)                    |
-| `offset`      | int    | Décalage (défaut 0)                  |
-| `status`      | int/string | ID état ou libellé partiel    |
-| `customer_id` | int    | Filtre client                        |
-| `date_from`   | date   | ISO 8601                             |
-| `date_to`     | date   | ISO 8601                             |
-| `search`      | string | Référence / email / nom / prénom     |
+| Paramètre     | Type       | Description                                    |
+|---------------|------------|------------------------------------------------|
+| `limit`       | int        | Nombre max de résultats (défaut 20, min 1)     |
+| `offset`      | int        | Décalage de pagination (défaut 0)              |
+| `customer_id` | int        | Filtre par ID client                           |
+| `status`      | int/string | ID d'état numérique ou libellé partiel (LIKE)  |
+| `date_from`   | datetime   | Filtre `date_add >=` (format Y-m-d H:i:s)      |
+| `date_to`     | datetime   | Filtre `date_add <=` (format Y-m-d H:i:s)      |
+| `search`      | string     | Recherche sur référence, prénom, nom, email    |
 
 **Réponse 200**
 
 ```json
 {
-  "data": [
+  "orders": [
     {
       "id": 123,
-      "reference": "XZY001",
-      "status": { "id": 4, "name": "Shipped" },
-      "totals": { "paid_tax_incl": 72.9, "currency": "EUR" },
-      "customer": { "id": 50, "firstname": "Anna", "lastname": "Dupont" },
-      "shipping": { "carrier_id": 3, "tracking_number": "6A..." },
-      "items": [ { "product_id": 88, "name": "T-shirt", "quantity": 2 } ],
-      "dates": { "created_at": "2025-02-01T09:15:00", "updated_at": "..." }
+      "reference": "ABCDEF123",
+      "status": "Expédiée",
+      "total_paid": 72.90,
+      "currency": "EUR",
+      "date_upd": "2025-06-01 14:30:00",
+      "customer": {
+        "id": 50,
+        "firstname": "Anna",
+        "lastname": "Dupont"
+      }
     }
   ]
 }
 ```
 
-### GET `/orders/{id}`
+> Note : dans la liste (`getOrders`), `status` est une chaîne (le libellé d'état). Ce n'est **pas** `{id, name}` — cette structure enrichie n'existe que sur l'endpoint de détail. La liste est volontairement allégée (pas de `shipping`/`items`/`history`).
 
-Retourne la commande avec historique et lignes. `404 not_found` si absente.
+---
 
-### PATCH `/orders/{id}`
+### GET `.../api/orders/{id}`
 
-| Action                | Corps attendu                            |
-|-----------------------|------------------------------------------|
-| `action=status`       | `{ "status": "shipped" }`                |
-| `action=shipping`     | `{ "tracking_number": "6A12345..." }`    |
+Scope requis : `orders.read`
 
-Réponse `204` en cas de succès. Erreurs : `400 invalid_payload`, `404 not_found`.
+Détail d'une commande avec historique et lignes de produits.
 
-### GET `/products`
-
-Liste ou recherche produit.
-
-| Paramètre          | Type   | Description                     |
-|--------------------|--------|---------------------------------|
-| `limit` / `offset` | int    | Pagination                      |
-| `filter[active]`   | bool   | `1` actifs / `0` inactifs       |
-| `search`           | string | Nom, référence                  |
-
-**Réponse 200 (extrait)**
+**Réponse 200**
 
 ```json
 {
-  "data": [
+  "order": {
+    "id": 123,
+    "reference": "ABCDEF123",
+    "status": {
+      "id": 4,
+      "name": "Expédiée"
+    },
+    "totals": {
+      "paid_tax_incl": 72.90,
+      "paid_tax_excl": 60.75,
+      "currency": "EUR"
+    },
+    "customer": {
+      "id": 50,
+      "firstname": "Anna",
+      "lastname": "Dupont",
+      "email": "anna@example.com"
+    },
+    "shipping": {
+      "carrier_id": 3,
+      "carrier_name": "Colissimo",
+      "tracking_number": "6A12345678901"
+    },
+    "dates": {
+      "created_at": "2025-05-20 09:15:00",
+      "updated_at": "2025-06-01 14:30:00"
+    },
+    "items": [
+      {
+        "product_id": 88,
+        "name": "T-shirt noir",
+        "reference": "TSHIRT-BLACK",
+        "quantity": 2,
+        "price_tax_incl": 38.16,
+        "price_tax_excl": 31.80
+      }
+    ],
+    "history": [
+      {
+        "order_state_id": 1,
+        "status": "En attente de paiement",
+        "date_add": "2025-05-20 09:15:00"
+      },
+      {
+        "order_state_id": 4,
+        "status": "Expédiée",
+        "date_add": "2025-06-01 14:00:00"
+      }
+    ]
+  }
+}
+```
+
+**Erreurs** : `404 not_found` si la commande n'existe pas.
+
+---
+
+### PATCH `.../api/orders/{id}`  — Changer le statut
+
+Scope requis : `orders.write`
+
+Paramètre URL `action=status` (ou détecter depuis le corps si `payload.status` présent).
+
+Corps JSON :
+
+| Champ    | Type       | Description                               |
+|----------|------------|-------------------------------------------|
+| `status` | int/string | ID d'état numérique ou libellé exact/partiel |
+
+```json
+{ "status": "4" }
+```
+
+ou
+
+```json
+{ "status": "Expédiée" }
+```
+
+**Réponse 204** (corps vide) en cas de succès.
+
+**Erreurs** :
+
+| Code | `error`           | Raison                                 |
+|------|-------------------|----------------------------------------|
+| 400  | `invalid_payload` | Champ `status` absent ou état inconnu  |
+| 404  | `not_found`       | Commande introuvable                   |
+
+---
+
+### PATCH `.../api/orders/{id}`  — Mettre à jour l'expédition
+
+Scope requis : `orders.write`
+
+Paramètre URL `action=shipping` (ou détecter depuis le corps si `payload.tracking_number` présent).
+
+Corps JSON :
+
+| Champ            | Type | Description                                |
+|------------------|------|--------------------------------------------|
+| `tracking_number`| string | Numéro de suivi (requis, non vide)       |
+| `carrier_id`     | int  | ID transporteur (optionnel, `null` = garder l'existant) |
+
+```json
+{ "tracking_number": "6A12345678901", "carrier_id": 3 }
+```
+
+**Réponse 204** (corps vide) en cas de succès.
+Déclenche une notification FCM si les notifications d'expédition sont activées.
+
+**Erreurs** :
+
+| Code | `error`           | Raison                                 |
+|------|-------------------|----------------------------------------|
+| 400  | `invalid_payload` | `tracking_number` absent ou `carrier_id` invalide |
+| 404  | `not_found`       | Commande introuvable                   |
+
+---
+
+## Produits
+
+### GET `.../api/products`
+
+Scope requis : `products.read`
+
+Liste paginée de produits.
+
+| Paramètre | Type   | Description                                             |
+|-----------|--------|---------------------------------------------------------|
+| `limit`   | int    | Nombre max de résultats (défaut 20, min 1)              |
+| `offset`  | int    | Décalage de pagination (défaut 0)                       |
+| `active`  | int    | `1` = actifs uniquement, `0` = inactifs uniquement      |
+| `search`  | string | Recherche sur nom ou référence                          |
+| `ids`     | string | Liste d'IDs séparés par virgule (`ids=88,89,90`)        |
+
+**Réponse 200**
+
+```json
+{
+  "products": [
     {
       "id": 88,
       "name": "T-shirt noir",
       "reference": "TSHIRT-BLACK",
-      "price_tax_excl": 15.9,
-      "price_tax_incl": 19.08,
-      "quantity": 24,
-      "cover_image": {
-        "id": 101,
-        "is_cover": true,
-        "url": "https://example.com/img/88-101-large_default.jpg",
-        "urls": {
-          "thumbnail": "https://example.com/img/88-101-home_default.jpg",
-          "large": "https://example.com/img/88-101-large_default.jpg"
+      "price": 19.08,
+      "active": true,
+      "stock": {
+        "quantity": 24,
+        "warehouse_id": null,
+        "updated_at": "2025-06-01 12:00:00"
+      },
+      "images": [
+        {
+          "id": 101,
+          "is_cover": true,
+          "legend": "Face avant",
+          "position": 1,
+          "url": "https://example.com/101-88-large_default.jpg",
+          "urls": {
+            "thumbnail": "https://example.com/101-88-home_default.jpg",
+            "large": "https://example.com/101-88-large_default.jpg"
+          }
         }
-      }
+      ],
+      "updated_at": "2025-06-01 12:00:00"
     }
   ]
 }
 ```
 
-### GET `/products/{id}`
+> `price` est le prix TTC (`Product::getPriceStatic($id, true)`). Le prix HT brut est disponible sur le détail produit (`price_tax_excl` PATCH uniquement).
 
-Renvoie la fiche produit détaillée (équivalent d’un `GET /products` ciblé) avec la liste complète des images.
+---
 
-**Réponse 200 (extrait)**
+### GET `.../api/products/{id}`
+
+Scope requis : `products.read`
+
+Fiche produit détaillée. La réponse est identique à un élément de la liste mais inclut toutes les images.
+
+**Réponse 200**
 
 ```json
 {
-  "data": {
+  "product": {
     "id": 88,
     "name": "T-shirt noir",
-    "cover_image": {
-      "id": 101,
-      "is_cover": true,
-      "url": "https://example.com/img/88-101-large_default.jpg",
-      "urls": {
-        "thumbnail": "https://example.com/img/88-101-home_default.jpg",
-        "large": "https://example.com/img/88-101-large_default.jpg"
-      }
+    "reference": "TSHIRT-BLACK",
+    "price": 19.08,
+    "active": true,
+    "stock": {
+      "quantity": 24,
+      "warehouse_id": null,
+      "updated_at": "2025-06-01 12:00:00"
     },
     "images": [
       {
@@ -139,10 +299,178 @@ Renvoie la fiche produit détaillée (équivalent d’un `GET /products` ciblé)
         "is_cover": true,
         "legend": "Face avant",
         "position": 1,
-        "url": "https://example.com/img/88-101-large_default.jpg",
+        "url": "https://example.com/101-88-large_default.jpg",
         "urls": {
-          "thumbnail": "https://example.com/img/88-101-home_default.jpg",
-          "large": "https://example.com/img/88-101-large_default.jpg"
+          "thumbnail": "https://example.com/101-88-home_default.jpg",
+          "large": "https://example.com/101-88-large_default.jpg"
+        }
+      }
+    ],
+    "updated_at": "2025-06-01 12:00:00"
+  }
+}
+```
+
+**Erreurs** : `404 not_found` si le produit n'existe pas.
+
+---
+
+### GET `.../api/products/{id}/stock`
+
+Scope requis : `products.read`
+
+Alias de `GET .../api/products/{id}` (même controller, paramètre `action=stock` ignoré côté PHP, répond avec la fiche produit complète).
+
+---
+
+### PATCH `.../api/products/{id}`  — Mettre à jour le stock
+
+Scope requis : `products.write`
+
+Paramètre URL `action=stock` (ou auto-détecté si `payload.quantity` présent).
+
+Corps JSON :
+
+| Champ      | Type | Description                              |
+|------------|------|------------------------------------------|
+| `quantity` | int  | Nouvelle quantité absolue en stock       |
+
+```json
+{ "quantity": 15 }
+```
+
+**Réponse 200** — retourne la fiche produit mise à jour (même format que `GET /products/{id}`).
+
+**Erreurs** :
+
+| Code | `error`           | Raison                   |
+|------|-------------------|--------------------------|
+| 400  | `invalid_payload` | `quantity` absent        |
+| 404  | `not_found`       | Produit introuvable      |
+
+---
+
+### PATCH `.../api/products/{id}`  — Mettre à jour les attributs
+
+Scope requis : `products.write`
+
+Paramètre URL `action=attributes` (auto-détecté si ni `quantity` ni `action=stock`).
+
+Corps JSON (tous les champs sont optionnels, au moins un requis) :
+
+| Champ           | Type      | Description                               |
+|-----------------|-----------|-------------------------------------------|
+| `active`        | bool/int  | Activer (`true`/`1`) ou désactiver le produit |
+| `price_tax_excl`| float     | Prix HT (le module recalcule le prix TTC) |
+
+```json
+{ "active": true, "price_tax_excl": 15.90 }
+```
+
+**Réponse 200** — retourne la fiche produit mise à jour.
+
+**Erreurs** :
+
+| Code | `error`           | Raison                                         |
+|------|-------------------|------------------------------------------------|
+| 400  | `invalid_payload` | Aucun champ modifiable fourni ou valeur invalide |
+| 404  | `not_found`       | Produit introuvable                            |
+
+---
+
+## Clients
+
+### GET `.../api/customers`
+
+Scope requis : `customers.read`
+
+Liste paginée de clients avec pagination par offset et filtres avancés.
+
+**Paramètres directs :**
+
+| Paramètre | Type   | Description                                               |
+|-----------|--------|-----------------------------------------------------------|
+| `limit`   | int    | Résultats par page (défaut 20, max 100)                   |
+| `offset`  | int    | Décalage (défaut 0)                                       |
+| `search`  | string | Recherche sur prénom, nom, email                          |
+| `email`   | string | Filtre email exact (doit être un email valide)            |
+| `sort`    | string | `date_asc`, `date_desc`, `orders_desc`, `orders_asc`, `spent_desc`, `spent_asc` (défaut `date_desc`) |
+| `ids`     | string | IDs séparés par virgule                                   |
+
+**Paramètres dans `filter[...]` :**
+
+| Paramètre                | Type   | Description                                      |
+|--------------------------|--------|--------------------------------------------------|
+| `filter[segment]`        | string | `new`, `repeat`, `vip`, `inactive`               |
+| `filter[min_orders]`     | int    | Nombre minimum de commandes                      |
+| `filter[max_orders]`     | int    | Nombre maximum de commandes                      |
+| `filter[min_spent]`      | float  | Montant total minimum dépensé (TTC)              |
+| `filter[max_spent]`      | float  | Montant total maximum dépensé (TTC)              |
+| `filter[created_from]`   | date   | Date d'inscription >= (format libre, parsé par `strtotime`) |
+| `filter[created_to]`     | date   | Date d'inscription <=                            |
+| `filter[search]`         | string | Alias de `search`                                |
+| `filter[sort]`           | string | Alias de `sort`                                  |
+| `filter[ids]`            | array/string | Alias de `ids`                            |
+
+**Réponse 200**
+
+```json
+{
+  "customers": [
+    {
+      "id": 50,
+      "firstname": "Anna",
+      "lastname": "Dupont",
+      "email": "anna@example.com",
+      "orders_count": 3,
+      "total_spent": 240.50,
+      "last_order_at": "2025-05-15 10:00:00"
+    }
+  ],
+  "pagination": {
+    "limit": 20,
+    "offset": 0,
+    "count": 1,
+    "has_next": false,
+    "next_offset": null
+  }
+}
+```
+
+> `last_order_at` est `null` si le client n'a jamais commandé. `next_offset` est `null` quand il n'y a pas de page suivante.
+
+---
+
+### GET `.../api/customers/{id}`
+
+Scope requis : `customers.read`
+
+Fiche client détaillée avec les 10 dernières commandes (format liste, voir `GET /orders`).
+
+**Réponse 200**
+
+```json
+{
+  "customer": {
+    "id": 50,
+    "firstname": "Anna",
+    "lastname": "Dupont",
+    "email": "anna@example.com",
+    "orders_count": 3,
+    "total_spent": 240.50,
+    "last_order_at": "2025-05-15 10:00:00",
+    "orders": [
+      {
+        "id": 123,
+        "reference": "ABCDEF123",
+        "status": "Expédiée",
+        "total_paid": 72.90,
+        "currency": "EUR",
+        "date_upd": "2025-06-01 14:30:00",
+        "customer": {
+          "id": 50,
+          "firstname": "Anna",
+          "lastname": "Dupont"
         }
       }
     ]
@@ -150,25 +478,153 @@ Renvoie la fiche produit détaillée (équivalent d’un `GET /products` ciblé)
 }
 ```
 
-### PATCH `/products/{id}/stock`
+**Erreurs** : `404 not_found` si le client n'existe pas.
 
-```http
-PATCH /module/rebuildconnector/products/88/stock
+---
+
+## Dashboard
+
+### GET `.../api/dashboard/metrics`
+
+Scope requis : `dashboard.read`
+
+Métriques agrégées sur une période.
+
+| Paramètre | Type   | Valeurs                              |
+|-----------|--------|--------------------------------------|
+| `period`  | string | `day`, `week`, `month` (défaut), `year` |
+
+**Réponse 200**
+
+```json
 {
-  "quantity": 15
+  "period": {
+    "label": "month",
+    "from": "2025-06-01T00:00:00+00:00",
+    "to": "2025-06-19T23:59:59+00:00"
+  },
+  "turnover": 12500.00,
+  "orders_count": 145,
+  "customers_count": 98,
+  "products_count": 312,
+  "revenue": 12500.00,
+  "revenue_tax_incl": 12500.00,
+  "revenue_tax_excl": 10416.67,
+  "tax_collected": 2083.33,
+  "average_basket": 86.21,
+  "average_order_value": 86.21,
+  "returns": 3,
+  "currency": "EUR",
+  "chart": [
+    {
+      "label": "2025-06-01",
+      "turnover": 450.00,
+      "orders": 5,
+      "customers": 4
+    },
+    {
+      "label": "2025-06-02",
+      "turnover": 0.0,
+      "orders": 0,
+      "customers": 0
+    }
+  ]
 }
 ```
 
-Réponse `204`.
+> `turnover` et `revenue` sont identiques et correspondent au CA TTC. `chart` contient un point par jour sur toute la période, y compris les jours sans ventes (revenue/orders/customers à zéro).
 
-### GET `/customers`
+---
 
-Filtres avancés (segment, montants, dates) et pagination offset.
+## Rapports
 
-```http
-GET /module/rebuildconnector/customers?limit=20&filter[segment]=vip
-Authorization: Bearer <JWT>
+### GET `.../api/reports/bestsellers`
+
+Scope requis : `reports.read`
+
+Produits les plus vendus (en quantité).
+
+| Paramètre   | Type     | Description                              |
+|-------------|----------|------------------------------------------|
+| `limit`     | int      | Nombre de résultats (défaut 10, max 50)  |
+| `date_from` | datetime | Filtre date commande >= (Y-m-d H:i:s)    |
+| `date_to`   | datetime | Filtre date commande <=                  |
+
+**Réponse 200**
+
+```json
+{
+  "products": [
+    {
+      "product_id": 88,
+      "product_attribute_id": 0,
+      "name": "T-shirt noir",
+      "reference": "TSHIRT-BLACK",
+      "quantity": 142,
+      "total_tax_incl": 2706.36,
+      "total_tax_excl": 2254.80
+    }
+  ]
+}
 ```
+
+---
+
+### GET `.../api/reports/bestcustomers`
+
+Scope requis : `reports.read`
+
+Clients ayant le plus dépensé (par CA TTC décroissant).
+
+| Paramètre   | Type     | Description                              |
+|-------------|----------|------------------------------------------|
+| `limit`     | int      | Nombre de résultats (défaut 10, max 50)  |
+| `date_from` | datetime | Filtre date commande >= (Y-m-d H:i:s)    |
+| `date_to`   | datetime | Filtre date commande <=                  |
+
+**Réponse 200**
+
+```json
+{
+  "customers": [
+    {
+      "id": 50,
+      "firstname": "Anna",
+      "lastname": "Dupont",
+      "email": "anna@example.com",
+      "orders_count": 12,
+      "total_spent": 1840.00,
+      "last_order_at": "2025-06-10 11:00:00"
+    }
+  ]
+}
+```
+
+---
+
+### GET `.../api/customers/top`
+
+Alias vers les meilleurs clients — route friendly identique à `GET .../api/reports/bestcustomers` (même controller `reports`, même paramètre `resource=bestcustomers`). Accepte les mêmes paramètres et retourne la même structure.
+
+---
+
+## Paniers
+
+### GET `.../api/baskets`
+
+Scope requis : `baskets.read`
+
+Liste paginée de paniers.
+
+| Paramètre              | Type   | Description                                     |
+|------------------------|--------|-------------------------------------------------|
+| `limit`                | int    | Résultats (défaut 20, max 100)                  |
+| `offset`               | int    | Décalage (défaut 0)                             |
+| `customer_id`          | int    | Filtre par client                               |
+| `date_from`            | datetime | Filtre `date_add >=`                          |
+| `date_to`              | datetime | Filtre `date_add <=`                          |
+| `has_order`            | bool   | `1` = convertis en commande, `0` = abandonnés  |
+| `abandoned_since_days` | int    | Paniers non commandés depuis N jours            |
 
 **Réponse 200**
 
@@ -176,61 +632,235 @@ Authorization: Bearer <JWT>
 {
   "data": [
     {
-      "id": 10,
-      "firstname": "Léa",
-      "lastname": "Martin",
-      "email": "lea@example.com",
-      "orders_count": 3,
-      "total_spent": 240.5,
-      "last_order_date": "2024-12-01 09:15:00"
+      "id": 456,
+      "customer": {
+        "id": 50,
+        "firstname": "Anna",
+        "lastname": "Dupont",
+        "email": "anna@example.com"
+      },
+      "currency": {
+        "id": 1,
+        "iso": "EUR"
+      },
+      "totals": {
+        "tax_excl": 31.80,
+        "tax_incl": 38.16
+      },
+      "items_count": 2,
+      "has_order": false,
+      "dates": {
+        "created_at": "2025-06-18 08:30:00",
+        "updated_at": "2025-06-18 09:15:00"
+      }
     }
-  ],
-  "meta": {
-    "pagination": { "limit": 20, "offset": 0, "count": 1, "has_next": false },
-    "filters": { "segment": "vip" }
-  }
+  ]
 }
 ```
 
-### GET `/customers/{id}`
+---
 
-Renvoie la fiche client + 10 dernières commandes. `404` sinon.
+### GET `.../api/baskets/{id}`
 
-### GET `/dashboard/metrics`
+Scope requis : `baskets.read`
 
-| Paramètre | Type | Description                             |
-|-----------|------|-----------------------------------------|
-| `period`  | enum | `day`, `week`, `month`, `year`          |
-| `from/to` | date | ISO 8601 facultatives                   |
+Détail d'un panier avec la liste des produits.
 
-**Réponse :**
+**Réponse 200**
 
 ```json
 {
   "data": {
-    "revenue": { "total": 1250.9, "currency": "EUR" },
-    "orders": { "count": 12 },
-    "top_products": [ { "id_product": 88, "name": "T-shirt noir", "quantity": 24 } ]
+    "id": 456,
+    "customer": {
+      "id": 50,
+      "firstname": "Anna",
+      "lastname": "Dupont",
+      "email": "anna@example.com"
+    },
+    "currency": {
+      "id": 1,
+      "iso": "EUR"
+    },
+    "totals": {
+      "tax_excl": 31.80,
+      "tax_incl": 38.16
+    },
+    "items_count": 2,
+    "has_order": false,
+    "dates": {
+      "created_at": "2025-06-18 08:30:00",
+      "updated_at": "2025-06-18 09:15:00"
+    },
+    "products": [
+      {
+        "product_id": 88,
+        "product_attribute_id": 5,
+        "name": "T-shirt noir",
+        "reference": "TSHIRT-BLACK",
+        "quantity": 2,
+        "total_tax_incl": 38.16,
+        "total_tax_excl": 31.80,
+        "image": "https://example.com/88-101-home_default.jpg"
+      }
+    ]
   }
 }
 ```
 
-## Errors
+**Erreurs** : `404 not_found` si le panier n'existe pas.
 
-| Code | Raison                 |
-|------|------------------------|
-| 400  | `invalid_request`      |
-| 401  | `unauthenticated`      |
-| 403  | `forbidden`            |
-| 404  | `not_found`            |
-| 405  | `method_not_allowed`   |
-| 429  | `too_many_requests`    |
-| 500  | `server_error`         |
+---
 
-## cURL Example
+## Notifications / Appareils FCM
+
+### POST `.../api/notifications/devices`
+
+Scope requis : `notifications.send`
+
+Enregistre un appareil mobile pour les notifications push (FCM).
+
+Corps JSON :
+
+| Champ       | Type         | Description                                          |
+|-------------|--------------|------------------------------------------------------|
+| `token`     | string       | Token FCM de l'appareil (requis)                     |
+| `topics`    | array/string | Topics FCM à abonner (optionnel, virgule ou retour ligne acceptés) |
+| `device_id` | string       | Identifiant unique de l'appareil (optionnel)         |
+| `platform`  | string       | Plateforme : `android`, `ios`, etc. (optionnel)      |
+
+```json
+{
+  "token": "fXBKj4...",
+  "topics": ["orders"],
+  "device_id": "device-uuid-1234",
+  "platform": "android"
+}
+```
+
+**Réponse 200**
+
+```json
+{
+  "status": "registered",
+  "token": "fXBKj4...",
+  "topics": ["orders"]
+}
+```
+
+**Erreurs** :
+
+| Code | `error`           | Raison               |
+|------|-------------------|----------------------|
+| 400  | `invalid_payload` | `token` absent/vide  |
+
+---
+
+### DELETE `.../api/notifications/devices/{token}`
+
+Scope requis : `notifications.send`
+
+Désenregistre un appareil. Le token peut aussi être passé dans le corps JSON (`{"token": "..."}`) si la route `/{token}` n'est pas utilisable.
+
+**Réponse 204** (corps vide).
+
+**Erreurs** :
+
+| Code | `error`           | Raison                       |
+|------|-------------------|------------------------------|
+| 400  | `invalid_payload` | Token absent dans URL et corps |
+
+---
+
+## Codes d'erreur
+
+Toutes les erreurs retournent un corps JSON :
+
+```json
+{
+  "error": "not_found",
+  "message": "Order not found."
+}
+```
+
+| Code HTTP | `error`             | Raison                                          |
+|-----------|---------------------|-------------------------------------------------|
+| 400       | `invalid_request`   | Corps JSON invalide ou champ requis manquant    |
+| 400       | `invalid_payload`   | Données invalides pour l'action demandée        |
+| 401       | `unauthenticated`   | Token JWT absent, expiré ou invalide            |
+| 401       | `unauthorized`      | Clé API incorrecte (endpoint login)             |
+| 403       | `forbidden`         | Scope insuffisant ou IP non autorisée           |
+| 404       | `not_found`         | Ressource introuvable                           |
+| 405       | `method_not_allowed`| Méthode HTTP non supportée par cet endpoint     |
+| 429       | `too_many_requests` | Limite de débit atteinte (rate limiter activé)  |
+| 500       | `server_error`      | Erreur interne (détail en mode dev uniquement)  |
+
+---
+
+## Exemples cURL
+
+### Authentification
 
 ```bash
-curl -X GET "https://example.com/module/rebuildconnector/orders?limit=5" \
-  -H "Authorization: Bearer <JWT>" \
-  -H "Accept: application/json"
+curl -X POST "https://example.com/module/rebuildconnector/api/connector/login" \
+  -H "Content-Type: application/json" \
+  -d '{"api_key": "mon_api_key"}'
 ```
+
+### Liste des commandes
+
+```bash
+curl -X GET "https://example.com/module/rebuildconnector/api/orders?limit=10&status=4" \
+  -H "Authorization: Bearer eyJhbGci..."
+```
+
+### Changer le statut d'une commande
+
+```bash
+curl -X PATCH "https://example.com/module/rebuildconnector/api/orders/123?action=status" \
+  -H "Authorization: Bearer eyJhbGci..." \
+  -H "Content-Type: application/json" \
+  -d '{"status": "Expédiée"}'
+```
+
+### Mettre à jour le stock
+
+```bash
+curl -X PATCH "https://example.com/module/rebuildconnector/api/products/88?action=stock" \
+  -H "Authorization: Bearer eyJhbGci..." \
+  -H "Content-Type: application/json" \
+  -d '{"quantity": 50}'
+```
+
+### Dashboard du mois
+
+```bash
+curl -X GET "https://example.com/module/rebuildconnector/api/dashboard/metrics?period=month" \
+  -H "Authorization: Bearer eyJhbGci..."
+```
+
+---
+
+## Table des routes
+
+| Méthode | URL friendly                                    | Controller   | Scope requis        |
+|---------|-------------------------------------------------|--------------|---------------------|
+| POST    | `.../api/connector/login`                       | api          | —                   |
+| GET     | `.../api/orders`                                | orders       | `orders.read`       |
+| GET     | `.../api/orders/{id}`                           | orders       | `orders.read`       |
+| PATCH   | `.../api/orders/{id}`                           | orders       | `orders.write`      |
+| PATCH   | `.../api/orders/{id}/{action}`                  | orders       | `orders.write`      |
+| GET     | `.../api/products`                              | products     | `products.read`     |
+| GET     | `.../api/products/{id}`                         | products     | `products.read`     |
+| GET     | `.../api/products/{id}/stock`                   | products     | `products.read`     |
+| PATCH   | `.../api/products/{id}`                         | products     | `products.write`    |
+| GET     | `.../api/customers`                             | customers    | `customers.read`    |
+| GET     | `.../api/customers/{id}`                        | customers    | `customers.read`    |
+| GET     | `.../api/customers/top`                         | reports      | `reports.read`      |
+| GET     | `.../api/dashboard/metrics`                     | dashboard    | `dashboard.read`    |
+| GET     | `.../api/reports/bestsellers`                   | reports      | `reports.read`      |
+| GET     | `.../api/reports/bestcustomers`                 | reports      | `reports.read`      |
+| GET     | `.../api/baskets`                               | baskets      | `baskets.read`      |
+| GET     | `.../api/baskets/{id}`                          | baskets      | `baskets.read`      |
+| POST    | `.../api/notifications/devices`                 | notifications| `notifications.send`|
+| DELETE  | `.../api/notifications/devices/{token}`         | notifications| `notifications.send`|
