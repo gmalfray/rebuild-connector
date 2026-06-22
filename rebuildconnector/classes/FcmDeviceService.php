@@ -159,11 +159,12 @@ class FcmDeviceService
 
     private function findIdByToken(string $token): ?int
     {
+        // Pas de LIMIT 1 ici : Db::getValue() l'ajoute automatiquement
+        // (sinon « LIMIT 1 LIMIT 1 » → erreur de syntaxe SQL → 500 à l'enregistrement).
         $sql = sprintf(
             'SELECT `id_rebuildconnector_fcm_device`
              FROM `%s%s`
-             WHERE `token` = "%s"
-             LIMIT 1',
+             WHERE `token` = "%s"',
             _DB_PREFIX_,
             self::TABLE_NAME,
             pSQL($token)
