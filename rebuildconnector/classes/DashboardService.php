@@ -75,13 +75,22 @@ class DashboardService
     {
         $now = new \DateTimeImmutable('now');
 
+        // Valeurs envoyées par l'app : today / week / month / quarter / year (glissantes,
+        // alignées sur les libellés « Aujourd'hui / 7 jours / 30 jours / Trimestre / Année »).
         switch (Tools::strtolower($period)) {
+            case 'today':
             case 'day':
                 $from = $now->setTime(0, 0, 0);
                 $to = $now->setTime(23, 59, 59);
                 break;
             case 'week':
-                $from = $now->modify('monday this week')->setTime(0, 0, 0);
+                // 7 derniers jours (aujourd'hui inclus)
+                $from = $now->modify('-6 days')->setTime(0, 0, 0);
+                $to = $now->setTime(23, 59, 59);
+                break;
+            case 'quarter':
+                // 3 derniers mois
+                $from = $now->modify('-3 months')->setTime(0, 0, 0);
                 $to = $now->setTime(23, 59, 59);
                 break;
             case 'year':
@@ -90,7 +99,8 @@ class DashboardService
                 break;
             case 'month':
             default:
-                $from = $now->setDate((int) $now->format('Y'), (int) $now->format('m'), 1)->setTime(0, 0, 0);
+                // 30 derniers jours (aujourd'hui inclus)
+                $from = $now->modify('-29 days')->setTime(0, 0, 0);
                 $to = $now->setTime(23, 59, 59);
                 break;
         }
