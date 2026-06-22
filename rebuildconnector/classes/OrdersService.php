@@ -103,19 +103,25 @@ class OrdersService
             }
         }
 
+        if (!class_exists('ProductsService')) {
+            require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/ProductsService.php';
+        }
+        $productsService = new ProductsService();
         $items = [];
         foreach ($order->getProducts() as $product) {
+            $productId = isset($product['id_product']) ? (int) $product['id_product'] : 0;
             $items[] = [
-                'product_id' => isset($product['id_product']) ? (int) $product['id_product'] : 0,
+                'product_id' => $productId,
                 'name' => isset($product['product_name']) ? (string) $product['product_name'] : '',
                 'reference' => isset($product['product_reference']) ? (string) $product['product_reference'] : '',
                 'quantity' => isset($product['product_quantity']) ? (int) $product['product_quantity'] : 0,
                 'price_tax_incl' => isset($product['total_price_tax_incl']) ? (float) $product['total_price_tax_incl'] : 0.0,
                 'price_tax_excl' => isset($product['total_price_tax_excl']) ? (float) $product['total_price_tax_excl'] : 0.0,
+                'image_url' => $productsService->getCoverImageUrl($productId),
             ];
         }
 
-        $orderCarrierId = (int) OrderCarrier::getIdByOrderId((int) $order->id);
+        $orderCarrierId = (int) $order->getIdOrderCarrier();
         $trackingNumber = (string) $order->shipping_number;
         $carrierName = '';
         $carrierId = (int) $order->id_carrier;
@@ -132,7 +138,7 @@ class OrdersService
             $carrierName = Carrier::getCarrierNameFromShopName($carrierId) ?: '';
         }
 
-        $history = (array) OrderHistory::getHistory($langId, (int) $order->id);
+        $history = (array) $order->getHistory($langId);
         $formattedHistory = [];
         foreach ($history as $entry) {
             /** @var array<string, mixed> $entry */
@@ -206,7 +212,7 @@ class OrdersService
         }
 
         $trackingNumber = trim($trackingNumber);
-        $orderCarrierId = (int) OrderCarrier::getIdByOrderId((int) $order->id);
+        $orderCarrierId = (int) $order->getIdOrderCarrier();
 
         if ($orderCarrierId > 0) {
             $orderCarrier = new OrderCarrier($orderCarrierId);
