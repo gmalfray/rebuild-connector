@@ -199,6 +199,30 @@ class ProductsService
     }
 
     /**
+     * URL de l'image de couverture d'un produit (même logique que la liste produits),
+     * ou null si pas d'image. Utilisé pour les miniatures des lignes d'articles du détail commande.
+     */
+    public function getCoverImageUrl(int $productId): ?string
+    {
+        if ($productId <= 0 || !class_exists('Product')) {
+            return null;
+        }
+
+        /** @var array<string, mixed>|false $cover */
+        $cover = Product::getCover($productId);
+        $imageId = is_array($cover) && isset($cover['id_image']) ? (int) $cover['id_image'] : 0;
+        if ($imageId <= 0) {
+            return null;
+        }
+
+        $langId = $this->getLanguageId();
+        $shopId = $this->getShopId();
+        $linkRewrite = $this->resolveProductLinkRewrite($productId, $langId, $shopId);
+
+        return $this->resolveImageUrl($linkRewrite, $productId, $imageId, 'home_default');
+    }
+
+    /**
      * @return array<int, array<string, mixed>>
      */
     private function getProductImages(int $productId, int $langId, int $shopId, ?string $linkRewrite = null): array
