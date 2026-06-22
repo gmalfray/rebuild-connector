@@ -133,6 +133,10 @@ class TranslationService
             'en' => 'Paste the JSON content of your Firebase service account used for HTTP v1 notifications.',
             'fr' => 'Collez le contenu JSON de votre compte de service Firebase utilisé pour les notifications HTTP v1.',
         ],
+        'admin.form.service_account_upload' => [
+            'en' => 'Load a JSON file',
+            'fr' => 'Charger un fichier JSON',
+        ],
         'admin.form.topics_label' => [
             'en' => 'FCM topics',
             'fr' => 'Topics FCM',
@@ -462,6 +466,7 @@ class TranslationService
             'regenerate_confirm' => $this->translate('admin.form.regenerate_confirm', $locale),
             'service_account_label' => $this->translate('admin.form.service_account_label', $locale),
             'service_account_help' => $this->translate('admin.form.service_account_help', $locale),
+            'service_account_upload' => $this->translate('admin.form.service_account_upload', $locale),
             'topics_label' => $this->translate('admin.form.topics_label', $locale),
             'topics_help' => $this->translate('admin.form.topics_help', $locale),
             'device_tokens_label' => $this->translate('admin.form.device_tokens_label', $locale),
