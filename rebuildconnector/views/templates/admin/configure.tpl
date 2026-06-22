@@ -153,6 +153,33 @@
                     class="form-control"
                     spellcheck="false"
                 >{$settings.fcm_service_account|escape:'htmlall'}</textarea>
+                <div style="margin-top: 8px;">
+                    <input type="file" id="rebuildconnector_fcm_file" accept="application/json,.json" style="display: none;" />
+                    <button type="button" class="btn btn-default" id="rebuildconnector_fcm_file_btn">
+                        <i class="icon-upload"></i> {$i18n.service_account_upload|escape:'htmlall'}
+                    </button>
+                    <span id="rebuildconnector_fcm_file_name" class="help-inline" style="margin-left: 8px;"></span>
+                </div>
+                <script type="text/javascript">
+                    (function () {
+                        var btn = document.getElementById('rebuildconnector_fcm_file_btn');
+                        var input = document.getElementById('rebuildconnector_fcm_file');
+                        var ta = document.getElementById('rebuildconnector_fcm_service_account');
+                        var nameEl = document.getElementById('rebuildconnector_fcm_file_name');
+                        if (!btn || !input || !ta) { return; }
+                        btn.addEventListener('click', function () { input.click(); });
+                        input.addEventListener('change', function () {
+                            var file = input.files && input.files[0];
+                            if (!file) { return; }
+                            var reader = new FileReader();
+                            reader.onload = function (e) {
+                                ta.value = e.target.result;
+                                if (nameEl) { nameEl.textContent = file.name; }
+                            };
+                            reader.readAsText(file);
+                        });
+                    })();
+                </script>
                 <p class="help-block">
                     {$i18n.service_account_help|escape:'htmlall'}
                 </p>
