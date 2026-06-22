@@ -115,7 +115,7 @@ class OrdersService
             ];
         }
 
-        $orderCarrierId = (int) OrderCarrier::getIdByOrderId((int) $order->id);
+        $orderCarrierId = (int) $order->getIdOrderCarrier();
         $trackingNumber = (string) $order->shipping_number;
         $carrierName = '';
         $carrierId = (int) $order->id_carrier;
@@ -132,7 +132,7 @@ class OrdersService
             $carrierName = Carrier::getCarrierNameFromShopName($carrierId) ?: '';
         }
 
-        $history = (array) OrderHistory::getHistory($langId, (int) $order->id);
+        $history = (array) $order->getHistory($langId);
         $formattedHistory = [];
         foreach ($history as $entry) {
             /** @var array<string, mixed> $entry */
@@ -206,7 +206,7 @@ class OrdersService
         }
 
         $trackingNumber = trim($trackingNumber);
-        $orderCarrierId = (int) OrderCarrier::getIdByOrderId((int) $order->id);
+        $orderCarrierId = (int) $order->getIdOrderCarrier();
 
         if ($orderCarrierId > 0) {
             $orderCarrier = new OrderCarrier($orderCarrierId);
