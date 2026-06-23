@@ -494,7 +494,7 @@
                         rows="6"
                         class="form-control"
                         spellcheck="false"
-                        placeholder='{"type": "service_account", "project_id": "...", ...}'
+                        placeholder='{ldelim}"type": "service_account", "project_id": "...", ...{rdelim}'
                     >{$settings.fcm_service_account|escape:'htmlall'}</textarea>
                     <div style="margin-top: 8px;">
                         <input type="file" id="rebuildconnector_fcm_file" accept="application/json,.json" style="display: none;" />
