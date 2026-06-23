@@ -4,6 +4,7 @@ if (!defined('_PS_VERSION_')) {
     exit;
 }
 
+require_once __DIR__ . '/classes/UserService.php';
 require_once __DIR__ . '/classes/SettingsService.php';
 require_once __DIR__ . '/classes/FcmDeviceService.php';
 require_once __DIR__ . '/classes/FcmService.php';
@@ -29,7 +30,7 @@ class RebuildConnector extends Module
     {
         $this->name = 'rebuildconnector';
         $this->tab = 'administration';
-        $this->version = '1.1.8';
+        $this->version = '1.2.0';
         $this->author = 'Rebuild IT';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -50,6 +51,10 @@ class RebuildConnector extends Module
         }
 
         $this->getSettingsService()->ensureDefaults();
+
+        if (!UserService::install()) {
+            return false;
+        }
 
         if (!FcmDeviceService::install()) {
             return false;
@@ -76,6 +81,7 @@ class RebuildConnector extends Module
         }
 
         Configuration::deleteByName('REBUILDCONNECTOR_SETTINGS');
+        UserService::uninstall();
         FcmDeviceService::uninstall();
         RateLimiterService::uninstall();
         AuditLogService::uninstall();
@@ -89,8 +95,54 @@ class RebuildConnector extends Module
         $settingsService = $this->getSettingsService();
         $messages = [];
         $errors = [];
+        $newUserApiKey = null;
+        $newUserQrJson = null;
 
-        if (Tools::isSubmit('rebuildconnector_regenerate_secret')) {
+        $userService = new UserService();
+
+        // --- Actions utilisateurs nommés ---
+        if (Tools::isSubmit('rebuildconnector_create_user')) {
+            $idEmployee = (int) Tools::getValue('rebuildconnector_user_employee', 0);
+            $label = trim((string) Tools::getValue('rebuildconnector_user_label', ''));
+            $scopesRaw = Tools::getValue('rebuildconnector_user_scopes', []);
+            $scopes = is_array($scopesRaw) ? array_map('strval', $scopesRaw) : [];
+
+            if ($idEmployee <= 0) {
+                $errors[] = 'Veuillez sélectionner un employé.';
+            } elseif ($label === '') {
+                $errors[] = 'Le label est obligatoire.';
+            } else {
+                $created = $userService->createUser($idEmployee, $label, $scopes);
+                $newUserApiKey = $created['api_key'];
+                $shopBaseUrl = $this->getShopBaseUrl();
+                $apiEndpoints = $this->getApiEndpoints();
+                $qrData = [
+                    'module'       => $this->name,
+                    'version'      => 1,
+                    'shopUrl'      => $shopBaseUrl,
+                    'apiKey'       => $newUserApiKey,
+                    'api_base_url' => $apiEndpoints['pretty'],
+                    'user_id'      => $created['id_user'],
+                    'label'        => $label,
+                ];
+                $encoded = json_encode($qrData);
+                $newUserQrJson = is_string($encoded) ? $encoded : '{}';
+                $messages[] = 'Utilisateur « ' . htmlspecialchars($label, ENT_QUOTES) . ' » créé. Conservez la clé API — elle ne sera plus affichée.';
+            }
+        } elseif (Tools::isSubmit('rebuildconnector_toggle_user')) {
+            $idUser = (int) Tools::getValue('rebuildconnector_user_id', 0);
+            $active = Tools::getValue('rebuildconnector_user_active') === '1';
+            if ($idUser > 0) {
+                $userService->setActive($idUser, $active);
+                $messages[] = 'Utilisateur ' . ($active ? 'réactivé' : 'désactivé') . '.';
+            }
+        } elseif (Tools::isSubmit('rebuildconnector_delete_user')) {
+            $idUser = (int) Tools::getValue('rebuildconnector_user_id', 0);
+            if ($idUser > 0) {
+                $userService->setActive($idUser, false);
+                $messages[] = 'Utilisateur désactivé (révoqué).';
+            }
+        } elseif (Tools::isSubmit('rebuildconnector_regenerate_secret')) {
             $settingsService->regenerateJwtSecret();
             $messages[] = $this->t('admin.message.secret_regenerated');
         } elseif (Tools::isSubmit('submitRebuildconnectorModule')) {
@@ -201,11 +253,25 @@ class RebuildConnector extends Module
 
         $qrConfigJson = json_encode($qrConfig);
 
+        // Données pour la section utilisateurs nommés
+        $employees = [];
+        if (class_exists('Employee')) {
+            $rawEmployees = Employee::getEmployees();
+            if (is_array($rawEmployees)) {
+                $employees = $rawEmployees;
+            }
+        }
+
         $this->context->smarty->assign([
-            'module_dir' => $this->_path,
-            'settings' => $settingsForTemplate,
-            'i18n' => $this->getTranslationService()->getAdminFormStrings($this->getCurrentLocale()),
-            'qr_config_json' => is_string($qrConfigJson) ? $qrConfigJson : '{}',
+            'module_dir'         => $this->_path,
+            'settings'           => $settingsForTemplate,
+            'i18n'               => $this->getTranslationService()->getAdminFormStrings($this->getCurrentLocale()),
+            'qr_config_json'     => is_string($qrConfigJson) ? $qrConfigJson : '{}',
+            'users'              => $userService->listUsers(),
+            'available_scopes'   => $userService->getAllScopes(),
+            'employees'          => $employees,
+            'new_user_api_key'   => $newUserApiKey,
+            'new_user_qr_json'   => $newUserQrJson,
         ]);
 
         return $output . $this->display(__FILE__, 'views/templates/admin/configure.tpl');

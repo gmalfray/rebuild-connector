@@ -79,7 +79,7 @@ class RebuildconnectorApiModuleFrontController extends RebuildconnectorBaseApiMo
             'expires_in' => $token['expires_in'] ?? 0,
             'issued_at' => $token['issued_at'] ?? null,
             'expires_at' => $token['expires_at'] ?? null,
-            'scopes' => $this->getSettingsService()->getScopes(),
+            'scopes' => isset($token['scopes']) && is_array($token['scopes']) ? $token['scopes'] : $this->getSettingsService()->getScopes(),
         ];
 
         $this->renderJson($response, 200);

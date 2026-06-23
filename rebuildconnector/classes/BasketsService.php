@@ -24,6 +24,12 @@ class BasketsService
         $query->leftJoin('customer', 'cu', 'cu.id_customer = c.id_customer');
         $query->leftJoin('currency', 'cur', 'cur.id_currency = c.id_currency');
 
+        // Protection IDOR : filtrer sur la boutique courante
+        $currentShopId = (int) Context::getContext()->shop->id;
+        if ($currentShopId > 0) {
+            $query->where('c.id_shop = ' . $currentShopId);
+        }
+
         if (!empty($filters['ids']) && is_array($filters['ids'])) {
             $ids = $this->sanitizeIds($filters['ids']);
             if ($ids !== []) {
