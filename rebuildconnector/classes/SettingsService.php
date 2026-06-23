@@ -59,8 +59,17 @@ class SettingsService
         $settings = $this->all();
         $updated = false;
 
-        if (empty($settings['api_key']) || !is_string($settings['api_key'])) {
-            $settings['api_key'] = $this->generateApiKey();
+        // Migration lazy à l'installation/upgrade : si une clé en clair existe sans hash, on migre.
+        if (!empty($settings['api_key']) && is_string($settings['api_key']) && empty($settings['api_key_hash'])) {
+            $settings['api_key_hash'] = password_hash($settings['api_key'], PASSWORD_BCRYPT, ['cost' => 12]);
+            unset($settings['api_key']);
+            $updated = true;
+        }
+
+        // Génère une clé hashée si aucune n'existe (installation initiale).
+        if (empty($settings['api_key_hash']) && empty($settings['api_key'])) {
+            $newKey = $this->generateApiKey();
+            $settings['api_key_hash'] = password_hash($newKey, PASSWORD_BCRYPT, ['cost' => 12]);
             $updated = true;
         }
 
@@ -119,6 +128,13 @@ class SettingsService
         }
     }
 
+    /**
+     * Retourne la clé en clair UNIQUEMENT si encore présente (ancienne installation, migration lazy
+     * pas encore déclenchée). Ne doit PAS être utilisé pour exposer la clé en clair au BO ou à
+     * l'API — réservé à la migration interne dans verifyApiKey().
+     *
+     * @internal
+     */
     public function getApiKey(): ?string
     {
         $settings = $this->all();
@@ -129,11 +145,64 @@ class SettingsService
         return $settings['api_key'];
     }
 
+    /**
+     * Indique si une clé Admin est configurée (hash ou clair legacy). Utilisé pour l'indicateur
+     * d'état dans le BO.
+     */
+    public function hasApiKey(): bool
+    {
+        $settings = $this->all();
+        $hasHash = !empty($settings['api_key_hash']) && is_string($settings['api_key_hash']);
+        $hasClear = !empty($settings['api_key']) && is_string($settings['api_key']);
+
+        return $hasHash || $hasClear;
+    }
+
+    /**
+     * Stocke la clé sous forme de hash bcrypt dans api_key_hash et supprime le clair.
+     */
     public function setApiKey(string $apiKey): void
     {
         $settings = $this->all();
-        $settings['api_key'] = $apiKey;
+        $settings['api_key_hash'] = password_hash($apiKey, PASSWORD_BCRYPT, ['cost' => 12]);
+        unset($settings['api_key']);
         $this->save($settings);
+    }
+
+    /**
+     * Vérifie une clé API Admin avec migration lazy transparente.
+     *
+     * - Si api_key_hash présent : password_verify().
+     * - Si seulement api_key en clair (ancienne installation) : hash_equals() + migration immédiate
+     *   vers le hash si la clé est correcte.
+     */
+    public function verifyApiKey(string $key): bool
+    {
+        if ($key === '') {
+            return false;
+        }
+
+        $settings = $this->all();
+
+        // Chemin normal : hash bcrypt présent.
+        if (!empty($settings['api_key_hash']) && is_string($settings['api_key_hash'])) {
+            return password_verify($key, $settings['api_key_hash']);
+        }
+
+        // Migration lazy : clé en clair encore présente (ancienne installation).
+        if (!empty($settings['api_key']) && is_string($settings['api_key'])) {
+            if (!hash_equals($settings['api_key'], $key)) {
+                return false;
+            }
+            // Clé correcte → migrer immédiatement vers le hash, supprimer le clair.
+            $settings['api_key_hash'] = password_hash($key, PASSWORD_BCRYPT, ['cost' => 12]);
+            unset($settings['api_key']);
+            $this->save($settings);
+
+            return true;
+        }
+
+        return false;
     }
 
     public function getJwtSecret(): string
@@ -655,7 +724,7 @@ class SettingsService
         $settings = $this->all();
 
         return [
-            'api_key' => isset($settings['api_key']) && is_string($settings['api_key']) ? $settings['api_key'] : '',
+            'api_key_configured' => $this->hasApiKey(),
             'token_ttl' => isset($settings['token_ttl']) ? (int) $settings['token_ttl'] : 3600,
             'jwt_secret_preview' => $this->renderSecretPreview(
                 isset($settings['jwt_secret']) && is_string($settings['jwt_secret'])
@@ -708,13 +777,15 @@ class SettingsService
     }
 
     /**
-     * Régénère la clé API globale (legacy) et retourne la nouvelle en clair.
+     * Régénère la clé API globale Admin. Stocke le hash bcrypt (jamais le clair en base) et
+     * retourne le clair UNE SEULE FOIS pour affichage one-time dans le BO.
      */
     public function regenerateApiKey(): string
     {
         $newKey = $this->generateApiKey();
         $settings = $this->all();
-        $settings['api_key'] = $newKey;
+        $settings['api_key_hash'] = password_hash($newKey, PASSWORD_BCRYPT, ['cost' => 12]);
+        unset($settings['api_key']); // S'assure que l'ancien clair legacy est supprimé.
         $this->save($settings);
 
         return $newKey;
