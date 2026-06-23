@@ -30,7 +30,7 @@ class RebuildConnector extends Module
     {
         $this->name = 'rebuildconnector';
         $this->tab = 'administration';
-        $this->version = '1.3.0';
+        $this->version = '1.4.0';
         $this->author = 'Rebuild IT';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -661,7 +661,7 @@ class RebuildConnector extends Module
                         'param' => 'id',
                     ],
                     'action' => [
-                        'regexp' => '(status|shipping)',
+                        'regexp' => '(status|shipping|invoice|shipping-label)',
                         'param' => 'action',
                     ],
                 ],

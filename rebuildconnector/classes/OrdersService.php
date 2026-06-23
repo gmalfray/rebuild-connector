@@ -2,6 +2,8 @@
 
 defined('_PS_VERSION_') || exit;
 
+require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/ShippingLabelService.php';
+
 class OrdersService
 {
     private const DEFAULT_LIMIT = 20;
@@ -187,6 +189,7 @@ class OrdersService
             'items' => $items,
             'history' => $formattedHistory,
             'has_invoice' => (int) $order->invoice_number > 0,
+            'shipping_label' => (new ShippingLabelService())->getShippingLabelMeta($orderId),
         ];
     }
 

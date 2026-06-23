@@ -222,12 +222,48 @@ Détail d'une commande avec historique et lignes de produits.
         "status": "Expédiée",
         "date_add": "2025-06-01 14:00:00"
       }
-    ]
+    ],
+    "has_invoice": true,
+    "shipping_label": {
+      "has_shipping_label": true,
+      "carrier_type": "colissimo"
+    }
   }
 }
 ```
 
+`carrier_type` vaut `"colissimo"`, `"mondialrelay"` ou `null` si le transporteur n'est pas reconnu.  
+`has_shipping_label` est `false` même si `carrier_type` est non nul (ex : Colissimo détecté mais PDF pas encore généré).
+
 **Erreurs** : `404 not_found` si la commande n'existe pas.
+
+---
+
+### GET `.../api/orders/{id}/shipping-label`
+
+Scope requis : `orders.read`
+
+Paramètre URL `action=shipping-label` ou path `/orders/{id}/shipping-label`.
+
+Stream le PDF du bordereau d'expédition.
+
+- **Colissimo** : lit le fichier local `modules/colissimo/documents/labels/{id}-{tracking}.pdf`.
+- **Mondial Relay** : proxy cURL vers `label_url` stockée en base (SSL vérifié, timeout 10 s).
+- Contrôle IDOR `id_shop` appliqué.
+
+**Réponse 200**
+
+```
+Content-Type: application/pdf
+Content-Disposition: attachment; filename="bordereau-colissimo-6120-6A05528333890.pdf"
+
+<binaire PDF>
+```
+
+**Erreurs** :
+- `404 not_found` : commande inexistante, transporteur non géré, fichier absent/supprimé, URL expirée.
+- `401 unauthenticated` : token manquant ou invalide.
+- `403 forbidden` : scope insuffisant.
 
 ---
 
