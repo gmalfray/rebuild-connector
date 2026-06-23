@@ -30,7 +30,7 @@ class RebuildConnector extends Module
     {
         $this->name = 'rebuildconnector';
         $this->tab = 'administration';
-        $this->version = '1.4.8';
+        $this->version = '1.4.9';
         $this->author = 'Rebuild IT';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -490,24 +490,34 @@ class RebuildConnector extends Module
      */
     private function notifyDevices(array $notification, array $data): void
     {
-        $topics = $this->getSettingsService()->getFcmTopics();
-        $primaryTokens = $this->getFcmDeviceService()->getTokens($topics);
+        $category = isset($data['event']) && is_string($data['event']) ? $data['event'] : '';
         $fallbackTokens = $this->getSettingsService()->getFcmDeviceTokens();
 
-        if ($topics === [] && $primaryTokens === [] && $fallbackTokens === []) {
+        // Ciblage par catégorie d'événement :
+        // - Si la catégorie est connue, on cible les appareils abonnés à cette catégorie
+        //   (appareils avec topics vide inclus, pour rétrocompatibilité).
+        // - Si la catégorie est vide/inconnue, on cible tous les tokens (comportement legacy).
+        if ($category !== '') {
+            $primaryTokens = $this->getFcmDeviceService()->getTokensForCategory($category);
+        } else {
+            $topics = $this->getSettingsService()->getFcmTopics();
+            $primaryTokens = $this->getFcmDeviceService()->getTokens($topics);
+        }
+
+        if ($primaryTokens === [] && $fallbackTokens === []) {
             return;
         }
 
         $success = $this
             ->getFcmService()
-            ->sendNotification($primaryTokens, $notification, $data, $topics, $fallbackTokens);
+            ->sendNotification($primaryTokens, $notification, $data, [], $fallbackTokens);
 
         $this->recordAudit('notifications.dispatch', [
-            'event' => $data['event'] ?? null,
+            'event' => $category !== '' ? $category : null,
             'success' => $success,
             'primary_tokens' => count($primaryTokens),
             'fallback_tokens' => count($fallbackTokens),
-            'topics' => $topics,
+            'category' => $category !== '' ? $category : null,
         ]);
 
         if (!$success && $this->isDevMode()) {

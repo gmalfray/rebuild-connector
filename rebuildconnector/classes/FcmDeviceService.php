@@ -48,6 +48,65 @@ class FcmDeviceService
     }
 
     /**
+     * Retourne les tokens ciblés pour une catégorie d'événement donnée.
+     *
+     * Règle de ciblage :
+     * - Un appareil dont la liste topics est VIDE est considéré « non configuré » :
+     *   il reçoit TOUTES les catégories (rétrocompatibilité des appareils enregistrés
+     *   avant la mise à jour de l'app).
+     * - Un appareil avec une liste topics NON VIDE ne reçoit QUE les catégories
+     *   explicitement listées dans ses topics.
+     *
+     * Catégories stables (contrat partagé avec l'app Android) :
+     * - "order.created"
+     * - "order.status.changed"
+     * - "order.shipping.updated"
+     *
+     * @return array<int, string>
+     */
+    public function getTokensForCategory(string $category): array
+    {
+        $category = trim($category);
+        if ($category === '') {
+            return [];
+        }
+
+        $sql = sprintf(
+            'SELECT `token`, `topics` FROM `%s%s`',
+            _DB_PREFIX_,
+            self::TABLE_NAME
+        );
+
+        /** @var array<int, array<string, mixed>> $rows */
+        $rows = Db::getInstance()->executeS($sql) ?: [];
+
+        $tokens = [];
+        foreach ($rows as $row) {
+            $token = isset($row['token']) ? trim((string) $row['token']) : '';
+            if ($token === '') {
+                continue;
+            }
+
+            $deviceTopics = $this->decodeTopics(
+                isset($row['topics']) ? (string) $row['topics'] : '[]'
+            );
+
+            // Appareil non configuré (topics vide) → reçoit tout.
+            if ($deviceTopics === []) {
+                $tokens[] = $token;
+                continue;
+            }
+
+            // Appareil configuré → ne reçoit que ses catégories.
+            if (in_array($category, $deviceTopics, true)) {
+                $tokens[] = $token;
+            }
+        }
+
+        return array_values(array_unique($tokens));
+    }
+
+    /**
      * @param array<int, string> $topics
      */
     public function registerDevice(string $token, array $topics = [], ?string $deviceId = null, ?string $platform = null): void
