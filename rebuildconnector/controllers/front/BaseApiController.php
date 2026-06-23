@@ -212,7 +212,21 @@ abstract class RebuildconnectorBaseApiModuleFrontController extends ModuleFrontC
         }
 
         $payload = $this->base64JsonDecode($segments[1]);
-        return is_array($payload) ? $payload : null;
+        if (!is_array($payload)) {
+            return null;
+        }
+
+        // Vérification de révocation pour les utilisateurs nommés
+        if (isset($payload['id_user']) && $payload['id_user'] !== null) {
+            require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/UserService.php';
+            $userService = new UserService();
+            $user = $userService->getUserById((int) $payload['id_user']);
+            if ($user === null || !(bool) $user['active']) {
+                return null; // token rejeté → 401
+            }
+        }
+
+        return $payload;
     }
 
     /**
