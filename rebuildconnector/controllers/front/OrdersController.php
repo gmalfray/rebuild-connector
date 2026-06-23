@@ -74,7 +74,18 @@ class RebuildconnectorOrdersModuleFrontController extends RebuildconnectorBaseAp
             return;
         }
 
-        $orderId = (int) Tools::getValue('id_order', (int) Tools::getValue('id', 0));
+        $idRaw = Tools::getValue('id_order', Tools::getValue('id', false));
+        $hasIdSegment = ($idRaw !== false && $idRaw !== '' && $idRaw !== null);
+        $orderId = (int) $idRaw;
+        // /orders/{id} avec un id non valide (ex. /orders/0) → 404, au lieu de retomber sur la liste.
+        if ($hasIdSegment && $orderId <= 0) {
+            $this->jsonError(
+                'not_found',
+                $this->t('orders.error.not_found', [], 'Order not found.'),
+                404
+            );
+            return;
+        }
         if ($orderId > 0) {
             $action = Tools::strtolower((string) Tools::getValue('action', ''));
             if ($action === 'invoice') {
@@ -123,8 +134,8 @@ class RebuildconnectorOrdersModuleFrontController extends RebuildconnectorBaseAp
         }
 
         $filters = [
-            'limit' => Tools::getValue('limit'),
-            'offset' => Tools::getValue('offset'),
+            'limit' => $this->parseLimit(Tools::getValue('limit')),
+            'offset' => $this->parseOffset(Tools::getValue('offset')),
             'customer_id' => Tools::getValue('customer_id'),
             'status' => Tools::getValue('status'),
             'date_from' => Tools::getValue('date_from'),
@@ -168,6 +179,10 @@ class RebuildconnectorOrdersModuleFrontController extends RebuildconnectorBaseAp
                 $status = isset($payload['status']) ? (string) $payload['status'] : '';
                 if ($status === '') {
                     throw new \InvalidArgumentException($this->t('orders.error.invalid_status', [], 'A valid status is required.'));
+                }
+                // Statut inexistant → 400 (invalid_payload) plutôt qu'un 500 via OrderHistory.
+                if (!$this->getOrdersService()->statusExists($status)) {
+                    throw new \InvalidArgumentException($this->t('orders.error.unknown_status', [], 'Unknown order status.'));
                 }
                 if (!$this->getOrdersService()->updateStatus($orderId, $status)) {
                     $this->jsonError(
@@ -272,6 +287,48 @@ class RebuildconnectorOrdersModuleFrontController extends RebuildconnectorBaseAp
         if (!$success && $this->isDevMode()) {
             error_log('[RebuildConnector] FCM shipping notification failed.');
         }
+    }
+
+    /**
+     * @param mixed $value
+     */
+    private function parseLimit($value): int
+    {
+        if ($value === null || $value === '' || $value === false) {
+            return OrdersService::DEFAULT_LIMIT;
+        }
+
+        if (!is_numeric($value)) {
+            throw new \InvalidArgumentException($this->t('orders.error.invalid_limit', [], 'Limit must be a positive integer.'));
+        }
+
+        $limit = (int) $value;
+        if ($limit <= 0) {
+            throw new \InvalidArgumentException($this->t('orders.error.invalid_limit', [], 'Limit must be a positive integer.'));
+        }
+
+        return min($limit, OrdersService::MAX_LIMIT);
+    }
+
+    /**
+     * @param mixed $value
+     */
+    private function parseOffset($value): int
+    {
+        if ($value === null || $value === '' || $value === false) {
+            return 0;
+        }
+
+        if (!is_numeric($value)) {
+            throw new \InvalidArgumentException($this->t('orders.error.invalid_offset', [], 'Offset must be a non-negative integer.'));
+        }
+
+        $offset = (int) $value;
+        if ($offset < 0) {
+            throw new \InvalidArgumentException($this->t('orders.error.invalid_offset', [], 'Offset must be a non-negative integer.'));
+        }
+
+        return $offset;
     }
 
     private function getOrdersService(): OrdersService
