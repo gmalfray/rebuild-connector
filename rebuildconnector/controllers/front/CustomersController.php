@@ -54,6 +54,13 @@ class RebuildconnectorCustomersModuleFrontController extends RebuildconnectorBas
 
     private function handleGet(): void
     {
+        $action = Tools::getValue('action');
+        if ($action === 'stats') {
+            $stats = $this->getCustomersService()->getCustomerStats();
+            $this->renderJson($stats);
+            return;
+        }
+
         $customerId = (int) Tools::getValue('id_customer', (int) Tools::getValue('id', 0));
         if ($customerId > 0) {
             $customer = $this->getCustomersService()->getCustomerById($customerId);

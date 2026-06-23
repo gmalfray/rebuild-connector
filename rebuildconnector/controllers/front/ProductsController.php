@@ -79,12 +79,35 @@ class RebuildconnectorProductsModuleFrontController extends RebuildconnectorBase
             return;
         }
 
-        $filters = [
-            'limit' => Tools::getValue('limit'),
-            'offset' => Tools::getValue('offset'),
-            'active' => Tools::getValue('active'),
-            'search' => Tools::getValue('search'),
-        ];
+        $filters = [];
+
+        $limitRaw = Tools::getValue('limit');
+        if ($limitRaw !== false && $limitRaw !== '') {
+            $filters['limit'] = $limitRaw;
+        }
+
+        $offsetRaw = Tools::getValue('offset');
+        if ($offsetRaw !== false && $offsetRaw !== '') {
+            $filters['offset'] = $offsetRaw;
+        }
+
+        // Le filtre "active" n'est appliqué que si le paramètre est explicitement fourni.
+        // Tools::getValue retourne false quand le paramètre est absent — dans ce cas on ne filtre
+        // pas sur active afin de retourner tous les produits (actifs + inactifs).
+        $activeRaw = Tools::getValue('active');
+        if ($activeRaw !== false && $activeRaw !== '') {
+            $filters['active'] = $activeRaw;
+        }
+
+        $searchRaw = Tools::getValue('search');
+        if ($searchRaw !== false && $searchRaw !== '') {
+            $filters['search'] = $searchRaw;
+        }
+
+        $stockRaw = Tools::getValue('stock');
+        if ($stockRaw !== false && $stockRaw !== '') {
+            $filters['stock'] = $stockRaw;
+        }
 
         $idsParam = Tools::getValue('ids');
         if (is_string($idsParam) && $idsParam !== '') {
@@ -93,10 +116,23 @@ class RebuildconnectorProductsModuleFrontController extends RebuildconnectorBase
             $filters['ids'] = array_filter(array_map('intval', $idsParam));
         }
 
+        $validStockValues = ['in_stock', 'out_of_stock', 'low_stock'];
+        if (!empty($filters['stock']) && !in_array($filters['stock'], $validStockValues, true)) {
+            throw new \InvalidArgumentException(
+                $this->t(
+                    'products.error.invalid_stock_filter',
+                    [],
+                    'Valeur du filtre stock invalide. Valeurs acceptées : in_stock, out_of_stock, low_stock.'
+                )
+            );
+        }
+
         $products = $this->getProductsService()->getProducts($filters);
+        $total = $this->getProductsService()->countProducts($filters);
 
         $this->renderJson([
             'products' => $products,
+            'total' => $total,
         ]);
     }
 

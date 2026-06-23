@@ -122,6 +122,32 @@ Deux formats de QR coexistent. Tous deux portent les mêmes champs de base (`mod
 
 ## Commandes
 
+### GET `.../api/orders/statuses`
+
+Scope requis : `orders.read`
+
+Retourne la liste de tous les statuts de commande disponibles dans la boutique (depuis `ps_order_state` + `ps_order_state_lang`, langue courante, hors états supprimés).
+
+**Réponse 200**
+
+```json
+{
+  "statuses": [
+    { "id": 1, "name": "En attente du paiement par chèque", "color": "#4169E1" },
+    { "id": 2, "name": "Paiement accepté", "color": "#3498db" },
+    { "id": 4, "name": "Expédiée", "color": "#01B887" }
+  ]
+}
+```
+
+| Champ   | Type   | Description                                |
+|---------|--------|--------------------------------------------|
+| `id`    | int    | ID de l'état (`id_order_state`)            |
+| `name`  | string | Libellé dans la langue courante            |
+| `color` | string | Couleur hexadécimale de l'état en back-office |
+
+---
+
 ### GET `.../api/orders`
 
 Scope requis : `orders.read`
@@ -341,9 +367,18 @@ Liste paginée de produits.
 |-----------|--------|---------------------------------------------------------|
 | `limit`   | int    | Nombre max de résultats (défaut 20, min 1)              |
 | `offset`  | int    | Décalage de pagination (défaut 0)                       |
-| `active`  | int    | `1` = actifs uniquement, `0` = inactifs uniquement      |
+| `active`  | int    | `1` = actifs uniquement, `0` = inactifs uniquement. **Si absent : aucun filtre, tous les produits sont retournés.** |
 | `search`  | string | Recherche sur nom ou référence                          |
 | `ids`     | string | Liste d'IDs séparés par virgule (`ids=88,89,90`)        |
+| `stock`   | string | Filtre par état de stock : `in_stock`, `out_of_stock`, `low_stock` |
+
+**Valeurs du filtre `stock`**
+
+| Valeur        | Condition                                          |
+|---------------|----------------------------------------------------|
+| `in_stock`    | `quantity > 0`                                     |
+| `out_of_stock`| `quantity <= 0`                                    |
+| `low_stock`   | `0 < quantity <= low_stock_threshold` (seuil par produit ou défaut 5) |
 
 **Réponse 200**
 
@@ -357,7 +392,9 @@ Liste paginée de produits.
       "price": 19.08,
       "active": true,
       "stock": {
-        "quantity": 24,
+        "quantity": 3,
+        "low_stock_threshold": 5,
+        "is_low": true,
         "warehouse_id": null,
         "updated_at": "2025-06-01 12:00:00"
       },
@@ -376,11 +413,27 @@ Liste paginée de produits.
       ],
       "updated_at": "2025-06-01 12:00:00"
     }
-  ]
+  ],
+  "total": 324
 }
 ```
 
+**Champs `stock.*` ajoutés (v1.4.2)**
+
+| Champ                 | Type | Description                                                                   |
+|-----------------------|------|-------------------------------------------------------------------------------|
+| `stock.low_stock_threshold` | int  | Seuil de stock faible effectif : `product_shop.low_stock_threshold` si > 0, sinon 5 (défaut global). |
+| `stock.is_low`        | bool | `true` si `0 < quantity <= low_stock_threshold`.                              |
+
+**Champ `total` ajouté (v1.4.3)**
+
+| Champ   | Type | Description                                                                        |
+|---------|------|------------------------------------------------------------------------------------|
+| `total` | int  | Nombre total de produits correspondant aux filtres actifs, indépendamment de la pagination (`limit`/`offset` ignorés). Permet à l'app d'afficher un compteur global et de calculer le nombre de pages. |
+
 > `price` est le prix TTC (`Product::getPriceStatic($id, true)`). Le prix HT brut est disponible sur le détail produit (`price_tax_excl` PATCH uniquement).
+> Toute valeur du filtre `stock` autre que les trois valeurs listées retourne `400 invalid_payload`.
+> **v1.4.3** — Corrige un bug où l'absence du paramètre `active` appliquait un filtre `p.active = 0` non désiré, causant le retour de produits inactifs uniquement et une liste tronquée.
 
 ---
 
@@ -402,6 +455,8 @@ Fiche produit détaillée. La réponse est identique à un élément de la liste
     "active": true,
     "stock": {
       "quantity": 24,
+      "low_stock_threshold": 5,
+      "is_low": false,
       "warehouse_id": null,
       "updated_at": "2025-06-01 12:00:00"
     },
@@ -550,6 +605,30 @@ Liste paginée de clients avec pagination par offset et filtres avancés.
 ```
 
 > `last_order_at` est `null` si le client n'a jamais commandé. `next_offset` est `null` quand il n'y a pas de page suivante.
+
+---
+
+### GET `.../api/customers/stats`
+
+Scope requis : `customers.read`
+
+Statistiques globales clients (compteurs exacts, indépendants de la pagination).
+
+**Réponse 200**
+
+```json
+{
+  "total": 4374,
+  "new_this_month": 32
+}
+```
+
+| Champ            | Type | Description                                                                                          |
+|------------------|------|------------------------------------------------------------------------------------------------------|
+| `total`          | int  | Nombre total de clients actifs (`deleted = 0`) sur la boutique courante.                            |
+| `new_this_month` | int  | Clients inscrits depuis le 1er du mois courant à 00:00:00, calculé en heure boutique (`PS_TIMEZONE`). |
+
+> La route `/customers/stats` est déclarée **avant** `/customers/{id}` dans les friendly URLs pour éviter toute ambiguïté de routage.
 
 ---
 
@@ -958,6 +1037,7 @@ curl -X GET "https://example.com/module/rebuildconnector/api/dashboard/metrics?p
 | Méthode | URL friendly                                    | Controller   | Scope requis        |
 |---------|-------------------------------------------------|--------------|---------------------|
 | POST    | `.../api/connector/login`                       | api          | —                   |
+| GET     | `.../api/orders/statuses`                       | orders       | `orders.read`       |
 | GET     | `.../api/orders`                                | orders       | `orders.read`       |
 | GET     | `.../api/orders/{id}`                           | orders       | `orders.read`       |
 | PATCH   | `.../api/orders/{id}`                           | orders       | `orders.write`      |
@@ -967,6 +1047,7 @@ curl -X GET "https://example.com/module/rebuildconnector/api/dashboard/metrics?p
 | GET     | `.../api/products/{id}/stock`                   | products     | `products.read`     |
 | PATCH   | `.../api/products/{id}`                         | products     | `products.write`    |
 | GET     | `.../api/customers`                             | customers    | `customers.read`    |
+| GET     | `.../api/customers/stats`                       | customers    | `customers.read`    |
 | GET     | `.../api/customers/{id}`                        | customers    | `customers.read`    |
 | GET     | `.../api/customers/top`                         | reports      | `reports.read`      |
 | GET     | `.../api/dashboard/metrics`                     | dashboard    | `dashboard.read`    |

@@ -81,6 +81,41 @@ class OrdersService
     }
 
     /**
+     * Retourne la liste de tous les statuts de commande disponibles dans la boutique.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function getOrderStatuses(): array
+    {
+        $langId = $this->getLanguageId();
+
+        $query = new DbQuery();
+        $query->select('os.id_order_state, osl.name, os.color');
+        $query->from('order_state', 'os');
+        $query->innerJoin(
+            'order_state_lang',
+            'osl',
+            'osl.id_order_state = os.id_order_state AND osl.id_lang = ' . (int) $langId
+        );
+        $query->where('os.deleted = 0');
+        $query->orderBy('os.id_order_state ASC');
+
+        $rows = (array) Db::getInstance()->executeS($query);
+
+        $statuses = [];
+        foreach ($rows as $row) {
+            /** @var array<string, mixed> $row */
+            $statuses[] = [
+                'id' => isset($row['id_order_state']) ? (int) $row['id_order_state'] : 0,
+                'name' => isset($row['name']) ? (string) $row['name'] : '',
+                'color' => isset($row['color']) ? (string) $row['color'] : '',
+            ];
+        }
+
+        return $statuses;
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function getOrderById(int $orderId): array
@@ -299,6 +334,7 @@ class OrdersService
             'status' => $statusName,
             'total_paid' => isset($row['total_paid_tax_incl']) ? (float) $row['total_paid_tax_incl'] : 0.0,
             'currency' => isset($row['currency_iso']) ? (string) $row['currency_iso'] : '',
+            'date_add' => isset($row['date_add']) ? (string) $row['date_add'] : null,
             'date_upd' => isset($row['date_upd']) ? (string) $row['date_upd'] : null,
             'has_invoice' => isset($row['invoice_number']) && (int) $row['invoice_number'] > 0,
             'customer' => [

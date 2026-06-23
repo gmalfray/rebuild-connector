@@ -64,6 +64,16 @@ class RebuildconnectorOrdersModuleFrontController extends RebuildconnectorBaseAp
 
     private function handleGet(): void
     {
+        // Endpoint statuses : GET /orders/statuses (action injectée par la route)
+        $action = Tools::strtolower((string) Tools::getValue('action', ''));
+        if ($action === 'statuses') {
+            $statuses = $this->getOrdersService()->getOrderStatuses();
+            $this->renderJson([
+                'statuses' => $statuses,
+            ]);
+            return;
+        }
+
         $orderId = (int) Tools::getValue('id_order', (int) Tools::getValue('id', 0));
         if ($orderId > 0) {
             $action = Tools::strtolower((string) Tools::getValue('action', ''));
