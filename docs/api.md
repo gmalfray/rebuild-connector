@@ -608,6 +608,30 @@ Liste paginée de clients avec pagination par offset et filtres avancés.
 
 ---
 
+### GET `.../api/customers/stats`
+
+Scope requis : `customers.read`
+
+Statistiques globales clients (compteurs exacts, indépendants de la pagination).
+
+**Réponse 200**
+
+```json
+{
+  "total": 4374,
+  "new_this_month": 32
+}
+```
+
+| Champ            | Type | Description                                                                                          |
+|------------------|------|------------------------------------------------------------------------------------------------------|
+| `total`          | int  | Nombre total de clients actifs (`deleted = 0`) sur la boutique courante.                            |
+| `new_this_month` | int  | Clients inscrits depuis le 1er du mois courant à 00:00:00, calculé en heure boutique (`PS_TIMEZONE`). |
+
+> La route `/customers/stats` est déclarée **avant** `/customers/{id}` dans les friendly URLs pour éviter toute ambiguïté de routage.
+
+---
+
 ### GET `.../api/customers/{id}`
 
 Scope requis : `customers.read`
@@ -1023,6 +1047,7 @@ curl -X GET "https://example.com/module/rebuildconnector/api/dashboard/metrics?p
 | GET     | `.../api/products/{id}/stock`                   | products     | `products.read`     |
 | PATCH   | `.../api/products/{id}`                         | products     | `products.write`    |
 | GET     | `.../api/customers`                             | customers    | `customers.read`    |
+| GET     | `.../api/customers/stats`                       | customers    | `customers.read`    |
 | GET     | `.../api/customers/{id}`                        | customers    | `customers.read`    |
 | GET     | `.../api/customers/top`                         | reports      | `reports.read`      |
 | GET     | `.../api/dashboard/metrics`                     | dashboard    | `dashboard.read`    |

@@ -123,6 +123,66 @@ class CustomersService
     }
 
     /**
+     * Retourne les statistiques globales clients :
+     * - total : clients actifs (deleted = 0) filtrés sur la boutique courante (c.id_shop)
+     * - new_this_month : inscrits depuis le 1er du mois courant (fuseau boutique PS_TIMEZONE)
+     *
+     * Filtre via c.id_shop (champ natif) et non customer_shop (absente en mono-boutique).
+     *
+     * @return array{total: int, new_this_month: int}
+     */
+    public function getCustomerStats(): array
+    {
+        $currentShopId = (int) Context::getContext()->shop->id;
+
+        // Fuseau boutique (même logique que DashboardService::shopTimeZone())
+        $tz = Configuration::get('PS_TIMEZONE');
+        if (is_string($tz) && $tz !== '') {
+            try {
+                $shopTz = new \DateTimeZone($tz);
+            } catch (\Exception $e) {
+                $shopTz = new \DateTimeZone(date_default_timezone_get() ?: 'UTC');
+            }
+        } else {
+            $shopTz = new \DateTimeZone(date_default_timezone_get() ?: 'UTC');
+        }
+
+        $now = new \DateTimeImmutable('now', $shopTz);
+        $firstOfMonth = $now->setDate((int) $now->format('Y'), (int) $now->format('n'), 1)->setTime(0, 0, 0);
+        $firstOfMonthStr = $firstOfMonth->format('Y-m-d H:i:s');
+
+        // Requête total clients non supprimés, filtrés sur la boutique courante.
+        // On filtre via c.id_shop (champ natif PS, toujours présent) plutôt que customer_shop
+        // (table absente en installation mono-boutique ou dataset partiel).
+        $queryTotal = new DbQuery();
+        $queryTotal->select('COUNT(*) AS cnt');
+        $queryTotal->from('customer', 'c');
+        $queryTotal->where('c.deleted = 0');
+        if ($currentShopId > 0) {
+            $queryTotal->where('c.id_shop = ' . $currentShopId);
+        }
+
+        $total = (int) Db::getInstance()->getValue($queryTotal);
+
+        // Requête nouveaux clients ce mois-ci
+        $queryNew = new DbQuery();
+        $queryNew->select('COUNT(*) AS cnt');
+        $queryNew->from('customer', 'c');
+        $queryNew->where('c.deleted = 0');
+        $queryNew->where('c.date_add >= "' . pSQL($firstOfMonthStr, true) . '"');
+        if ($currentShopId > 0) {
+            $queryNew->where('c.id_shop = ' . $currentShopId);
+        }
+
+        $newThisMonth = (int) Db::getInstance()->getValue($queryNew);
+
+        return [
+            'total' => $total,
+            'new_this_month' => $newThisMonth,
+        ];
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function getCustomerById(int $customerId): array

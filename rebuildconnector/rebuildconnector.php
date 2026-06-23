@@ -30,7 +30,7 @@ class RebuildConnector extends Module
     {
         $this->name = 'rebuildconnector';
         $this->tab = 'administration';
-        $this->version = '1.4.3';
+        $this->version = '1.4.4';
         $this->author = 'Rebuild IT';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -769,6 +769,16 @@ class RebuildConnector extends Module
                 'params' => [
                     'fc' => 'module',
                     'module' => $module,
+                ],
+            ],
+            'module-' . $module . '-api-customers-stats' => [
+                'controller' => 'customers',
+                'rule' => $baseRule . '/customers/stats',
+                'keywords' => [],
+                'params' => [
+                    'fc' => 'module',
+                    'module' => $module,
+                    'action' => 'stats',
                 ],
             ],
             'module-' . $module . '-api-customers-id' => [
