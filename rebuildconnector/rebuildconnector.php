@@ -313,6 +313,14 @@ class RebuildConnector extends Module
         $fcmProjectId = $settingsService->getFcmProjectId();
         $users = $userService->listUsers();
 
+        // Pré-décoder les scopes de chaque utilisateur pour éviter json_decode dans Smarty
+        foreach ($users as &$user) {
+            $rawScopes = isset($user['scopes']) && is_string($user['scopes']) ? $user['scopes'] : '[]';
+            $decoded = json_decode($rawScopes, true);
+            $user['scopes_array'] = is_array($decoded) ? $decoded : [];
+        }
+        unset($user);
+
         $this->context->smarty->assign([
             'module_dir'                 => $this->_path,
             'settings'                   => $settingsForTemplate,

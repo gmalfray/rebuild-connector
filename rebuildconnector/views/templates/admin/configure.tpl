@@ -193,7 +193,7 @@
             </h4>
 
             {foreach from=$users item=u}
-                {assign var="u_scopes" value=$u.scopes|json_decode:true}
+                {assign var="u_scopes" value=$u.scopes_array}
                 <div class="panel panel-default rbc-user-card" style="border-left: 4px solid {if $u.active}#5cb85c{else}#d9534f{/if};">
                     <div class="panel-heading" style="background:#fafafa; padding:8px 15px;">
                         <div class="row">
