@@ -375,7 +375,178 @@
     </form>
 </div>
 
+<div class="panel" id="rebuildconnector-users-panel">
+    <h3>Utilisateurs API</h3>
+
+    {if isset($new_user_api_key) && $new_user_api_key}
+        <div class="alert alert-success">
+            <strong>Nouvel utilisateur créé.</strong>
+            Clé API (affichée une seule fois, conservez-la) :
+            <code id="rebuildconnector-new-api-key">{$new_user_api_key|escape:'htmlall'}</code>
+            {if isset($new_user_qr_json) && $new_user_qr_json}
+                <div
+                    id="rebuildconnector_user_qr_container"
+                    class="well text-center"
+                    style="margin-top: 12px;"
+                    data-user-config="{$new_user_qr_json|escape:'htmlall'}"
+                >
+                    <div data-role="user-qr-target"></div>
+                </div>
+            {/if}
+        </div>
+    {/if}
+
+    {if isset($users) && $users|@count > 0}
+        <table class="table tableDnD">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Employé</th>
+                    <th>Label</th>
+                    <th>Scopes</th>
+                    <th>Statut</th>
+                    <th>Créé le</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {foreach from=$users item=u}
+                    <tr>
+                        <td>{$u.id_user|intval}</td>
+                        <td>
+                            {$u.employee_firstname|escape:'htmlall'} {$u.employee_lastname|escape:'htmlall'}
+                            <br><small>{$u.employee_email|escape:'htmlall'}</small>
+                        </td>
+                        <td>{$u.label|escape:'htmlall'}</td>
+                        <td>
+                            <small>
+                                {assign var="user_scopes" value=$u.scopes|json_decode}
+                                {if $user_scopes}
+                                    {foreach from=$user_scopes item=s}{$s|escape:'htmlall'} {/foreach}
+                                {else}
+                                    —
+                                {/if}
+                            </small>
+                        </td>
+                        <td>
+                            {if $u.active}
+                                <span class="label label-success">Actif</span>
+                            {else}
+                                <span class="label label-danger">Révoqué</span>
+                            {/if}
+                        </td>
+                        <td><small>{$u.date_add|escape:'htmlall'}</small></td>
+                        <td>
+                            {if $u.active}
+                                <form method="post" style="display:inline;">
+                                    <input type="hidden" name="rebuildconnector_user_id" value="{$u.id_user|intval}">
+                                    <input type="hidden" name="rebuildconnector_user_active" value="0">
+                                    <button type="submit" name="rebuildconnector_toggle_user" value="1" class="btn btn-sm btn-warning"
+                                        onclick="return confirm('Désactiver cet utilisateur ?');">
+                                        <i class="icon-ban-circle"></i> Désactiver
+                                    </button>
+                                </form>
+                            {else}
+                                <form method="post" style="display:inline;">
+                                    <input type="hidden" name="rebuildconnector_user_id" value="{$u.id_user|intval}">
+                                    <input type="hidden" name="rebuildconnector_user_active" value="1">
+                                    <button type="submit" name="rebuildconnector_toggle_user" value="1" class="btn btn-sm btn-success">
+                                        <i class="icon-check"></i> Réactiver
+                                    </button>
+                                </form>
+                            {/if}
+                        </td>
+                    </tr>
+                {/foreach}
+            </tbody>
+        </table>
+    {else}
+        <p class="text-muted">Aucun utilisateur nommé configuré.</p>
+    {/if}
+
+    <hr>
+    <h4>Créer un utilisateur</h4>
+    <form method="post" class="form-horizontal">
+        <div class="form-group">
+            <label class="control-label col-lg-3" for="rebuildconnector_user_employee">Employé</label>
+            <div class="col-lg-9">
+                <select id="rebuildconnector_user_employee" name="rebuildconnector_user_employee" class="form-control" required>
+                    <option value="">-- Sélectionner --</option>
+                    {if isset($employees) && $employees}
+                        {foreach from=$employees item=emp}
+                            <option value="{$emp.id_employee|intval}">
+                                {$emp.firstname|escape:'htmlall'} {$emp.lastname|escape:'htmlall'} ({$emp.email|escape:'htmlall'})
+                            </option>
+                        {/foreach}
+                    {/if}
+                </select>
+            </div>
+        </div>
+        <div class="form-group">
+            <label class="control-label col-lg-3" for="rebuildconnector_user_label">Label</label>
+            <div class="col-lg-9">
+                <input
+                    type="text"
+                    id="rebuildconnector_user_label"
+                    name="rebuildconnector_user_label"
+                    class="form-control"
+                    maxlength="100"
+                    placeholder="Ex: Préparateur entrepôt"
+                    required
+                >
+            </div>
+        </div>
+        <div class="form-group">
+            <label class="control-label col-lg-3">Scopes</label>
+            <div class="col-lg-9">
+                {if isset($available_scopes) && $available_scopes}
+                    {foreach from=$available_scopes item=scope}
+                        <div class="checkbox">
+                            <label>
+                                <input
+                                    type="checkbox"
+                                    name="rebuildconnector_user_scopes[]"
+                                    value="{$scope|escape:'htmlall'}"
+                                >
+                                <code>{$scope|escape:'htmlall'}</code>
+                            </label>
+                        </div>
+                    {/foreach}
+                {/if}
+                <p class="help-block">Sélectionnez uniquement les scopes nécessaires (principe du moindre privilège).</p>
+            </div>
+        </div>
+        <div class="panel-footer">
+            <button type="submit" name="rebuildconnector_create_user" value="1" class="btn btn-primary">
+                <i class="icon-plus"></i> Créer l'utilisateur
+            </button>
+        </div>
+    </form>
+</div>
+
 {if isset($qr_config_json)}
     <script type="text/javascript" src="{$module_dir|escape:'htmlall'}views/js/vendor/qrcode.js"></script>
     <script type="text/javascript" src="{$module_dir|escape:'htmlall'}views/js/admin/configure-qrcode.js"></script>
+{/if}
+
+{if isset($new_user_qr_json) && $new_user_qr_json}
+    <script type="text/javascript">
+        (function () {
+            var container = document.getElementById('rebuildconnector_user_qr_container');
+            if (!container || typeof QRCode === 'undefined') { return; }
+            var configRaw = container.getAttribute('data-user-config');
+            if (!configRaw) { return; }
+            try {
+                var config = JSON.parse(configRaw);
+                var target = container.querySelector('[data-role="user-qr-target"]');
+                if (!target) { return; }
+                new QRCode(target, {
+                    text: JSON.stringify(config),
+                    width: 200,
+                    height: 200,
+                    correctLevel: QRCode.CorrectLevel.M
+                });
+            } catch (e) { /* ignore */ }
+        })();
+    </script>
 {/if}
