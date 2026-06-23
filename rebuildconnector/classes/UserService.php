@@ -27,7 +27,7 @@ class UserService
             `id_employee` INT UNSIGNED NOT NULL,
             `label` VARCHAR(100) NOT NULL DEFAULT \'\',
             `api_key_hash` VARCHAR(255) NOT NULL,
-            `scopes` TEXT NOT NULL DEFAULT \'[]\',
+            `scopes` TEXT NOT NULL,
             `active` TINYINT(1) NOT NULL DEFAULT 1,
             `revoked_at` DATETIME NULL,
             `date_add` DATETIME NOT NULL,
