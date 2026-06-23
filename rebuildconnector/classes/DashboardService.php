@@ -71,9 +71,29 @@ class DashboardService
     /**
      * @return array<string, \DateTimeImmutable>
      */
+    /**
+     * Fuseau de la boutique (PS_TIMEZONE), avec repli sur le fuseau PHP puis UTC.
+     */
+    private static function shopTimeZone(): \DateTimeZone
+    {
+        $tz = Configuration::get('PS_TIMEZONE');
+        if (is_string($tz) && $tz !== '') {
+            try {
+                return new \DateTimeZone($tz);
+            } catch (\Exception $e) {
+                // PS_TIMEZONE invalide → repli ci-dessous
+            }
+        }
+
+        return new \DateTimeZone(date_default_timezone_get() ?: 'UTC');
+    }
+
     private function resolvePeriodRange(string $period): array
     {
-        $now = new \DateTimeImmutable('now');
+        // Heure BOUTIQUE (PS_TIMEZONE), pas le fuseau PHP ambiant : sinon, sur une instance où
+        // PHP tourne en UTC, « aujourd'hui » vise la veille tôt le matin (les commandes passées
+        // après minuit heure boutique ne sont pas comptées). date_add est stocké en heure boutique.
+        $now = new \DateTimeImmutable('now', self::shopTimeZone());
 
         // Valeurs envoyées par l'app : today / week / month / quarter / year (glissantes,
         // alignées sur les libellés « Aujourd'hui / 7 jours / 30 jours / Trimestre / Année »).
