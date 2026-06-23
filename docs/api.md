@@ -122,6 +122,32 @@ Deux formats de QR coexistent. Tous deux portent les mêmes champs de base (`mod
 
 ## Commandes
 
+### GET `.../api/orders/statuses`
+
+Scope requis : `orders.read`
+
+Retourne la liste de tous les statuts de commande disponibles dans la boutique (depuis `ps_order_state` + `ps_order_state_lang`, langue courante, hors états supprimés).
+
+**Réponse 200**
+
+```json
+{
+  "statuses": [
+    { "id": 1, "name": "En attente du paiement par chèque", "color": "#4169E1" },
+    { "id": 2, "name": "Paiement accepté", "color": "#3498db" },
+    { "id": 4, "name": "Expédiée", "color": "#01B887" }
+  ]
+}
+```
+
+| Champ   | Type   | Description                                |
+|---------|--------|--------------------------------------------|
+| `id`    | int    | ID de l'état (`id_order_state`)            |
+| `name`  | string | Libellé dans la langue courante            |
+| `color` | string | Couleur hexadécimale de l'état en back-office |
+
+---
+
 ### GET `.../api/orders`
 
 Scope requis : `orders.read`
@@ -344,6 +370,15 @@ Liste paginée de produits.
 | `active`  | int    | `1` = actifs uniquement, `0` = inactifs uniquement      |
 | `search`  | string | Recherche sur nom ou référence                          |
 | `ids`     | string | Liste d'IDs séparés par virgule (`ids=88,89,90`)        |
+| `stock`   | string | Filtre par état de stock : `in_stock`, `out_of_stock`, `low_stock` |
+
+**Valeurs du filtre `stock`**
+
+| Valeur        | Condition                                          |
+|---------------|----------------------------------------------------|
+| `in_stock`    | `quantity > 0`                                     |
+| `out_of_stock`| `quantity <= 0`                                    |
+| `low_stock`   | `0 < quantity <= low_stock_threshold` (seuil par produit ou défaut 5) |
 
 **Réponse 200**
 
@@ -357,7 +392,9 @@ Liste paginée de produits.
       "price": 19.08,
       "active": true,
       "stock": {
-        "quantity": 24,
+        "quantity": 3,
+        "low_stock_threshold": 5,
+        "is_low": true,
         "warehouse_id": null,
         "updated_at": "2025-06-01 12:00:00"
       },
@@ -380,7 +417,15 @@ Liste paginée de produits.
 }
 ```
 
+**Champs `stock.*` ajoutés (v1.4.2)**
+
+| Champ                 | Type | Description                                                                   |
+|-----------------------|------|-------------------------------------------------------------------------------|
+| `stock.low_stock_threshold` | int  | Seuil de stock faible effectif : `product_shop.low_stock_threshold` si > 0, sinon 5 (défaut global). |
+| `stock.is_low`        | bool | `true` si `0 < quantity <= low_stock_threshold`.                              |
+
 > `price` est le prix TTC (`Product::getPriceStatic($id, true)`). Le prix HT brut est disponible sur le détail produit (`price_tax_excl` PATCH uniquement).
+> Toute valeur du filtre `stock` autre que les trois valeurs listées retourne `400 invalid_payload`.
 
 ---
 
@@ -402,6 +447,8 @@ Fiche produit détaillée. La réponse est identique à un élément de la liste
     "active": true,
     "stock": {
       "quantity": 24,
+      "low_stock_threshold": 5,
+      "is_low": false,
       "warehouse_id": null,
       "updated_at": "2025-06-01 12:00:00"
     },
@@ -958,6 +1005,7 @@ curl -X GET "https://example.com/module/rebuildconnector/api/dashboard/metrics?p
 | Méthode | URL friendly                                    | Controller   | Scope requis        |
 |---------|-------------------------------------------------|--------------|---------------------|
 | POST    | `.../api/connector/login`                       | api          | —                   |
+| GET     | `.../api/orders/statuses`                       | orders       | `orders.read`       |
 | GET     | `.../api/orders`                                | orders       | `orders.read`       |
 | GET     | `.../api/orders/{id}`                           | orders       | `orders.read`       |
 | PATCH   | `.../api/orders/{id}`                           | orders       | `orders.write`      |
