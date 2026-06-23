@@ -38,6 +38,16 @@ class CustomersService
         $query->from('customer', 'c');
         $query->where('c.deleted = 0');
 
+        // Protection IDOR : filtrer sur la boutique courante via customer_shop
+        $currentShopId = (int) Context::getContext()->shop->id;
+        if ($currentShopId > 0) {
+            $query->innerJoin(
+                'customer_shop',
+                'cs',
+                'cs.id_customer = c.id_customer AND cs.id_shop = ' . $currentShopId
+            );
+        }
+
         if (!empty($filters['ids'])) {
             $ids = is_array($filters['ids']) ? $filters['ids'] : explode(',', (string) $filters['ids']);
             $ids = array_filter(array_map('intval', $ids));

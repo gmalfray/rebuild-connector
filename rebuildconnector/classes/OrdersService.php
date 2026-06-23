@@ -88,6 +88,12 @@ class OrdersService
             return [];
         }
 
+        // Protection IDOR : la commande doit appartenir à la boutique courante
+        $currentShopId = (int) Context::getContext()->shop->id;
+        if ($currentShopId > 0 && (int) $order->id_shop !== $currentShopId) {
+            return [];
+        }
+
         $langId = $this->getLanguageId();
         $currency = $order->id_currency ? new Currency((int) $order->id_currency) : null;
         $customer = $order->id_customer ? new Customer((int) $order->id_customer) : null;
@@ -192,6 +198,12 @@ class OrdersService
     {
         $order = new Order($orderId);
         if (!Validate::isLoadedObject($order)) {
+            return null;
+        }
+
+        // Protection IDOR : la commande doit appartenir à la boutique courante
+        $currentShopId = (int) Context::getContext()->shop->id;
+        if ($currentShopId > 0 && (int) $order->id_shop !== $currentShopId) {
             return null;
         }
 
