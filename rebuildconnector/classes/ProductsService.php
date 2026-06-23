@@ -4,6 +4,11 @@ defined('_PS_VERSION_') || exit;
 
 class ProductsService
 {
+    /**
+     * Seuil de stock faible par défaut (utilisé si le produit n'a pas de low_stock_threshold défini).
+     */
+    public const DEFAULT_LOW_STOCK_THRESHOLD = 5;
+
     /** @var Link|null */
     private $link = null;
 
@@ -19,10 +24,18 @@ class ProductsService
         $limit = isset($filters['limit']) ? max(1, (int) $filters['limit']) : 20;
         $offset = isset($filters['offset']) ? max(0, (int) $filters['offset']) : 0;
 
+        $defaultThreshold = self::DEFAULT_LOW_STOCK_THRESHOLD;
+
         $query = new DbQuery();
         $query->select('p.id_product, pl.name, pl.link_rewrite, p.reference, p.active, p.date_upd');
         $query->select('IFNULL(ps.price, p.price) AS base_price');
         $query->select('sa.quantity, sa.id_stock_available');
+        $query->select(
+            'CASE WHEN ps.low_stock_threshold IS NOT NULL AND ps.low_stock_threshold > 0'
+            . ' THEN ps.low_stock_threshold'
+            . ' ELSE ' . (int) $defaultThreshold
+            . ' END AS low_stock_threshold'
+        );
         $query->from('product', 'p');
         $query->innerJoin(
             'product_lang',
@@ -54,6 +67,25 @@ class ProductsService
             $ids = array_filter(array_map('intval', $filters['ids']));
             if (!empty($ids)) {
                 $query->where('p.id_product IN (' . implode(',', $ids) . ')');
+            }
+        }
+
+        if (!empty($filters['stock'])) {
+            $stockFilter = (string) $filters['stock'];
+            if ($stockFilter === 'in_stock') {
+                $query->where('IFNULL(sa.quantity, 0) > 0');
+            } elseif ($stockFilter === 'out_of_stock') {
+                $query->where('IFNULL(sa.quantity, 0) <= 0');
+            } elseif ($stockFilter === 'low_stock') {
+                // 0 < quantity <= seuil (threshold effectif)
+                $query->where('IFNULL(sa.quantity, 0) > 0');
+                $query->where(
+                    'IFNULL(sa.quantity, 0) <= CASE'
+                    . ' WHEN ps.low_stock_threshold IS NOT NULL AND ps.low_stock_threshold > 0'
+                    . ' THEN ps.low_stock_threshold'
+                    . ' ELSE ' . (int) $defaultThreshold
+                    . ' END'
+                );
             }
         }
 
@@ -181,6 +213,11 @@ class ProductsService
         }));
 
         $updatedAt = isset($row['date_upd']) ? (string) $row['date_upd'] : null;
+        $quantity = isset($row['quantity']) ? (int) $row['quantity'] : 0;
+        $lowStockThreshold = isset($row['low_stock_threshold']) && (int) $row['low_stock_threshold'] > 0
+            ? (int) $row['low_stock_threshold']
+            : self::DEFAULT_LOW_STOCK_THRESHOLD;
+        $isLow = $quantity > 0 && $quantity <= $lowStockThreshold;
 
         return [
             'id' => $idProduct,
@@ -189,7 +226,9 @@ class ProductsService
             'price' => $priceTaxIncl,
             'active' => isset($row['active']) ? (bool) $row['active'] : false,
             'stock' => [
-                'quantity' => isset($row['quantity']) ? (int) $row['quantity'] : 0,
+                'quantity' => $quantity,
+                'low_stock_threshold' => $lowStockThreshold,
+                'is_low' => $isLow,
                 'warehouse_id' => null,
                 'updated_at' => $updatedAt,
             ],

@@ -84,6 +84,7 @@ class RebuildconnectorProductsModuleFrontController extends RebuildconnectorBase
             'offset' => Tools::getValue('offset'),
             'active' => Tools::getValue('active'),
             'search' => Tools::getValue('search'),
+            'stock' => Tools::getValue('stock'),
         ];
 
         $idsParam = Tools::getValue('ids');
@@ -91,6 +92,17 @@ class RebuildconnectorProductsModuleFrontController extends RebuildconnectorBase
             $filters['ids'] = array_filter(array_map('intval', explode(',', $idsParam)));
         } elseif (is_array($idsParam)) {
             $filters['ids'] = array_filter(array_map('intval', $idsParam));
+        }
+
+        $validStockValues = ['in_stock', 'out_of_stock', 'low_stock'];
+        if (!empty($filters['stock']) && !in_array($filters['stock'], $validStockValues, true)) {
+            throw new \InvalidArgumentException(
+                $this->t(
+                    'products.error.invalid_stock_filter',
+                    [],
+                    'Valeur du filtre stock invalide. Valeurs acceptées : in_stock, out_of_stock, low_stock.'
+                )
+            );
         }
 
         $products = $this->getProductsService()->getProducts($filters);
