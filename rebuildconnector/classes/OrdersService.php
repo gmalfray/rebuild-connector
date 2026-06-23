@@ -334,6 +334,7 @@ class OrdersService
             'status' => $statusName,
             'total_paid' => isset($row['total_paid_tax_incl']) ? (float) $row['total_paid_tax_incl'] : 0.0,
             'currency' => isset($row['currency_iso']) ? (string) $row['currency_iso'] : '',
+            'date_add' => isset($row['date_add']) ? (string) $row['date_add'] : null,
             'date_upd' => isset($row['date_upd']) ? (string) $row['date_upd'] : null,
             'has_invoice' => isset($row['invoice_number']) && (int) $row['invoice_number'] > 0,
             'customer' => [
