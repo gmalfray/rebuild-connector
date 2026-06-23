@@ -86,20 +86,28 @@
     </div>
     <div class="panel-body">
 
-        {* Alerte clé régénérée (admin legacy) *}
+        {* Alerte clé régénérée (admin legacy) — affichage one-time uniquement *}
         {if isset($regenerated_admin_api_key) && $regenerated_admin_api_key}
             <div class="alert alert-warning" id="rbc-admin-regen-alert">
                 <i class="icon-warning-sign"></i>
-                <strong>Clé Admin régénérée — notez-la maintenant, elle ne sera plus affichée !</strong><br>
+                <strong>Clé Admin régénérée — notez-la et scannez le QR maintenant, elle ne sera plus affichée.</strong><br>
+                <span class="text-muted" style="font-size:12px;">Cette clé donne un accès complet à tous les endpoints. Conservez-la en lieu sûr.</span><br><br>
                 Clé : <code id="rbc-admin-regen-key">{$regenerated_admin_api_key|escape:'htmlall'}</code>
-                <div
-                    id="rbc_admin_regen_qr_container"
-                    class="well text-center"
-                    style="margin-top:12px; display:inline-block;"
-                    data-qr-config="{$regenerated_admin_qr_json|escape:'htmlall'}"
-                >
-                    <div data-role="rbc-qr-render"></div>
-                </div>
+                {if isset($regenerated_admin_qr_json) && $regenerated_admin_qr_json}
+                    <div
+                        id="rbc_admin_regen_qr_container"
+                        class="well text-center"
+                        style="margin-top:12px; display:inline-block;"
+                        data-qr-config="{$regenerated_admin_qr_json|escape:'htmlall'}"
+                    >
+                        <div data-role="rbc-qr-render"></div>
+                    </div>
+                {/if}
+                <p class="help-block" style="margin-top:8px;">
+                    <i class="icon-info-sign"></i>
+                    Pour connecter un appareil supplémentaire, préférez créer un <strong>utilisateur nommé</strong> dédié
+                    (section ci-dessous) plutôt que de partager cette clé Admin.
+                </p>
             </div>
         {/if}
 
@@ -134,53 +142,35 @@
                 <div class="row">
                     <div class="col-lg-8">
                         <p>
-                            Clé API : <code>{$settings.api_key|escape:'htmlall'}</code>
+                            Clé API :
+                            {if $settings.api_key_configured}
+                                <code style="color:#888; letter-spacing:2px;">••••••••••••••••••••</code>
+                                <span class="text-muted" style="font-size:12px; margin-left:8px;">
+                                    Clé secrète — visible uniquement lors de la régénération
+                                </span>
+                            {else}
+                                <span class="label label-danger">Aucune clé configurée</span>
+                            {/if}
                         </p>
                         <p class="text-muted" style="font-size:12px;">
                             Cette clé donne un accès complet à tous les endpoints. Elle est utilisée par l'app en mode legacy
-                            (sans utilisateur nommé). La régénérer invalide immédiatement l'ancien QR.
+                            (sans utilisateur nommé). La régénérer invalide immédiatement l'accès avec l'ancienne clé.
+                            Pour connecter un appareil supplémentaire, préférez créer un <strong>utilisateur nommé</strong> dédié.
                         </p>
                     </div>
                     <div class="col-lg-4 text-right">
-                        <button
-                            type="button"
-                            class="btn btn-default btn-sm"
-                            data-toggle="collapse"
-                            data-target="#rbc-admin-qr-panel"
-                        >
-                            <i class="icon-qrcode"></i> Afficher le QR Admin
-                        </button>
-                        &nbsp;
                         <form method="post" style="display:inline;">
                             <button
                                 type="submit"
                                 name="rebuildconnector_regenerate_admin_key"
                                 value="1"
                                 class="btn btn-warning btn-sm"
-                                onclick="return confirm('Régénérer la clé Admin ? L\'ancien QR sera immédiatement invalide.');"
+                                onclick="return confirm('Régénérer la clé Admin ? L\'ancienne clé sera immédiatement invalide et non récupérable.');"
                             >
                                 <i class="icon-refresh"></i> Régénérer
                             </button>
                         </form>
                     </div>
-                </div>
-
-                <div id="rbc-admin-qr-panel" class="collapse" style="margin-top:12px;">
-                    <div
-                        id="rbc_admin_qr_container"
-                        class="well text-center"
-                        style="display:inline-block;"
-                        data-qr-config="{$qr_config_json|escape:'htmlall'}"
-                    >
-                        <div data-role="rbc-qr-render"></div>
-                        <p class="text-muted" style="font-size:11px; margin-top:8px;">
-                            <span data-role="rbc-qr-status"></span>
-                        </p>
-                    </div>
-                    <p class="help-block">
-                        <i class="icon-info-sign"></i>
-                        Scannez ce QR depuis l'app PrestaFlow pour configurer la connexion.
-                    </p>
                 </div>
             </div>
         </div>
@@ -820,28 +810,12 @@
         }
     }
 
-    // Rendu immédiat pour les alertes (clé régénérée / nouvel utilisateur)
+    // Rendu immédiat pour les alertes one-time (clé Admin régénérée / nouvel utilisateur)
     var immediateContainers = [
         document.getElementById('rbc_admin_regen_qr_container'),
         document.getElementById('rbc_user_qr_container')
     ];
     immediateContainers.forEach(function (c) { renderQrInContainer(c); });
-
-    // Rendu du QR Admin : immédiatement, dès le chargement. Le BO PrestaShop 1.7.8
-    // déclenche les événements Bootstrap (show.bs.collapse) via jQuery ; un
-    // addEventListener natif ne les capte pas → le QR ne se rendait jamais à
-    // l'ouverture du panneau (carré blanc). On le génère donc tout de suite, même
-    // masqué (qrcode.js dessine en dimensions fixes, indépendamment de la visibilité).
-    var adminQrContainer = document.getElementById('rbc_admin_qr_container');
-    if (adminQrContainer) {
-        renderQrInContainer(adminQrContainer);
-        // Filet de sécurité : re-render à l'ouverture du collapse si jQuery est présent.
-        if (window.jQuery) {
-            window.jQuery('#rbc-admin-qr-panel').on('show.bs.collapse', function () {
-                renderQrInContainer(adminQrContainer);
-            });
-        }
-    }
 
     // ── Presets de rôles ──
     document.addEventListener('click', function (e) {

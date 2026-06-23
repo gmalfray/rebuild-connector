@@ -33,9 +33,8 @@ class AuthService
             ? $shopUrl
             : Tools::getShopDomainSsl(true);
 
-        // Mode 1 : clé API globale legacy
-        $storedKey = $this->settingsService->getApiKey();
-        if ($storedKey !== null && $storedKey !== '' && hash_equals($storedKey, $apiKey)) {
+        // Mode 1 : clé API globale Admin (hash bcrypt, avec migration lazy transparente)
+        if ($this->settingsService->verifyApiKey($apiKey)) {
             $jti = bin2hex(random_bytes(16));
             $claims = [
                 'sub'         => 'prestaflow',

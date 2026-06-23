@@ -30,7 +30,7 @@ class RebuildConnector extends Module
     {
         $this->name = 'rebuildconnector';
         $this->tab = 'administration';
-        $this->version = '1.4.5';
+        $this->version = '1.4.6';
         $this->author = 'Rebuild IT';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -302,17 +302,6 @@ class RebuildConnector extends Module
         $settingsForTemplate['api_legacy_url'] = $apiEndpoints['legacy'];
         $settingsForTemplate['shop_url'] = $shopBaseUrl;
 
-        $qrConfig = [
-            'module' => $this->name,
-            'version' => 1,
-            'shopUrl' => $shopBaseUrl,
-            'apiKey' => $settingsForTemplate['api_key'] ?? '',
-            'api_base_url' => $apiEndpoints['pretty'],
-            'api_legacy_url' => $apiEndpoints['legacy'],
-        ];
-
-        $qrConfigJson = json_encode($qrConfig);
-
         // Données pour la section utilisateurs nommés
         $employees = [];
         if (class_exists('Employee')) {
@@ -337,7 +326,6 @@ class RebuildConnector extends Module
             'module_dir'                 => $this->_path,
             'settings'                   => $settingsForTemplate,
             'i18n'                       => $this->getTranslationService()->getAdminFormStrings($this->getCurrentLocale()),
-            'qr_config_json'             => is_string($qrConfigJson) ? $qrConfigJson : '{}',
             'users'                      => $users,
             'users_count'                => count($users),
             'available_scopes'           => $userService->getAllScopes(),
