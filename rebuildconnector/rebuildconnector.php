@@ -30,7 +30,7 @@ class RebuildConnector extends Module
     {
         $this->name = 'rebuildconnector';
         $this->tab = 'administration';
-        $this->version = '1.1.8';
+        $this->version = '1.2.0';
         $this->author = 'Rebuild IT';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -51,6 +51,10 @@ class RebuildConnector extends Module
         }
 
         $this->getSettingsService()->ensureDefaults();
+
+        if (!UserService::install()) {
+            return false;
+        }
 
         if (!FcmDeviceService::install()) {
             return false;
@@ -77,6 +81,7 @@ class RebuildConnector extends Module
         }
 
         Configuration::deleteByName('REBUILDCONNECTOR_SETTINGS');
+        UserService::uninstall();
         FcmDeviceService::uninstall();
         RateLimiterService::uninstall();
         AuditLogService::uninstall();
