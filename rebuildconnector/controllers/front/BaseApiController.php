@@ -56,6 +56,11 @@ abstract class RebuildconnectorBaseApiModuleFrontController extends ModuleFrontC
     protected function renderJson(array $payload, int $statusCode = 200): void
     {
         header('Content-Type: application/json');
+        header('X-Content-Type-Options: nosniff');
+        header('X-Frame-Options: DENY');
+        header('Referrer-Policy: no-referrer');
+        header('Cache-Control: no-store, no-cache, must-revalidate');
+        header('Pragma: no-cache');
         http_response_code($statusCode);
         $body = json_encode($payload);
         $this->ajaxRender($body === false ? '{}' : $body);
@@ -70,6 +75,11 @@ abstract class RebuildconnectorBaseApiModuleFrontController extends ModuleFrontC
         header('Content-Type: application/pdf');
         header('Content-Disposition: inline; filename="' . $filename . '"');
         header('Content-Length: ' . strlen($content));
+        header('X-Content-Type-Options: nosniff');
+        header('X-Frame-Options: DENY');
+        header('Referrer-Policy: no-referrer');
+        header('Cache-Control: no-store, no-cache, must-revalidate');
+        header('Pragma: no-cache');
         echo $content;
         exit;
     }
@@ -388,6 +398,22 @@ abstract class RebuildconnectorBaseApiModuleFrontController extends ModuleFrontC
         }
 
         return $this->rateLimiterService;
+    }
+
+    /**
+     * Expose le RateLimiterService aux sous-classes (pour des limites spécifiques par endpoint).
+     */
+    protected function getRateLimiter(): RateLimiterService
+    {
+        return $this->getRateLimiterService();
+    }
+
+    /**
+     * Expose l'IP cliente aux sous-classes.
+     */
+    protected function getClientIp(): ?string
+    {
+        return $this->clientIp;
     }
 
     private function resolveClientIp(): ?string

@@ -71,6 +71,13 @@ class RebuildconnectorNotificationsModuleFrontController extends Rebuildconnecto
             );
         }
 
+        $tokenLength = strlen($token);
+        if ($tokenLength < 50 || $tokenLength > 512 || !preg_match('/^[A-Za-z0-9:_\-]+$/', $token)) {
+            throw new \InvalidArgumentException(
+                $this->t('notifications.error.token_invalid', [], 'Invalid device token format.')
+            );
+        }
+
         $topics = $this->extractTopics($payload['topics'] ?? null);
         if ($topics === []) {
             $topics = $this->getSettingsService()->getFcmTopics();

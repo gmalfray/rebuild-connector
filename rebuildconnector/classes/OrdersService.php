@@ -44,10 +44,12 @@ class OrdersService
         }
 
         if (!empty($filters['date_from'])) {
+            $this->validateDate((string) $filters['date_from']);
             $query->where('o.date_add >= "' . pSQL($filters['date_from']) . '"');
         }
 
         if (!empty($filters['date_to'])) {
+            $this->validateDate((string) $filters['date_to']);
             $query->where('o.date_add <= "' . pSQL($filters['date_to']) . '"');
         }
 
@@ -290,6 +292,32 @@ class OrdersService
                 'lastname' => isset($row['lastname']) ? (string) $row['lastname'] : '',
             ],
         ];
+    }
+
+    /**
+     * Valide qu'une chaîne de date est au format Y-m-d ou Y-m-d H:i:s.
+     *
+     * @throws \InvalidArgumentException si le format est invalide.
+     */
+    private function validateDate(string $date): void
+    {
+        $date = trim($date);
+
+        // Format Y-m-d H:i:s
+        $dt = \DateTimeImmutable::createFromFormat('Y-m-d H:i:s', $date);
+        if ($dt !== false && $dt->format('Y-m-d H:i:s') === $date) {
+            return;
+        }
+
+        // Format Y-m-d
+        $dt = \DateTimeImmutable::createFromFormat('Y-m-d', $date);
+        if ($dt !== false && $dt->format('Y-m-d') === $date) {
+            return;
+        }
+
+        throw new \InvalidArgumentException(
+            sprintf('Format de date invalide : "%s". Formats acceptés : Y-m-d ou Y-m-d H:i:s.', $date)
+        );
     }
 
     private function getLanguageId(): int

@@ -95,7 +95,7 @@ class SettingsService
         }
 
         if (!isset($settings['rate_limit_enabled'])) {
-            $settings['rate_limit_enabled'] = false;
+            $settings['rate_limit_enabled'] = true;
             $updated = true;
         }
 
@@ -233,10 +233,18 @@ class SettingsService
         return trim($settings['webhook_url']);
     }
 
+    /**
+     * @throws \InvalidArgumentException si l'URL n'est pas HTTPS (ou vide pour désactiver).
+     */
     public function setWebhookUrl(string $url): void
     {
+        $url = trim($url);
+        if ($url !== '' && stripos($url, 'https://') !== 0) {
+            throw new \InvalidArgumentException('L\'URL webhook doit utiliser HTTPS.');
+        }
+
         $settings = $this->all();
-        $settings['webhook_url'] = trim($url);
+        $settings['webhook_url'] = $url;
         $this->save($settings);
     }
 
@@ -265,33 +273,142 @@ class SettingsService
     }
 
     /**
+     * Retourne le chemin absolu du fichier de compte de service FCM (hors webroot).
+     * Répertoire : /var/rebuildconnector/ (ou _PS_ROOT_DIR_/../rebuildconnector/ comme repli).
+     */
+    public static function getFcmServiceAccountFilePath(): string
+    {
+        // Priorité : variable d'env REBUILDCONNECTOR_FCM_FILE
+        $envPath = getenv('REBUILDCONNECTOR_FCM_FILE');
+        if (is_string($envPath) && $envPath !== '') {
+            return $envPath;
+        }
+
+        // Répertoire hors webroot : un niveau au-dessus de _PS_ROOT_DIR_
+        $base = defined('_PS_ROOT_DIR_') ? rtrim((string) constant('_PS_ROOT_DIR_'), '/') : '/var/www';
+        $dir = dirname($base) . '/rebuildconnector-secrets';
+
+        return $dir . '/fcm-service-account.json';
+    }
+
+    /**
      * @return array<string, mixed>|null
      */
     public function getFcmServiceAccount(): ?array
     {
+        // 1. Lire depuis le fichier hors webroot (priorité)
+        $filePath = self::getFcmServiceAccountFilePath();
+        if (is_file($filePath) && is_readable($filePath)) {
+            $raw = file_get_contents($filePath);
+            if (is_string($raw) && $raw !== '') {
+                $decoded = json_decode($raw, true);
+                if (is_array($decoded) && !empty($decoded)) {
+                    return $decoded;
+                }
+            }
+        }
+
+        // 2. Fallback rétrocompatible : ancienne valeur en base (lecture + migration au premier accès)
         $settings = $this->all();
         if (!isset($settings['fcm_service_account'])) {
             return null;
         }
 
         $account = $settings['fcm_service_account'];
-        if (is_array($account)) {
-            return $account;
-        }
+        $json = null;
 
-        if (is_string($account)) {
+        if (is_array($account) && !empty($account)) {
+            $json = json_encode($account, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        } elseif (is_string($account) && $account !== '') {
             $decoded = json_decode($account, true);
-            return is_array($decoded) ? $decoded : null;
+            if (is_array($decoded) && !empty($decoded)) {
+                $json = $account;
+            }
         }
 
-        return null;
+        if ($json === null || $json === false) {
+            return null;
+        }
+
+        // Migration au premier accès : écrire sur disque et vider la base
+        $this->migrateFcmServiceAccountToFile((string) $json);
+
+        $decoded = json_decode((string) $json, true);
+        return is_array($decoded) ? $decoded : null;
     }
 
+    /**
+     * Persiste le compte de service FCM dans un fichier hors webroot.
+     * Efface la valeur en base après migration réussie.
+     *
+     * @throws \RuntimeException si le fichier ne peut pas être créé/écrit.
+     */
     public function setFcmServiceAccount(?string $json): void
     {
+        if ($json === null || trim($json) === '') {
+            // Suppression : vider fichier + base
+            $filePath = self::getFcmServiceAccountFilePath();
+            if (is_file($filePath)) {
+                @unlink($filePath);
+            }
+            $settings = $this->all();
+            $settings['fcm_service_account'] = null;
+            $this->save($settings);
+            return;
+        }
+
+        $json = trim($json);
+        $decoded = json_decode($json, true);
+        if (!is_array($decoded) || empty($decoded)) {
+            throw new \InvalidArgumentException('JSON du compte de service FCM invalide.');
+        }
+
+        $this->writeFcmServiceAccountFile($json);
+
+        // Vider la valeur en base (ne plus stocker la clé privée en clair en BDD)
         $settings = $this->all();
-        $settings['fcm_service_account'] = $json !== null ? trim($json) : null;
+        $settings['fcm_service_account'] = null;
         $this->save($settings);
+    }
+
+    /**
+     * Migration one-shot : écrit le JSON sur disque, puis vide la base.
+     */
+    private function migrateFcmServiceAccountToFile(string $json): void
+    {
+        try {
+            $this->writeFcmServiceAccountFile($json);
+            $settings = $this->all();
+            $settings['fcm_service_account'] = null;
+            $this->save($settings);
+        } catch (\Throwable $e) {
+            // Migration silencieuse : on log en mode dev, on ne bloque pas
+            if (defined('_PS_MODE_DEV_') && (bool) constant('_PS_MODE_DEV_')) {
+                error_log('[RebuildConnector] FCM migration failed: ' . $e->getMessage());
+            }
+        }
+    }
+
+    /**
+     * @throws \RuntimeException si l'écriture échoue.
+     */
+    private function writeFcmServiceAccountFile(string $json): void
+    {
+        $filePath = self::getFcmServiceAccountFilePath();
+        $dir = dirname($filePath);
+
+        if (!is_dir($dir)) {
+            if (!@mkdir($dir, 0700, true)) {
+                throw new \RuntimeException('Impossible de créer le répertoire : ' . $dir);
+            }
+        }
+
+        if (file_put_contents($filePath, $json, LOCK_EX) === false) {
+            throw new \RuntimeException('Impossible d\'écrire le fichier compte de service FCM : ' . $filePath);
+        }
+
+        // Permissions restrictives : lisible uniquement par le processus courant (www-data)
+        @chmod($filePath, 0600);
     }
 
     public function getFcmDeviceTokensRaw(): string
