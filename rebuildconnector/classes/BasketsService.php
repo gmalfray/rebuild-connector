@@ -38,10 +38,12 @@ class BasketsService
         }
 
         if (!empty($filters['date_from'])) {
+            $this->validateDate((string) $filters['date_from']);
             $query->where('c.date_add >= "' . pSQL((string) $filters['date_from']) . '"');
         }
 
         if (!empty($filters['date_to'])) {
+            $this->validateDate((string) $filters['date_to']);
             $query->where('c.date_add <= "' . pSQL((string) $filters['date_to']) . '"');
         }
 
@@ -341,6 +343,30 @@ class BasketsService
         }
 
         return $map;
+    }
+
+    /**
+     * Valide qu'une chaîne de date est au format Y-m-d ou Y-m-d H:i:s.
+     *
+     * @throws \InvalidArgumentException si le format est invalide.
+     */
+    private function validateDate(string $date): void
+    {
+        $date = trim($date);
+
+        $dt = \DateTimeImmutable::createFromFormat('Y-m-d H:i:s', $date);
+        if ($dt !== false && $dt->format('Y-m-d H:i:s') === $date) {
+            return;
+        }
+
+        $dt = \DateTimeImmutable::createFromFormat('Y-m-d', $date);
+        if ($dt !== false && $dt->format('Y-m-d') === $date) {
+            return;
+        }
+
+        throw new \InvalidArgumentException(
+            sprintf('Format de date invalide : "%s". Formats acceptés : Y-m-d ou Y-m-d H:i:s.', $date)
+        );
     }
 
     /**
