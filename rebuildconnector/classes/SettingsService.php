@@ -693,6 +693,33 @@ class SettingsService
         $this->save($settings);
     }
 
+    /**
+     * Retourne le project_id FCM depuis le compte de service, ou null si non configuré.
+     */
+    public function getFcmProjectId(): ?string
+    {
+        $account = $this->getFcmServiceAccount();
+        if (!is_array($account)) {
+            return null;
+        }
+
+        $projectId = $account['project_id'] ?? null;
+        return is_string($projectId) && $projectId !== '' ? $projectId : null;
+    }
+
+    /**
+     * Régénère la clé API globale (legacy) et retourne la nouvelle en clair.
+     */
+    public function regenerateApiKey(): string
+    {
+        $newKey = $this->generateApiKey();
+        $settings = $this->all();
+        $settings['api_key'] = $newKey;
+        $this->save($settings);
+
+        return $newKey;
+    }
+
     private function generateApiKey(): string
     {
         return Tools::passwdGen(40);

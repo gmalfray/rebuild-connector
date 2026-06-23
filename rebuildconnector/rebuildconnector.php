@@ -30,7 +30,7 @@ class RebuildConnector extends Module
     {
         $this->name = 'rebuildconnector';
         $this->tab = 'administration';
-        $this->version = '1.2.1';
+        $this->version = '1.3.0';
         $this->author = 'Rebuild IT';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -97,6 +97,8 @@ class RebuildConnector extends Module
         $errors = [];
         $newUserApiKey = null;
         $newUserQrJson = null;
+        $regeneratedAdminApiKey = null;
+        $regeneratedAdminQrJson = null;
 
         $userService = new UserService();
 
@@ -129,18 +131,64 @@ class RebuildConnector extends Module
                 $newUserQrJson = is_string($encoded) ? $encoded : '{}';
                 $messages[] = 'Utilisateur « ' . htmlspecialchars($label, ENT_QUOTES) . ' » créé. Conservez la clé API — elle ne sera plus affichée.';
             }
+        } elseif (Tools::isSubmit('rebuildconnector_update_scopes')) {
+            $idUser = (int) Tools::getValue('rebuildconnector_user_id', 0);
+            $scopesRaw = Tools::getValue('rebuildconnector_user_scopes', []);
+            $scopes = is_array($scopesRaw) ? array_map('strval', $scopesRaw) : [];
+            if ($idUser > 0) {
+                $userService->updateScopes($idUser, $scopes);
+                $messages[] = 'Scopes mis à jour.';
+            }
+        } elseif (Tools::isSubmit('rebuildconnector_regenerate_user_key')) {
+            $idUser = (int) Tools::getValue('rebuildconnector_user_id', 0);
+            if ($idUser > 0) {
+                $newApiKey = $userService->regenerateApiKey($idUser);
+                $user = $userService->getUserById($idUser);
+                $shopBaseUrl = $this->getShopBaseUrl();
+                $apiEndpoints = $this->getApiEndpoints();
+                $label = is_array($user) && isset($user['label']) ? (string) $user['label'] : '';
+                $qrData = [
+                    'module'       => $this->name,
+                    'version'      => 1,
+                    'shopUrl'      => $shopBaseUrl,
+                    'apiKey'       => $newApiKey,
+                    'api_base_url' => $apiEndpoints['pretty'],
+                    'user_id'      => $idUser,
+                    'label'        => $label,
+                ];
+                $encoded = json_encode($qrData);
+                $newUserApiKey = $newApiKey;
+                $newUserQrJson = is_string($encoded) ? $encoded : '{}';
+                $messages[] = 'Clé API régénérée pour « ' . htmlspecialchars($label, ENT_QUOTES) . ' ». L\'ancienne clé est immédiatement invalide.';
+            }
+        } elseif (Tools::isSubmit('rebuildconnector_regenerate_admin_key')) {
+            $newAdminKey = $settingsService->regenerateApiKey();
+            $shopBaseUrl = $this->getShopBaseUrl();
+            $apiEndpoints = $this->getApiEndpoints();
+            $adminQrData = [
+                'module'       => $this->name,
+                'version'      => 1,
+                'shopUrl'      => $shopBaseUrl,
+                'apiKey'       => $newAdminKey,
+                'api_base_url' => $apiEndpoints['pretty'],
+                'api_legacy_url' => $apiEndpoints['legacy'],
+            ];
+            $encoded = json_encode($adminQrData);
+            $regeneratedAdminApiKey = $newAdminKey;
+            $regeneratedAdminQrJson = is_string($encoded) ? $encoded : '{}';
+            $messages[] = 'Clé API Admin régénérée. L\'ancienne clé est immédiatement invalide. Scannez le nouveau QR.';
         } elseif (Tools::isSubmit('rebuildconnector_toggle_user')) {
             $idUser = (int) Tools::getValue('rebuildconnector_user_id', 0);
             $active = Tools::getValue('rebuildconnector_user_active') === '1';
             if ($idUser > 0) {
                 $userService->setActive($idUser, $active);
-                $messages[] = 'Utilisateur ' . ($active ? 'réactivé' : 'désactivé') . '.';
+                $messages[] = 'Utilisateur ' . ($active ? 'réactivé' : 'révoqué') . '.';
             }
         } elseif (Tools::isSubmit('rebuildconnector_delete_user')) {
             $idUser = (int) Tools::getValue('rebuildconnector_user_id', 0);
             if ($idUser > 0) {
                 $userService->setActive($idUser, false);
-                $messages[] = 'Utilisateur désactivé (révoqué).';
+                $messages[] = 'Utilisateur révoqué.';
             }
         } elseif (Tools::isSubmit('rebuildconnector_regenerate_secret')) {
             $settingsService->regenerateJwtSecret();
@@ -262,16 +310,25 @@ class RebuildConnector extends Module
             }
         }
 
+        $fcmProjectId = $settingsService->getFcmProjectId();
+        $users = $userService->listUsers();
+
         $this->context->smarty->assign([
-            'module_dir'         => $this->_path,
-            'settings'           => $settingsForTemplate,
-            'i18n'               => $this->getTranslationService()->getAdminFormStrings($this->getCurrentLocale()),
-            'qr_config_json'     => is_string($qrConfigJson) ? $qrConfigJson : '{}',
-            'users'              => $userService->listUsers(),
-            'available_scopes'   => $userService->getAllScopes(),
-            'employees'          => $employees,
-            'new_user_api_key'   => $newUserApiKey,
-            'new_user_qr_json'   => $newUserQrJson,
+            'module_dir'                 => $this->_path,
+            'settings'                   => $settingsForTemplate,
+            'i18n'                       => $this->getTranslationService()->getAdminFormStrings($this->getCurrentLocale()),
+            'qr_config_json'             => is_string($qrConfigJson) ? $qrConfigJson : '{}',
+            'users'                      => $users,
+            'users_count'                => count($users),
+            'available_scopes'           => $userService->getAllScopes(),
+            'role_presets'               => UserService::getRolePresets(),
+            'employees'                  => $employees,
+            'new_user_api_key'           => $newUserApiKey,
+            'new_user_qr_json'           => $newUserQrJson,
+            'regenerated_admin_api_key'  => $regeneratedAdminApiKey,
+            'regenerated_admin_qr_json'  => $regeneratedAdminQrJson,
+            'fcm_project_id'             => $fcmProjectId,
+            'module_version'             => $this->version,
         ]);
 
         return $output . $this->display(__FILE__, 'views/templates/admin/configure.tpl');
