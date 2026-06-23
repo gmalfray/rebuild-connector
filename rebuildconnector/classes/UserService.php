@@ -167,10 +167,70 @@ class UserService
     }
 
     /**
+     * Met à jour les scopes d'un utilisateur.
+     *
+     * @param array<int, string> $scopes
+     */
+    public function updateScopes(int $idUser, array $scopes): void
+    {
+        $scopesJson = json_encode(array_values(array_unique(array_filter($scopes, 'is_string'))));
+        if ($scopesJson === false) {
+            $scopesJson = '[]';
+        }
+
+        Db::getInstance()->execute(
+            'UPDATE `' . _DB_PREFIX_ . self::TABLE . '`
+            SET `scopes` = "' . pSQL($scopesJson) . '"
+            WHERE `id_user` = ' . (int) $idUser
+        );
+    }
+
+    /**
+     * Régénère la clé API d'un utilisateur existant.
+     * Met à jour api_key_hash en base et retourne la nouvelle clé en clair.
+     */
+    public function regenerateApiKey(int $idUser): string
+    {
+        $apiKey = bin2hex(random_bytes(20));
+        $hash = password_hash($apiKey, PASSWORD_BCRYPT, ['cost' => 12]);
+
+        Db::getInstance()->execute(
+            'UPDATE `' . _DB_PREFIX_ . self::TABLE . '`
+            SET `api_key_hash` = "' . pSQL($hash) . '"
+            WHERE `id_user` = ' . (int) $idUser
+        );
+
+        return $apiKey;
+    }
+
+    /**
      * @return array<int, string>
      */
     public function getAllScopes(): array
     {
         return self::AVAILABLE_SCOPES;
+    }
+
+    /**
+     * Retourne les presets de rôles prédéfinis.
+     *
+     * @return array<string, array{label: string, scopes: array<int, string>}>
+     */
+    public static function getRolePresets(): array
+    {
+        return [
+            'admin' => [
+                'label' => 'Admin (accès complet)',
+                'scopes' => self::AVAILABLE_SCOPES,
+            ],
+            'preparateur' => [
+                'label' => 'Préparateur',
+                'scopes' => ['orders.read', 'orders.write', 'dashboard.read'],
+            ],
+            'lecture' => [
+                'label' => 'Lecture seule',
+                'scopes' => ['orders.read', 'products.read', 'customers.read', 'dashboard.read', 'baskets.read', 'reports.read'],
+            ],
+        ];
     }
 }
