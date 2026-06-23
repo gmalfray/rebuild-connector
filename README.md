@@ -59,18 +59,26 @@ rebuildconnector/
 | Méthode | Endpoint | Description |
 |----------|-----------|-------------|
 | POST | /connector/login | Authentification (JWT) |
-| GET | /orders | Liste des commandes |
+| GET | /orders | Liste des commandes (filtres `status`, `date_from/to`, `search`, `limit/offset`) |
+| GET | /orders/statuses | Liste des statuts disponibles (pour les filtres) |
 | GET | /orders/{id} | Détail d'une commande |
+| GET | /orders/{id}/invoice | Facture PDF officielle |
+| GET | /orders/{id}/shipping-label | Bordereau d'expédition PDF |
 | PATCH | /orders/{id}/status | Modifier le statut |
 | PATCH | /orders/{id}/shipping | Ajouter/modifier un numéro de suivi |
-| GET | /products | Liste des produits |
+| GET | /products | Liste des produits (filtres `search`, stock ; champ `total`) |
 | GET | /products/{id} | Détail produit + images |
 | PATCH | /products/{id}/stock | Mettre à jour le stock |
+| GET | /customers | Liste des clients |
+| GET | /customers/stats | Total clients + nouveaux ce mois |
+| GET | /customers/{id} | Détail client |
 | GET | /baskets | Liste des paniers |
 | GET | /baskets/{id} | Détail panier |
-| GET | /dashboard/metrics | Statistiques et KPI |
+| GET | /dashboard/metrics | Statistiques et KPI (`period` : today/week/month/quarter/year) |
 | GET | /reports?resource=bestsellers | Meilleures ventes |
 | GET | /reports?resource=bestcustomers | Meilleurs clients |
+| POST | /notifications/devices | Enregistrer un appareil (avec ses catégories) |
+| DELETE | /notifications/devices/{token} | Désenregistrer un appareil |
 
 ---
 
@@ -89,8 +97,22 @@ rebuildconnector/
 - Envoi via **Firebase Cloud Messaging HTTP v1**
 - Clé de service stockée dans la configuration du module
 - Hooks utilisés :
-  - `actionValidateOrder` → nouvelle commande
-  - `actionOrderStatusPostUpdate` → changement d’état
+  - `actionValidateOrder` → nouvelle commande (`order.created`)
+  - `actionOrderStatusPostUpdate` → changement d’état (`order.status.changed`)
+  - mise à jour de suivi → expédition (`order.shipping.updated`)
+
+### Catégories de notifications (depuis v1.4.9)
+
+Chaque appareil s’abonne aux catégories qu’il souhaite recevoir (réglage **par appareil** depuis
+l’app PrestaFlow). Le ciblage se fait côté module via le champ `topics` de l’appareil :
+
+| Catégorie (clé `topic`) | Événement |
+|---|---|
+| `order.created` | Nouvelles ventes |
+| `order.status.changed` | Changements de statut |
+| `order.shipping.updated` | Expéditions |
+
+Un appareil sans préférence (`topics` vide) reçoit **toutes** les catégories (rétrocompatibilité).
 
 ---
 
@@ -98,7 +120,7 @@ rebuildconnector/
 
 L’onglet *Rebuild Connector* du back-office expose les réglages suivants :
 
-- **Clé API / JWT / Scopes** : génération et rotation des secrets d’authentification ainsi que la liste des scopes autorisés.
+- **Accès & utilisateurs** : clé Admin (accès complet) traitée comme un **secret one-time** — affichée/QR une seule fois à la (re)génération puis masquée et stockée hachée — et **utilisateurs nommés** multiples avec scopes dédiés (chacun son QR et sa clé révocable).
 - **Configuration mobile** : QR code prêt à scanner dans PrestaFlow (payload JSON `{"version":1,"shopUrl":"https://…","apiKey":"…"}`) pour injecter automatiquement l’URL API et la clé.
 - **Firebase Cloud Messaging** : compte de service HTTP v1, topics par défaut et jetons fallback pour tester les notifications.
 - **Webhooks** : URL de callback HTTPS, secret HMAC (aperçu + régénération) et reset possible.
@@ -148,8 +170,12 @@ vendor/bin/phpunit --bootstrap tests/bootstrap.php --testdox
 
 ## 🪪 Licence
 
-Apache License 2.0  
-© 2025 Rebuild IT — Tous droits réservés.  
-Vous êtes libre de redistribuer, modifier et utiliser ce code sous réserve de conserver les mentions de licence et d’auteur.
+**Open Software License 3.0 (OSL-3.0)** — voir [`LICENSE`](LICENSE).  
+© 2026 Rebuild IT.
+
+L’OSL-3.0 est une licence *copyleft* compatible avec l’écosystème PrestaShop (dont le cœur est sous OSL-3.0).
+Toute version modifiée **distribuée** doit être publiée sous la même licence, avec son code source.
+L’application mobile **PrestaFlow** est distribuée séparément sous **GPLv3** ; les deux communiquent uniquement
+par API REST (aucune liaison de code).
 
 ---
