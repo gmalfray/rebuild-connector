@@ -6,12 +6,15 @@ require_once __DIR__ . '/BaseApiController.php';
 
 class RebuildconnectorApiModuleFrontController extends RebuildconnectorBaseApiModuleFrontController
 {
+    /** Limite de tentatives de login par minute et par IP (indépendante du rate-limit global). */
+    private const LOGIN_RATE_LIMIT = 5;
+
     public function initContent(): void
     {
         parent::initContent();
 
-        header('Cache-Control: no-store, no-cache, must-revalidate');
-        header('Pragma: no-cache');
+        // Rate-limiting spécifique à l'endpoint de login, indépendant de l'auth.
+        $this->enforceLoginRateLimit();
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             header('Allow: POST');
@@ -80,5 +83,29 @@ class RebuildconnectorApiModuleFrontController extends RebuildconnectorBaseApiMo
         ];
 
         $this->renderJson($response, 200);
+    }
+
+    /**
+     * Rate-limiting dédié à l'endpoint de login : 5 tentatives/minute/IP,
+     * appliqué avant toute vérification d'authentification.
+     */
+    private function enforceLoginRateLimit(): void
+    {
+        $ip = $this->getClientIp();
+        if ($ip === null) {
+            return;
+        }
+
+        $identifier = 'login:' . $ip;
+
+        if (!$this->getRateLimiter()->isAllowed($identifier, self::LOGIN_RATE_LIMIT)) {
+            $this->recordAuditEvent('security.login_rate_limited', ['ip' => $ip]);
+            $this->jsonError(
+                'too_many_requests',
+                $this->t('api.error.rate_limited', [], 'Too many requests. Please try again later.'),
+                429
+            );
+            exit;
+        }
     }
 }

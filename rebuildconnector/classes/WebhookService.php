@@ -55,7 +55,10 @@ class WebhookService
         curl_setopt($handle, CURLOPT_POST, true);
         curl_setopt($handle, CURLOPT_POSTFIELDS, $body);
         curl_setopt($handle, CURLOPT_HTTPHEADER, $headers);
-        curl_setopt($handle, CURLOPT_TIMEOUT, 10);
+        curl_setopt($handle, CURLOPT_TIMEOUT, 5);
+        curl_setopt($handle, CURLOPT_CONNECTTIMEOUT, 3);
+        curl_setopt($handle, CURLOPT_SSL_VERIFYPEER, true);
+        curl_setopt($handle, CURLOPT_SSL_VERIFYHOST, 2);
 
         $response = curl_exec($handle);
         $status = (int) curl_getinfo($handle, CURLINFO_HTTP_CODE);
