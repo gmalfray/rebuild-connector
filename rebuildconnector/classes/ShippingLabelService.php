@@ -202,7 +202,6 @@ class ShippingLabelService
         $query->where('cl.return_label = 0');
         $query->where('cl.file_deleted = 0');
         $query->orderBy('cl.id_colissimo_label DESC');
-        $query->limit(1);
 
         $result = Db::getInstance()->getRow($query);
         return is_array($result) && $result !== [] ? $result : null;
@@ -268,7 +267,6 @@ class ShippingLabelService
         $query->where('label_url IS NOT NULL');
         $query->where('label_url != ""');
         $query->orderBy('id_mondialrelay_selected_relay DESC');
-        $query->limit(1);
 
         $result = Db::getInstance()->getRow($query);
         return is_array($result) && $result !== [] ? $result : null;

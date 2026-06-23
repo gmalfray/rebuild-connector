@@ -661,7 +661,7 @@ class RebuildConnector extends Module
                         'param' => 'id',
                     ],
                     'action' => [
-                        'regexp' => '(status|shipping)',
+                        'regexp' => '(status|shipping|invoice|shipping-label)',
                         'param' => 'action',
                     ],
                 ],
