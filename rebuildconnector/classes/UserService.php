@@ -62,15 +62,19 @@ class UserService
             $scopesJson = '[]';
         }
 
-        Db::getInstance()->insert(self::TABLE, [
-            'id_employee' => (int) $idEmployee,
-            'label'       => pSQL($label),
-            'api_key_hash' => pSQL($hash),
-            'scopes'      => pSQL($scopesJson),
-            'active'      => 1,
-            'revoked_at'  => null,
-            'date_add'    => date('Y-m-d H:i:s'),
-        ]);
+        Db::getInstance()->execute(
+            'INSERT INTO `' . _DB_PREFIX_ . self::TABLE . '`
+            (`id_employee`, `label`, `api_key_hash`, `scopes`, `active`, `revoked_at`, `date_add`)
+            VALUES ('
+            . (int) $idEmployee . ', '
+            . '"' . pSQL($label) . '", '
+            . '"' . pSQL($hash) . '", '
+            . '"' . pSQL($scopesJson) . '", '
+            . '1, '
+            . 'NULL, '
+            . '"' . date('Y-m-d H:i:s') . '"'
+            . ')'
+        );
 
         $idUser = (int) Db::getInstance()->Insert_ID();
 
@@ -92,7 +96,7 @@ class UserService
         $query->select('*');
         $query->from(self::TABLE);
         $query->where('active = 1');
-        $query->where('revoked_at IS NULL');
+        $query->where('(revoked_at IS NULL OR revoked_at = "0000-00-00 00:00:00")');
         $query->orderBy('id_user ASC');
 
         /** @var array<int, array<string, mixed>> $rows */
@@ -127,17 +131,19 @@ class UserService
 
     public function setActive(int $idUser, bool $active): void
     {
-        $data = ['active' => (int) $active];
-
-        if (!$active) {
-            $data['revoked_at'] = date('Y-m-d H:i:s');
+        if ($active) {
+            Db::getInstance()->execute(
+                'UPDATE `' . _DB_PREFIX_ . self::TABLE . '`
+                SET `active` = 1, `revoked_at` = NULL
+                WHERE `id_user` = ' . (int) $idUser
+            );
+        } else {
+            Db::getInstance()->execute(
+                'UPDATE `' . _DB_PREFIX_ . self::TABLE . '`
+                SET `active` = 0, `revoked_at` = "' . date('Y-m-d H:i:s') . '"
+                WHERE `id_user` = ' . (int) $idUser
+            );
         }
-
-        Db::getInstance()->update(
-            self::TABLE,
-            $data,
-            'id_user = ' . (int) $idUser
-        );
     }
 
     /**
