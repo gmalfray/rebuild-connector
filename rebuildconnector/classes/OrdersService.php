@@ -6,7 +6,8 @@ require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/ShippingLabelService.ph
 
 class OrdersService
 {
-    private const DEFAULT_LIMIT = 20;
+    public const DEFAULT_LIMIT = 20;
+    public const MAX_LIMIT = 100;
 
     /**
      * @param array<string, mixed> $filters
@@ -15,7 +16,9 @@ class OrdersService
     public function getOrders(array $filters = []): array
     {
         $langId = $this->getLanguageId();
+        // Plafond défensif : évite qu'un limit énorme (ex. 999999) ne charge toute la base (OOM/timeout).
         $limit = isset($filters['limit']) ? max(1, (int) $filters['limit']) : self::DEFAULT_LIMIT;
+        $limit = min($limit, self::MAX_LIMIT);
         $offset = isset($filters['offset']) ? max(0, (int) $filters['offset']) : 0;
 
         $query = new DbQuery();
@@ -280,6 +283,16 @@ class OrdersService
         return (bool) $history->addWithemail(false);
     }
 
+    /**
+     * Indique si la référence de statut (id numérique ou nom) correspond à un état existant.
+     * Permet au contrôleur de répondre 400 (statut invalide) plutôt que de laisser
+     * OrderHistory::changeIdOrderState planter en 500 sur un id inexistant.
+     */
+    public function statusExists(string $statusReference): bool
+    {
+        return $this->resolveOrderStateId(trim($statusReference)) > 0;
+    }
+
     public function updateShipping(int $orderId, string $trackingNumber, ?int $carrierId = null): bool
     {
         $order = new Order($orderId);
@@ -388,7 +401,14 @@ class OrdersService
         }
 
         if (ctype_digit($reference)) {
-            return (int) $reference;
+            // Vérifier que l'état existe réellement : un id inexistant (ex. 999) ferait planter
+            // OrderHistory::changeIdOrderState (500). On renvoie 0 → traité comme statut invalide.
+            $id = (int) $reference;
+            $exists = (int) Db::getInstance()->getValue(
+                'SELECT id_order_state FROM ' . _DB_PREFIX_ . 'order_state WHERE id_order_state = ' . $id
+            );
+
+            return $exists > 0 ? $id : 0;
         }
 
         $langId = $this->getLanguageId();

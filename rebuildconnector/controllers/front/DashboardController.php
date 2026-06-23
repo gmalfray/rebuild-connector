@@ -53,7 +53,13 @@ class RebuildconnectorDashboardModuleFrontController extends RebuildconnectorBas
 
     private function handleGet(): void
     {
-        $period = (string) Tools::getValue('period', 'month');
+        $period = Tools::strtolower((string) Tools::getValue('period', 'month'));
+        $allowed = ['today', 'day', 'week', 'month', 'quarter', 'year'];
+        if (!in_array($period, $allowed, true)) {
+            throw new \InvalidArgumentException(
+                $this->t('dashboard.error.invalid_period', [], 'Invalid period. Allowed: today, week, month, quarter, year.')
+            );
+        }
 
         $metrics = $this->getDashboardService()->getMetrics($period);
 

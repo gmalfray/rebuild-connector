@@ -175,6 +175,7 @@ Liste paginée des commandes.
       "status": "Expédiée",
       "total_paid": 72.90,
       "currency": "EUR",
+      "date_add": "2025-05-20 09:15:00",
       "date_upd": "2025-06-01 14:30:00",
       "customer": {
         "id": 50,
@@ -187,6 +188,7 @@ Liste paginée des commandes.
 ```
 
 > Note : dans la liste (`getOrders`), `status` est une chaîne (le libellé d'état). Ce n'est **pas** `{id, name}` — cette structure enrichie n'existe que sur l'endpoint de détail. La liste est volontairement allégée (pas de `shipping`/`items`/`history`).
+> `date_add` (date de création de la commande) et `date_upd` (dernière mise à jour) sont tous deux exposés ; pour l'affichage « date de commande », utiliser **`date_add`**.
 
 ---
 
@@ -401,14 +403,7 @@ Liste paginée de produits.
       "images": [
         {
           "id": 101,
-          "is_cover": true,
-          "legend": "Face avant",
-          "position": 1,
-          "url": "https://example.com/101-88-large_default.jpg",
-          "urls": {
-            "thumbnail": "https://example.com/101-88-home_default.jpg",
-            "large": "https://example.com/101-88-large_default.jpg"
-          }
+          "url": "https://example.com/101-88-large_default.jpg"
         }
       ],
       "updated_at": "2025-06-01 12:00:00"
@@ -915,7 +910,7 @@ Corps JSON :
 
 | Champ       | Type         | Description                                          |
 |-------------|--------------|------------------------------------------------------|
-| `token`     | string       | Token FCM de l'appareil (requis)                     |
+| `token`     | string       | Token FCM de l'appareil (requis, **≥ 50 caractères** ; sinon `400 invalid_payload`) |
 | `topics`    | array/string | Topics FCM à abonner (optionnel, virgule ou retour ligne acceptés) |
 | `device_id` | string       | Identifiant unique de l'appareil (optionnel)         |
 | `platform`  | string       | Plateforme : `android`, `ios`, etc. (optionnel)      |

@@ -55,6 +55,7 @@ abstract class RebuildconnectorBaseApiModuleFrontController extends ModuleFrontC
      */
     protected function renderJson(array $payload, int $statusCode = 200): void
     {
+        @header_remove('X-Powered-By');
         header('Content-Type: application/json');
         header('X-Content-Type-Options: nosniff');
         header('X-Frame-Options: DENY');
@@ -72,6 +73,7 @@ abstract class RebuildconnectorBaseApiModuleFrontController extends ModuleFrontC
      */
     protected function renderPdf(string $content, string $filename): void
     {
+        @header_remove('X-Powered-By');
         header('Content-Type: application/pdf');
         header('Content-Disposition: inline; filename="' . $filename . '"');
         header('Content-Length: ' . strlen($content));
