@@ -38,14 +38,14 @@ class CustomersService
         $query->from('customer', 'c');
         $query->where('c.deleted = 0');
 
-        // Protection IDOR : filtrer sur la boutique courante via customer_shop
+        // Protection IDOR : filtrer sur la boutique courante.
+        // On filtre via c.id_shop (champ natif PS, toujours présent) plutôt que via une jointure
+        // customer_shop : cette table est absente en installation mono-boutique 1.7.8 (ou dataset
+        // partiel), ce qui faisait planter toute la liste clients en 500 (executeS = false →
+        // formatCustomerRow(false) TypeError). Même choix que getCustomerStats().
         $currentShopId = (int) Context::getContext()->shop->id;
         if ($currentShopId > 0) {
-            $query->innerJoin(
-                'customer_shop',
-                'cs',
-                'cs.id_customer = c.id_customer AND cs.id_shop = ' . $currentShopId
-            );
+            $query->where('c.id_shop = ' . $currentShopId);
         }
 
         if (!empty($filters['ids'])) {

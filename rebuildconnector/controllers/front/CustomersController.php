@@ -203,7 +203,7 @@ class RebuildconnectorCustomersModuleFrontController extends RebuildconnectorBas
      */
     private function parseLimit($value): int
     {
-        if ($value === null || $value === '') {
+        if ($value === null || $value === '' || $value === false) {
             return CustomersService::DEFAULT_LIMIT;
         }
 
@@ -232,7 +232,7 @@ class RebuildconnectorCustomersModuleFrontController extends RebuildconnectorBas
      */
     private function parseOffset($value): int
     {
-        if ($value === null || $value === '') {
+        if ($value === null || $value === '' || $value === false) {
             return 0;
         }
 
@@ -257,7 +257,7 @@ class RebuildconnectorCustomersModuleFrontController extends RebuildconnectorBas
      */
     private function parseNullableInt($value, string $translationKey): ?int
     {
-        if ($value === null || $value === '') {
+        if ($value === null || $value === '' || $value === false) {
             return null;
         }
 
@@ -282,7 +282,7 @@ class RebuildconnectorCustomersModuleFrontController extends RebuildconnectorBas
      */
     private function parseNullableFloat($value, string $translationKey): ?float
     {
-        if ($value === null || $value === '') {
+        if ($value === null || $value === '' || $value === false) {
             return null;
         }
 
@@ -307,7 +307,7 @@ class RebuildconnectorCustomersModuleFrontController extends RebuildconnectorBas
      */
     private function parseNullableDate($value, string $translationKey): ?string
     {
-        if ($value === null || $value === '') {
+        if ($value === null || $value === '' || $value === false) {
             return null;
         }
 
@@ -333,7 +333,7 @@ class RebuildconnectorCustomersModuleFrontController extends RebuildconnectorBas
      */
     private function parseIds($value): array
     {
-        if ($value === null || $value === '') {
+        if ($value === null || $value === '' || $value === false) {
             return [];
         }
 
