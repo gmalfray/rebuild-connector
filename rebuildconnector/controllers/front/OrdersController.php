@@ -4,12 +4,14 @@ defined('_PS_VERSION_') || exit;
 
 require_once __DIR__ . '/BaseApiController.php';
 require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/OrdersService.php';
+require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/ShippingLabelService.php';
 require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/FcmService.php';
 require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/FcmDeviceService.php';
 
 class RebuildconnectorOrdersModuleFrontController extends RebuildconnectorBaseApiModuleFrontController
 {
     private ?OrdersService $ordersService = null;
+    private ?ShippingLabelService $shippingLabelService = null;
 
     public function initContent(): void
     {
@@ -76,6 +78,20 @@ class RebuildconnectorOrdersModuleFrontController extends RebuildconnectorBaseAp
                     return;
                 }
                 $this->renderPdf($pdf, 'facture-' . $orderId . '.pdf');
+                return;
+            }
+
+            if ($action === 'shipping-label') {
+                $result = $this->getShippingLabelService()->getShippingLabel($orderId);
+                if ($result === null) {
+                    $this->jsonError(
+                        'not_found',
+                        $this->t('orders.error.shipping_label_not_found', [], 'No shipping label available for this order.'),
+                        404
+                    );
+                    return;
+                }
+                $this->renderPdf($result['pdf'], $result['filename']);
                 return;
             }
 
@@ -255,5 +271,14 @@ class RebuildconnectorOrdersModuleFrontController extends RebuildconnectorBaseAp
         }
 
         return $this->ordersService;
+    }
+
+    private function getShippingLabelService(): ShippingLabelService
+    {
+        if ($this->shippingLabelService === null) {
+            $this->shippingLabelService = new ShippingLabelService();
+        }
+
+        return $this->shippingLabelService;
     }
 }
