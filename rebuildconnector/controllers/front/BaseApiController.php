@@ -63,6 +63,18 @@ abstract class RebuildconnectorBaseApiModuleFrontController extends ModuleFrontC
     }
 
     /**
+     * Renvoie un contenu binaire PDF (au lieu du JSON habituel).
+     */
+    protected function renderPdf(string $content, string $filename): void
+    {
+        header('Content-Type: application/pdf');
+        header('Content-Disposition: inline; filename="' . $filename . '"');
+        header('Content-Length: ' . strlen($content));
+        echo $content;
+        exit;
+    }
+
+    /**
      * @return array<string, mixed>
      */
     protected function decodeRequestBody(): array

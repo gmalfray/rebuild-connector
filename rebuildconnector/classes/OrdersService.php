@@ -17,7 +17,7 @@ class OrdersService
         $offset = isset($filters['offset']) ? max(0, (int) $filters['offset']) : 0;
 
         $query = new DbQuery();
-        $query->select('o.id_order, o.reference, o.current_state, o.id_currency, o.id_customer');
+        $query->select('o.id_order, o.reference, o.current_state, o.id_currency, o.id_customer, o.invoice_number');
         $query->select('o.total_paid_tax_incl AS total_paid_tax_incl, o.total_paid_tax_excl AS total_paid_tax_excl');
         $query->select('o.date_add, o.date_upd, c.firstname, c.lastname, c.email');
         $query->select('osl.name AS status_name, cur.iso_code AS currency_iso');
@@ -178,7 +178,31 @@ class OrdersService
             ],
             'items' => $items,
             'history' => $formattedHistory,
+            'has_invoice' => (int) $order->invoice_number > 0,
         ];
+    }
+
+    /**
+     * Génère le PDF de la/les facture(s) d'une commande via la classe native PrestaShop.
+     * Retourne le contenu binaire, ou null si la commande n'a pas de facture.
+     */
+    public function getInvoicePdf(int $orderId): ?string
+    {
+        $order = new Order($orderId);
+        if (!Validate::isLoadedObject($order)) {
+            return null;
+        }
+
+        $invoices = $order->getInvoicesCollection();
+        if (!count($invoices)) {
+            return null;
+        }
+
+        $context = Context::getContext();
+        $pdf = new PDF($invoices, PDF::TEMPLATE_INVOICE, $context->smarty);
+        $content = $pdf->render(false);
+
+        return is_string($content) && $content !== '' ? $content : null;
     }
 
     public function updateStatus(int $orderId, string $statusReference): bool
@@ -259,6 +283,7 @@ class OrdersService
             'total_paid' => isset($row['total_paid_tax_incl']) ? (float) $row['total_paid_tax_incl'] : 0.0,
             'currency' => isset($row['currency_iso']) ? (string) $row['currency_iso'] : '',
             'date_upd' => isset($row['date_upd']) ? (string) $row['date_upd'] : null,
+            'has_invoice' => isset($row['invoice_number']) && (int) $row['invoice_number'] > 0,
             'customer' => [
                 'id' => isset($row['id_customer']) ? (int) $row['id_customer'] : 0,
                 'firstname' => isset($row['firstname']) ? (string) $row['firstname'] : '',

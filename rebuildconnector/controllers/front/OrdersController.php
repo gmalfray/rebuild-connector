@@ -64,6 +64,21 @@ class RebuildconnectorOrdersModuleFrontController extends RebuildconnectorBaseAp
     {
         $orderId = (int) Tools::getValue('id_order', (int) Tools::getValue('id', 0));
         if ($orderId > 0) {
+            $action = Tools::strtolower((string) Tools::getValue('action', ''));
+            if ($action === 'invoice') {
+                $pdf = $this->getOrdersService()->getInvoicePdf($orderId);
+                if ($pdf === null) {
+                    $this->jsonError(
+                        'not_found',
+                        $this->t('orders.error.invoice_not_found', [], 'No invoice available for this order.'),
+                        404
+                    );
+                    return;
+                }
+                $this->renderPdf($pdf, 'facture-' . $orderId . '.pdf');
+                return;
+            }
+
             $order = $this->getOrdersService()->getOrderById($orderId);
             if ($order === []) {
                 $this->jsonError(
