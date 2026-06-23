@@ -30,7 +30,7 @@ class RebuildConnector extends Module
     {
         $this->name = 'rebuildconnector';
         $this->tab = 'administration';
-        $this->version = '1.4.0';
+        $this->version = '1.4.1';
         $this->author = 'Rebuild IT';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -194,84 +194,96 @@ class RebuildConnector extends Module
             $settingsService->regenerateJwtSecret();
             $messages[] = $this->t('admin.message.secret_regenerated');
         } elseif (Tools::isSubmit('submitRebuildconnectorModule')) {
-            $apiKey = trim((string) Tools::getValue('REBUILDCONNECTOR_API_KEY'));
-            if ($apiKey === '') {
-                $errors[] = $this->t('admin.error.api_key_empty');
-            } else {
-                $settingsService->setApiKey($apiKey);
+            // Les sections (FCM / Sécurité / Scopes) sont des formulaires DISTINCTS partageant ce
+            // submit. On ne traite donc chaque champ QUE s'il est réellement présent dans la requête,
+            // pour ne pas écraser/effacer les autres sections. La clé API n'est plus ici (gérée par
+            // la carte Admin via régénération).
+            if (Tools::getValue('REBUILDCONNECTOR_TOKEN_TTL') !== false) {
+                $settingsService->setTokenTtl((int) Tools::getValue('REBUILDCONNECTOR_TOKEN_TTL', 3600));
             }
 
-            $tokenTtl = (int) Tools::getValue('REBUILDCONNECTOR_TOKEN_TTL', 3600);
-            $settingsService->setTokenTtl($tokenTtl);
+            if (Tools::getValue('REBUILDCONNECTOR_SCOPES') !== false) {
+                $settingsService->setScopesFromString((string) Tools::getValue('REBUILDCONNECTOR_SCOPES', ''));
+            }
 
-            $scopes = (string) Tools::getValue('REBUILDCONNECTOR_SCOPES', '');
-            $settingsService->setScopesFromString($scopes);
-
-            $serviceAccount = trim((string) Tools::getValue('REBUILDCONNECTOR_FCM_SERVICE_ACCOUNT'));
-            if ($serviceAccount !== '') {
-                $decoded = json_decode($serviceAccount, true);
-                if (!is_array($decoded)) {
-                    $errors[] = $this->t('admin.error.invalid_service_account');
+            if (Tools::getValue('REBUILDCONNECTOR_FCM_SERVICE_ACCOUNT') !== false) {
+                $serviceAccount = trim((string) Tools::getValue('REBUILDCONNECTOR_FCM_SERVICE_ACCOUNT'));
+                if ($serviceAccount !== '') {
+                    $decoded = json_decode($serviceAccount, true);
+                    if (!is_array($decoded)) {
+                        $errors[] = $this->t('admin.error.invalid_service_account');
+                    } else {
+                        $settingsService->setFcmServiceAccount(
+                            json_encode($decoded, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)
+                        );
+                    }
                 } else {
-                    $settingsService->setFcmServiceAccount(
-                        json_encode($decoded, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)
-                    );
+                    $settingsService->setFcmServiceAccount(null);
                 }
-            } else {
-                $settingsService->setFcmServiceAccount(null);
             }
 
-            $deviceTokens = (string) Tools::getValue('REBUILDCONNECTOR_FCM_DEVICE_TOKENS', '');
-            $settingsService->setFcmDeviceTokens($deviceTokens);
-
-            $topics = (string) Tools::getValue('REBUILDCONNECTOR_FCM_TOPICS', '');
-            $settingsService->setFcmTopics($topics);
-
-            $shippingNotifEnabled = Tools::getValue('REBUILDCONNECTOR_SHIPPING_NOTIFICATION') === '1';
-            $settingsService->setShippingNotificationEnabled($shippingNotifEnabled);
-
-            $webhookUrl = trim((string) Tools::getValue('REBUILDCONNECTOR_WEBHOOK_URL'));
-            if ($webhookUrl !== '' && !Validate::isUrl($webhookUrl)) {
-                $errors[] = $this->t('admin.error.invalid_webhook_url');
-            } else {
-                $settingsService->setWebhookUrl($webhookUrl);
+            if (Tools::getValue('REBUILDCONNECTOR_FCM_DEVICE_TOKENS') !== false) {
+                $settingsService->setFcmDeviceTokens((string) Tools::getValue('REBUILDCONNECTOR_FCM_DEVICE_TOKENS', ''));
             }
 
-            $webhookSecret = trim((string) Tools::getValue('REBUILDCONNECTOR_WEBHOOK_SECRET'));
-            $webhookSecretClear = Tools::getValue('REBUILDCONNECTOR_WEBHOOK_SECRET_CLEAR') === '1';
-            if ($webhookSecretClear) {
-                $settingsService->clearWebhookSecret();
-            } elseif ($webhookSecret !== '') {
-                $settingsService->setWebhookSecret($webhookSecret);
+            if (Tools::getValue('REBUILDCONNECTOR_FCM_TOPICS') !== false) {
+                $settingsService->setFcmTopics((string) Tools::getValue('REBUILDCONNECTOR_FCM_TOPICS', ''));
             }
 
-            $allowedIpRanges = (string) Tools::getValue('REBUILDCONNECTOR_ALLOWED_IPS', '');
-            try {
-                $settingsService->setAllowedIpRanges($allowedIpRanges);
-            } catch (\InvalidArgumentException $exception) {
-                $errors[] = $this->t('admin.error.invalid_ip_range');
+            if (Tools::getValue('REBUILDCONNECTOR_SHIPPING_NOTIFICATION') !== false) {
+                $settingsService->setShippingNotificationEnabled(Tools::getValue('REBUILDCONNECTOR_SHIPPING_NOTIFICATION') === '1');
             }
 
-            $rateLimitEnabled = Tools::getValue('REBUILDCONNECTOR_RATE_LIMIT_ENABLED') === '1';
-            $settingsService->setRateLimitEnabled($rateLimitEnabled);
-
-            $rateLimitRaw = Tools::getValue('REBUILDCONNECTOR_RATE_LIMIT', 60);
-            if (!is_numeric($rateLimitRaw) || (int) $rateLimitRaw <= 0) {
-                $errors[] = $this->t('admin.error.invalid_rate_limit');
-            } else {
-                $settingsService->setRateLimit((int) $rateLimitRaw);
+            if (Tools::getValue('REBUILDCONNECTOR_WEBHOOK_URL') !== false) {
+                $webhookUrl = trim((string) Tools::getValue('REBUILDCONNECTOR_WEBHOOK_URL'));
+                if ($webhookUrl !== '' && !Validate::isUrl($webhookUrl)) {
+                    $errors[] = $this->t('admin.error.invalid_webhook_url');
+                } else {
+                    $settingsService->setWebhookUrl($webhookUrl);
+                }
             }
 
-            $envOverrides = trim((string) Tools::getValue('REBUILDCONNECTOR_ENV_OVERRIDES'));
-            try {
-                $settingsService->setEnvOverrides($envOverrides);
-            } catch (\InvalidArgumentException $exception) {
-                $errors[] = $this->t('admin.error.invalid_env_overrides');
+            if (Tools::getValue('REBUILDCONNECTOR_WEBHOOK_SECRET') !== false || Tools::getValue('REBUILDCONNECTOR_WEBHOOK_SECRET_CLEAR') !== false) {
+                $webhookSecret = trim((string) Tools::getValue('REBUILDCONNECTOR_WEBHOOK_SECRET'));
+                if (Tools::getValue('REBUILDCONNECTOR_WEBHOOK_SECRET_CLEAR') === '1') {
+                    $settingsService->clearWebhookSecret();
+                } elseif ($webhookSecret !== '') {
+                    $settingsService->setWebhookSecret($webhookSecret);
+                }
+            }
+
+            if (Tools::getValue('REBUILDCONNECTOR_ALLOWED_IPS') !== false) {
+                try {
+                    $settingsService->setAllowedIpRanges((string) Tools::getValue('REBUILDCONNECTOR_ALLOWED_IPS', ''));
+                } catch (\InvalidArgumentException $exception) {
+                    $errors[] = $this->t('admin.error.invalid_ip_range');
+                }
+            }
+
+            if (Tools::getValue('REBUILDCONNECTOR_RATE_LIMIT_ENABLED') !== false) {
+                $settingsService->setRateLimitEnabled(Tools::getValue('REBUILDCONNECTOR_RATE_LIMIT_ENABLED') === '1');
+            }
+
+            if (Tools::getValue('REBUILDCONNECTOR_RATE_LIMIT') !== false) {
+                $rateLimitRaw = Tools::getValue('REBUILDCONNECTOR_RATE_LIMIT', 60);
+                if (!is_numeric($rateLimitRaw) || (int) $rateLimitRaw <= 0) {
+                    $errors[] = $this->t('admin.error.invalid_rate_limit');
+                } else {
+                    $settingsService->setRateLimit((int) $rateLimitRaw);
+                }
+            }
+
+            if (Tools::getValue('REBUILDCONNECTOR_ENV_OVERRIDES') !== false) {
+                try {
+                    $settingsService->setEnvOverrides(trim((string) Tools::getValue('REBUILDCONNECTOR_ENV_OVERRIDES')));
+                } catch (\InvalidArgumentException $exception) {
+                    $errors[] = $this->t('admin.error.invalid_env_overrides');
+                }
             }
 
             if ($errors === []) {
                 $messages[] = $this->t('admin.message.settings_updated');
-        }
+            }
         }
 
         foreach ($errors as $error) {
