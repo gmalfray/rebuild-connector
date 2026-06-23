@@ -827,13 +827,20 @@
     ];
     immediateContainers.forEach(function (c) { renderQrInContainer(c); });
 
-    // Rendu du QR Admin sur ouverture du collapse
+    // Rendu du QR Admin : immédiatement, dès le chargement. Le BO PrestaShop 1.7.8
+    // déclenche les événements Bootstrap (show.bs.collapse) via jQuery ; un
+    // addEventListener natif ne les capte pas → le QR ne se rendait jamais à
+    // l'ouverture du panneau (carré blanc). On le génère donc tout de suite, même
+    // masqué (qrcode.js dessine en dimensions fixes, indépendamment de la visibilité).
     var adminQrContainer = document.getElementById('rbc_admin_qr_container');
-    var adminQrPanel = document.getElementById('rbc-admin-qr-panel');
-    if (adminQrPanel && adminQrContainer) {
-        adminQrPanel.addEventListener('show.bs.collapse', function () {
-            renderQrInContainer(adminQrContainer);
-        });
+    if (adminQrContainer) {
+        renderQrInContainer(adminQrContainer);
+        // Filet de sécurité : re-render à l'ouverture du collapse si jQuery est présent.
+        if (window.jQuery) {
+            window.jQuery('#rbc-admin-qr-panel').on('show.bs.collapse', function () {
+                renderQrInContainer(adminQrContainer);
+            });
+        }
     }
 
     // ── Presets de rôles ──
