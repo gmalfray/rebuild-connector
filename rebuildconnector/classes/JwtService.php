@@ -41,6 +41,7 @@ class JwtService
             'expires_in' => $ttl,
             'issued_at' => date(DATE_ATOM, $now),
             'expires_at' => date(DATE_ATOM, $expiresAt),
+            'scopes' => isset($claims['scopes']) && is_array($claims['scopes']) ? $claims['scopes'] : [],
         ];
     }
 
