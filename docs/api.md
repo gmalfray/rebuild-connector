@@ -26,13 +26,89 @@ Corps JSON :
   "expires_in": 3600,
   "issued_at": "2025-06-19T10:00:00+00:00",
   "expires_at": "2025-06-19T11:00:00+00:00",
-  "scopes": ["orders.read", "orders.write", "products.read", "products.write", "customers.read", "dashboard.read", "reports.read", "baskets.read", "notifications.send"]
+  "scopes": ["orders.read", "dashboard.read"]
 }
 ```
 
 > Les champs `access_token` et `token` sont identiques (les deux existent pour compatibilité).
 
+| Champ        | Type     | Description                                                          |
+|--------------|----------|---------------------------------------------------------------------|
+| `token_type` | string   | Toujours `Bearer`.                                                  |
+| `access_token` | string | Le JWT. Identique à `token`.                                        |
+| `token`      | string   | Le JWT (alias de `access_token`).                                   |
+| `expires_in` | number   | Durée de validité du jeton en secondes.                            |
+| `issued_at`  | string   | Date d'émission ISO 8601.                                          |
+| `expires_at` | string   | Date d'expiration ISO 8601.                                        |
+| `scopes`     | string[] | **Scopes réels du jeton émis** (voir ci-dessous).                  |
+
+**Scopes dynamiques (depuis v1.2.0, multi-utilisateur)** — la structure de la réponse est inchangée,
+mais `scopes` contient désormais les scopes **réellement portés par le jeton** :
+
+- **Clé globale legacy** : tous les scopes globaux configurés en back-office (rétrocompatibilité totale).
+- **Clé d'un utilisateur nommé** : uniquement le sous-ensemble de scopes attribués à cet utilisateur.
+
+> ⚠️ Côté client : ne **jamais** supposer qu'un scope précis est toujours présent. Le tableau peut
+> être un sous-ensemble. L'app PrestaFlow stocke `scopes` mais ne gate aucune fonctionnalité dessus
+> (aucun risque de désérialisation : `scopes` reste un `List<String>` non-nullable, toujours présent).
+
 Ajouter ensuite l'en-tête `Authorization: Bearer <access_token>` sur chaque requête protégée.
+
+**Payload du JWT (informatif — opaque côté client)**
+
+Le JWT encode les claims suivants. L'app ne décode pas ce payload (le jeton est traité comme une chaîne
+opaque) ; ces champs sont documentés à titre de référence serveur. Depuis v1.2.0, le payload contient
+des champs additifs (`id_user`, `id_employee`, `jti`).
+
+```json
+{
+  "sub": "user:3",          // "prestaflow" pour la clé globale legacy
+  "id_user": 3,             // null en mode legacy
+  "id_employee": 7,         // null en mode legacy
+  "scopes": ["orders.read", "dashboard.read"],
+  "shop_url": "https://boutique.example.com",
+  "jti": "hex32chars",      // identifiant unique du jeton (nouveau v1.2.0)
+  "iss": "https://boutique.example.com",
+  "iat": 1750320000,
+  "nbf": 1750320000,
+  "exp": 1750323600
+}
+```
+
+### Codes QR de connexion
+
+Deux formats de QR coexistent. Tous deux portent les mêmes champs de base (`module`, `version`,
+`shopUrl`, `apiKey`, `api_base_url`) ; le QR utilisateur ajoute des champs **additifs**.
+
+**QR global** (clé legacy) :
+
+```json
+{
+  "module": "rebuildconnector",
+  "version": 1,
+  "shopUrl": "https://boutique.example.com",
+  "apiKey": "<clé_en_clair>",
+  "api_base_url": "https://boutique.example.com/module/rebuildconnector/api"
+}
+```
+
+**QR utilisateur nommé** (depuis v1.2.0) — ajoute `user_id` et `label` :
+
+```json
+{
+  "module": "rebuildconnector",
+  "version": 1,
+  "shopUrl": "https://boutique.example.com",
+  "apiKey": "<clé_en_clair>",
+  "api_base_url": "https://boutique.example.com/module/rebuildconnector/api",
+  "user_id": 3,
+  "label": "Préparateur warehouse"
+}
+```
+
+> L'app PrestaFlow ne lit que `shopUrl` et `apiKey` (parsing `JSONObject.optString`) et ignore tout
+> autre champ — les champs `module`, `version`, `api_base_url`, `user_id`, `label` sont tolérés sans
+> erreur. Aucune mise à jour applicative requise pour accepter le QR utilisateur.
 
 **Erreurs**
 
