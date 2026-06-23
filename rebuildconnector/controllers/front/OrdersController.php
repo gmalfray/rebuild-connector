@@ -259,11 +259,13 @@ class RebuildconnectorOrdersModuleFrontController extends RebuildconnectorBaseAp
             return;
         }
 
-        $topics = $settings->getFcmTopics();
-        $tokens = (new FcmDeviceService())->getTokens($topics);
+        // Ciblage par catégorie : seuls les appareils abonnés à "order.shipping.updated"
+        // reçoivent cette notification. Les appareils avec topics vide (non configurés)
+        // reçoivent aussi (rétrocompatibilité).
+        $tokens = (new FcmDeviceService())->getTokensForCategory('order.shipping.updated');
         $fallbackTokens = $settings->getFcmDeviceTokens();
 
-        if ($topics === [] && $tokens === [] && $fallbackTokens === []) {
+        if ($tokens === [] && $fallbackTokens === []) {
             return;
         }
 
@@ -282,7 +284,7 @@ class RebuildconnectorOrdersModuleFrontController extends RebuildconnectorBaseAp
             $data['carrier_id'] = (string) $carrierId;
         }
 
-        $success = (new FcmService($settings))->sendNotification($tokens, $notification, $data, $topics, $fallbackTokens);
+        $success = (new FcmService($settings))->sendNotification($tokens, $notification, $data, [], $fallbackTokens);
 
         if (!$success && $this->isDevMode()) {
             error_log('[RebuildConnector] FCM shipping notification failed.');

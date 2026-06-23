@@ -911,14 +911,14 @@ Corps JSON :
 | Champ       | Type         | Description                                          |
 |-------------|--------------|------------------------------------------------------|
 | `token`     | string       | Token FCM de l'appareil (requis, **≥ 50 caractères** ; sinon `400 invalid_payload`) |
-| `topics`    | array/string | Topics FCM à abonner (optionnel, virgule ou retour ligne acceptés) |
+| `topics`    | array/string | Catégories d'événements souhaitées (optionnel — voir ci-dessous) |
 | `device_id` | string       | Identifiant unique de l'appareil (optionnel)         |
 | `platform`  | string       | Plateforme : `android`, `ios`, etc. (optionnel)      |
 
 ```json
 {
   "token": "fXBKj4...",
-  "topics": ["orders"],
+  "topics": ["order.created", "order.shipping.updated"],
   "device_id": "device-uuid-1234",
   "platform": "android"
 }
@@ -930,7 +930,7 @@ Corps JSON :
 {
   "status": "registered",
   "token": "fXBKj4...",
-  "topics": ["orders"]
+  "topics": ["order.created", "order.shipping.updated"]
 }
 ```
 
@@ -939,6 +939,30 @@ Corps JSON :
 | Code | `error`           | Raison               |
 |------|-------------------|----------------------|
 | 400  | `invalid_payload` | `token` absent/vide  |
+
+#### Catégories de notifications (topics) — depuis v1.4.9
+
+Le champ `topics` détermine quels types d'événements l'appareil souhaite recevoir.
+Il s'agit d'un **abonnement par catégorie** côté serveur : le module ne distribue une notification
+qu'aux appareils dont la liste `topics` intersecte la catégorie de l'événement déclenché.
+
+**Catégories stables (noms immuables — contrat partagé avec l'app Android) :**
+
+| Valeur                    | Événement correspondant                        |
+|---------------------------|------------------------------------------------|
+| `order.created`           | Nouvelle commande validée                      |
+| `order.status.changed`    | Changement de statut d'une commande            |
+| `order.shipping.updated`  | Mise à jour du numéro de suivi / expédition    |
+
+**Règle de ciblage :**
+
+- **`topics` vide (`[]`) ou absent** — l'appareil est considéré « non configuré » et reçoit
+  **toutes** les catégories d'événements (comportement identique à l'avant v1.4.9,
+  garantissant la rétrocompatibilité des appareils enregistrés avant la mise à jour de l'app).
+- **`topics` non vide** — l'appareil ne reçoit **que** les catégories qu'il a déclarées.
+
+Les tokens de secours configurés en back-office (`getFcmDeviceTokens`) restent un filet de
+sécurité et reçoivent tous les événements sans condition (comportement inchangé).
 
 ---
 
