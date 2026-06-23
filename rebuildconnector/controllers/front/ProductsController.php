@@ -79,13 +79,35 @@ class RebuildconnectorProductsModuleFrontController extends RebuildconnectorBase
             return;
         }
 
-        $filters = [
-            'limit' => Tools::getValue('limit'),
-            'offset' => Tools::getValue('offset'),
-            'active' => Tools::getValue('active'),
-            'search' => Tools::getValue('search'),
-            'stock' => Tools::getValue('stock'),
-        ];
+        $filters = [];
+
+        $limitRaw = Tools::getValue('limit');
+        if ($limitRaw !== false && $limitRaw !== '') {
+            $filters['limit'] = $limitRaw;
+        }
+
+        $offsetRaw = Tools::getValue('offset');
+        if ($offsetRaw !== false && $offsetRaw !== '') {
+            $filters['offset'] = $offsetRaw;
+        }
+
+        // Le filtre "active" n'est appliqué que si le paramètre est explicitement fourni.
+        // Tools::getValue retourne false quand le paramètre est absent — dans ce cas on ne filtre
+        // pas sur active afin de retourner tous les produits (actifs + inactifs).
+        $activeRaw = Tools::getValue('active');
+        if ($activeRaw !== false && $activeRaw !== '') {
+            $filters['active'] = $activeRaw;
+        }
+
+        $searchRaw = Tools::getValue('search');
+        if ($searchRaw !== false && $searchRaw !== '') {
+            $filters['search'] = $searchRaw;
+        }
+
+        $stockRaw = Tools::getValue('stock');
+        if ($stockRaw !== false && $stockRaw !== '') {
+            $filters['stock'] = $stockRaw;
+        }
 
         $idsParam = Tools::getValue('ids');
         if (is_string($idsParam) && $idsParam !== '') {
@@ -106,9 +128,11 @@ class RebuildconnectorProductsModuleFrontController extends RebuildconnectorBase
         }
 
         $products = $this->getProductsService()->getProducts($filters);
+        $total = $this->getProductsService()->countProducts($filters);
 
         $this->renderJson([
             'products' => $products,
+            'total' => $total,
         ]);
     }
 

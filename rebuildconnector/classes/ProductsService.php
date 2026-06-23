@@ -53,7 +53,9 @@ class ProductsService
             'sa.id_product = p.id_product AND sa.id_product_attribute = 0 AND sa.id_shop = ' . (int) $shopId
         );
 
-        if (isset($filters['active'])) {
+        // N'applique le filtre active que si la clé est présente ET la valeur n'est ni false ni null.
+        // isset() retourne true même pour false, ce qui causerait un filtre p.active=0 non désiré.
+        if (array_key_exists('active', $filters) && $filters['active'] !== false && $filters['active'] !== null) {
             $query->where('p.active = ' . (int) (bool) $filters['active']);
         }
 
@@ -101,6 +103,75 @@ class ProductsService
         }
 
         return $products;
+    }
+
+    /**
+     * Retourne le nombre total de produits correspondant aux filtres fournis,
+     * sans tenir compte de la pagination (limit/offset ignorés).
+     *
+     * @param array<string, mixed> $filters
+     */
+    public function countProducts(array $filters = []): int
+    {
+        $langId = $this->getLanguageId();
+        $shopId = $this->getShopId();
+
+        $query = new DbQuery();
+        $query->select('COUNT(DISTINCT p.id_product)');
+        $query->from('product', 'p');
+        $query->innerJoin(
+            'product_lang',
+            'pl',
+            'pl.id_product = p.id_product AND pl.id_lang = ' . (int) $langId . ' AND pl.id_shop = ' . (int) $shopId
+        );
+        $query->leftJoin(
+            'product_shop',
+            'ps',
+            'ps.id_product = p.id_product AND ps.id_shop = ' . (int) $shopId
+        );
+        $query->leftJoin(
+            'stock_available',
+            'sa',
+            'sa.id_product = p.id_product AND sa.id_product_attribute = 0 AND sa.id_shop = ' . (int) $shopId
+        );
+
+        if (array_key_exists('active', $filters) && $filters['active'] !== false && $filters['active'] !== null) {
+            $query->where('p.active = ' . (int) (bool) $filters['active']);
+        }
+
+        if (!empty($filters['search'])) {
+            $term = pSQL((string) $filters['search'], true);
+            $like = '"%' . $term . '%"';
+            $query->where('(pl.name LIKE ' . $like . ' OR p.reference LIKE ' . $like . ')');
+        }
+
+        if (!empty($filters['ids']) && is_array($filters['ids'])) {
+            $ids = array_filter(array_map('intval', $filters['ids']));
+            if (!empty($ids)) {
+                $query->where('p.id_product IN (' . implode(',', $ids) . ')');
+            }
+        }
+
+        if (!empty($filters['stock'])) {
+            $defaultThreshold = self::DEFAULT_LOW_STOCK_THRESHOLD;
+            $stockFilter = (string) $filters['stock'];
+            if ($stockFilter === 'in_stock') {
+                $query->where('IFNULL(sa.quantity, 0) > 0');
+            } elseif ($stockFilter === 'out_of_stock') {
+                $query->where('IFNULL(sa.quantity, 0) <= 0');
+            } elseif ($stockFilter === 'low_stock') {
+                $query->where('IFNULL(sa.quantity, 0) > 0');
+                $query->where(
+                    'IFNULL(sa.quantity, 0) <= CASE'
+                    . ' WHEN ps.low_stock_threshold IS NOT NULL AND ps.low_stock_threshold > 0'
+                    . ' THEN ps.low_stock_threshold'
+                    . ' ELSE ' . (int) $defaultThreshold
+                    . ' END'
+                );
+            }
+        }
+
+        return (int) Db::getInstance()->getValue($query);
     }
 
     /**

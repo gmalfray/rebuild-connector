@@ -367,7 +367,7 @@ Liste paginée de produits.
 |-----------|--------|---------------------------------------------------------|
 | `limit`   | int    | Nombre max de résultats (défaut 20, min 1)              |
 | `offset`  | int    | Décalage de pagination (défaut 0)                       |
-| `active`  | int    | `1` = actifs uniquement, `0` = inactifs uniquement      |
+| `active`  | int    | `1` = actifs uniquement, `0` = inactifs uniquement. **Si absent : aucun filtre, tous les produits sont retournés.** |
 | `search`  | string | Recherche sur nom ou référence                          |
 | `ids`     | string | Liste d'IDs séparés par virgule (`ids=88,89,90`)        |
 | `stock`   | string | Filtre par état de stock : `in_stock`, `out_of_stock`, `low_stock` |
@@ -413,7 +413,8 @@ Liste paginée de produits.
       ],
       "updated_at": "2025-06-01 12:00:00"
     }
-  ]
+  ],
+  "total": 324
 }
 ```
 
@@ -424,8 +425,15 @@ Liste paginée de produits.
 | `stock.low_stock_threshold` | int  | Seuil de stock faible effectif : `product_shop.low_stock_threshold` si > 0, sinon 5 (défaut global). |
 | `stock.is_low`        | bool | `true` si `0 < quantity <= low_stock_threshold`.                              |
 
+**Champ `total` ajouté (v1.4.3)**
+
+| Champ   | Type | Description                                                                        |
+|---------|------|------------------------------------------------------------------------------------|
+| `total` | int  | Nombre total de produits correspondant aux filtres actifs, indépendamment de la pagination (`limit`/`offset` ignorés). Permet à l'app d'afficher un compteur global et de calculer le nombre de pages. |
+
 > `price` est le prix TTC (`Product::getPriceStatic($id, true)`). Le prix HT brut est disponible sur le détail produit (`price_tax_excl` PATCH uniquement).
 > Toute valeur du filtre `stock` autre que les trois valeurs listées retourne `400 invalid_payload`.
+> **v1.4.3** — Corrige un bug où l'absence du paramètre `active` appliquait un filtre `p.active = 0` non désiré, causant le retour de produits inactifs uniquement et une liste tronquée.
 
 ---
 
