@@ -654,6 +654,29 @@
                 </button>
             </div>
         </form>
+
+        {* ─── Backfill : synchronisation des devices existants vers le hub ─── *}
+        {if $settings.hub_enabled}
+        <div class="well" style="margin-top:15px;">
+            <h4><i class="icon-refresh"></i> Synchronisation des devices existants</h4>
+            <p>
+                Relaye au hub tous les devices déjà enregistrés dans la base de données locale.
+                À lancer une fois après l'activation du hub pour que celui-ci connaisse vos appareils existants.
+                Opération idempotente (le hub fait un upsert) et best-effort (un échec sur un device n'interrompt pas les autres).
+            </p>
+            <form method="post">
+                <button
+                    type="submit"
+                    name="rebuildconnector_hub_sync_devices"
+                    value="1"
+                    class="btn btn-default"
+                    onclick="return confirm('Lancer la synchronisation des devices vers le hub ?');"
+                >
+                    <i class="icon-upload"></i> Synchroniser les devices vers le hub
+                </button>
+            </form>
+        </div>
+        {/if}
     </div>
 </div>
 

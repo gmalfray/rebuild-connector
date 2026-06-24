@@ -80,6 +80,66 @@ class PushHubService
     }
 
     /**
+     * Synchronise (backfill) tous les devices existants en base vers le hub.
+     *
+     * Idempotent : le hub fait un upsert à chaque appel de /v1/devices.
+     * Best-effort : un échec sur un device n'interrompt pas les suivants.
+     * Itère ligne par ligne sans tout charger en mémoire (SELECT paginé par lot).
+     *
+     * @param FcmDeviceService $fcmDeviceService
+     * @return array{synced: int, failed: int, skipped: int}
+     */
+    public function syncAllDevices(FcmDeviceService $fcmDeviceService): array
+    {
+        $result = ['synced' => 0, 'failed' => 0, 'skipped' => 0];
+
+        if (!$this->isEnabled()) {
+            return $result;
+        }
+
+        $offset = 0;
+        $batchSize = 50;
+
+        do {
+            $rows = $fcmDeviceService->getDevicesBatch($offset, $batchSize);
+
+            foreach ($rows as $row) {
+                $token = isset($row['token']) ? trim((string) $row['token']) : '';
+                if ($token === '') {
+                    ++$result['skipped'];
+                    continue;
+                }
+
+                $platform = isset($row['platform']) && is_string($row['platform']) && $row['platform'] !== ''
+                    ? $row['platform']
+                    : null;
+
+                $topics = FcmDeviceService::decodeTopicsStatic(
+                    isset($row['topics']) ? (string) $row['topics'] : '[]'
+                );
+
+                if ($this->registerDevice($token, $platform, $topics)) {
+                    ++$result['synced'];
+                } else {
+                    ++$result['failed'];
+                    $this->log(sprintf('Hub backfill: échec pour le token %.20s…', $token));
+                }
+            }
+
+            $offset += $batchSize;
+        } while (count($rows) === $batchSize);
+
+        $this->log(sprintf(
+            'Hub backfill terminé : %d synchronisés, %d échecs, %d ignorés.',
+            $result['synced'],
+            $result['failed'],
+            $result['skipped']
+        ));
+
+        return $result;
+    }
+
+    /**
      * @param array<string, mixed>|null $body
      *
      * @return array<string, mixed>|null Réponse décodée si HTTP 2xx, null sinon.

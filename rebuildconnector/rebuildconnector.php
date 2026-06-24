@@ -34,7 +34,7 @@ class RebuildConnector extends Module
     {
         $this->name = 'rebuildconnector';
         $this->tab = 'administration';
-        $this->version = '1.5.0';
+        $this->version = '1.5.1';
         $this->author = 'Rebuild IT';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -197,6 +197,23 @@ class RebuildConnector extends Module
         } elseif (Tools::isSubmit('rebuildconnector_regenerate_secret')) {
             $settingsService->regenerateJwtSecret();
             $messages[] = $this->t('admin.message.secret_regenerated');
+        } elseif (Tools::isSubmit('rebuildconnector_hub_sync_devices')) {
+            $hub = $this->getPushHubService();
+            if (!$hub->isEnabled()) {
+                $errors[] = $this->t('admin.error.hub_not_configured', [], 'Le hub push n\'est pas configuré (URL + clé de licence requis).');
+            } else {
+                $syncResult = $hub->syncAllDevices($this->getFcmDeviceService());
+                $messages[] = $this->t(
+                    'admin.message.hub_sync_done',
+                    [$syncResult['synced'], $syncResult['failed'], $syncResult['skipped']],
+                    sprintf(
+                        'Synchronisation hub terminée : %d device(s) relayé(s), %d échec(s), %d ignoré(s).',
+                        $syncResult['synced'],
+                        $syncResult['failed'],
+                        $syncResult['skipped']
+                    )
+                );
+            }
         } elseif (Tools::isSubmit('submitRebuildconnectorModule')) {
             // Les sections (FCM / Sécurité / Scopes) sont des formulaires DISTINCTS partageant ce
             // submit. On ne traite donc chaque champ QUE s'il est réellement présent dans la requête,
