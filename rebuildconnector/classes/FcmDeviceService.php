@@ -163,6 +163,51 @@ class FcmDeviceService
     }
 
     /**
+     * Retourne un lot de devices paginé (token, platform, topics).
+     * Utilisé par PushHubService::syncAllDevices() pour itérer sans tout charger en mémoire.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function getDevicesBatch(int $offset, int $limit): array
+    {
+        $sql = sprintf(
+            'SELECT `token`, `platform`, `topics`
+             FROM `%s%s`
+             ORDER BY `id_rebuildconnector_fcm_device` ASC
+             LIMIT %d OFFSET %d',
+            _DB_PREFIX_,
+            self::TABLE_NAME,
+            (int) $limit,
+            (int) $offset
+        );
+
+        /** @var array<int, array<string, mixed>>|false $rows */
+        $rows = Db::getInstance()->executeS($sql);
+
+        return is_array($rows) ? $rows : [];
+    }
+
+    /**
+     * Décode un payload JSON de topics en tableau de chaînes sanitisées.
+     * Version statique utilisable depuis PushHubService sans instance.
+     *
+     * @return array<int, string>
+     */
+    public static function decodeTopicsStatic(string $payload): array
+    {
+        if ($payload === '') {
+            return [];
+        }
+
+        $decoded = json_decode($payload, true);
+        if (!is_array($decoded)) {
+            return [];
+        }
+
+        return self::sanitizeTopics($decoded);
+    }
+
+    /**
      * @param array<int, mixed> $topics
      * @return array<int, string>
      */
