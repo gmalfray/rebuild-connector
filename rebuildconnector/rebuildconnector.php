@@ -17,6 +17,7 @@ require_once __DIR__ . '/classes/JwtService.php';
 require_once __DIR__ . '/classes/AuthService.php';
 require_once __DIR__ . '/classes/TranslationService.php';
 require_once __DIR__ . '/classes/UpdateCheckService.php';
+require_once __DIR__ . '/classes/ModuleUpdaterService.php';
 
 class RebuildConnector extends Module
 {
@@ -28,13 +29,14 @@ class RebuildConnector extends Module
     private ?WebhookService $webhookService = null;
     private ?AuditLogService $auditLogService = null;
     private ?UpdateCheckService $updateCheckService = null;
+    private ?ModuleUpdaterService $moduleUpdaterService = null;
     private bool $settingsBootstrapped = false;
 
     public function __construct()
     {
         $this->name = 'rebuildconnector';
         $this->tab = 'administration';
-        $this->version = '1.6.0';
+        $this->version = '1.6.1';
         $this->author = 'Rebuild IT';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -213,6 +215,16 @@ class RebuildConnector extends Module
                         $syncResult['skipped']
                     )
                 );
+            }
+        } elseif (Tools::isSubmit('rebuildconnector_do_update')) {
+            // Mise à jour en un clic — l'URL de téléchargement est toujours issue du service,
+            // jamais d'un paramètre POST (protection SSRF).
+            $updater = $this->getModuleUpdaterService();
+            $result = $updater->performUpdate();
+            if ($result['success']) {
+                $messages[] = $result['message'];
+            } else {
+                $errors[] = $result['message'];
             }
         } elseif (Tools::isSubmit('submitRebuildconnectorModule')) {
             // Les sections (FCM / Sécurité / Scopes) sont des formulaires DISTINCTS partageant ce
@@ -659,6 +671,15 @@ class RebuildConnector extends Module
         }
 
         return $this->updateCheckService;
+    }
+
+    private function getModuleUpdaterService(): ModuleUpdaterService
+    {
+        if ($this->moduleUpdaterService === null) {
+            $this->moduleUpdaterService = new ModuleUpdaterService($this->getUpdateCheckService());
+        }
+
+        return $this->moduleUpdaterService;
     }
 
     /**
