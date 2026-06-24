@@ -5,6 +5,34 @@
  *}
 
 {* ─────────────────────────────────────────────────────────────────────────────
+   BANDEAU MISE À JOUR DISPONIBLE
+   ─────────────────────────────────────────────────────────────────────────────*}
+{if $update_info}
+<div class="alert alert-warning" style="margin-bottom:16px; display:flex; align-items:center; gap:12px;">
+    <i class="icon-download" style="font-size:20px; flex-shrink:0;"></i>
+    <div style="flex:1;">
+        <strong>Mise à jour disponible : Rebuild Connector v{$update_info.latest|escape:'htmlall'}</strong>
+        &nbsp;&mdash;&nbsp;
+        version installée : <code>v{$module_version|escape:'htmlall'}</code>
+    </div>
+    <div style="white-space:nowrap;">
+        {if $update_info.download_url}
+        <a href="{$update_info.download_url|escape:'htmlall'}" target="_blank" rel="noopener"
+           class="btn btn-warning btn-sm" style="margin-right:6px;">
+            <i class="icon-download"></i> Télécharger
+        </a>
+        {/if}
+        {if $update_info.url}
+        <a href="{$update_info.url|escape:'htmlall'}" target="_blank" rel="noopener"
+           class="btn btn-default btn-sm">
+            <i class="icon-external-link"></i> Voir la release
+        </a>
+        {/if}
+    </div>
+</div>
+{/if}
+
+{* ─────────────────────────────────────────────────────────────────────────────
    SECTION 1 — BANDEAU D'ÉTAT
    ─────────────────────────────────────────────────────────────────────────────*}
 <div class="panel panel-default" id="rbc-status-panel">
