@@ -14,6 +14,27 @@ class FcmService
     }
 
     /**
+     * Retourne le channel_id Android correspondant à un événement FCM.
+     *
+     * Mapping contrat (immuable — partagé avec l'app Android) :
+     *   order.created          → sales_v2
+     *   order.status.changed   → order_status
+     *   order.shipping.updated → order_shipping
+     *
+     * @return string|null null si l'événement est absent ou inconnu
+     */
+    public function channelIdForEvent(string $event): ?string
+    {
+        $map = [
+            'order.created'          => 'sales_v2',
+            'order.status.changed'   => 'order_status',
+            'order.shipping.updated' => 'order_shipping',
+        ];
+
+        return $map[$event] ?? null;
+    }
+
+    /**
      * @param array<int, mixed> $tokens
      * @param array<string, string> $notification
      * @param array<string, mixed> $data
@@ -55,6 +76,10 @@ class FcmService
 
         $normalizedData = $this->normalizeData($data);
 
+        // Canal Android : déterminé une seule fois depuis l'événement.
+        $eventKey  = isset($data['event']) ? (string) $data['event'] : '';
+        $channelId = $eventKey !== '' ? $this->channelIdForEvent($eventKey) : null;
+
         $topicDelivered = false;
         if ($topics !== []) {
             foreach ($topics as $topic) {
@@ -67,6 +92,12 @@ class FcmService
 
                 if ($normalizedData !== []) {
                     $message['message']['data'] = $normalizedData;
+                }
+
+                if ($channelId !== null) {
+                    $message['message']['android'] = [
+                        'notification' => ['channel_id' => $channelId],
+                    ];
                 }
 
                 if ($this->dispatchMessage($projectId, $accessToken, $message)) {
@@ -91,6 +122,12 @@ class FcmService
                     $message['message']['data'] = $normalizedData;
                 }
 
+                if ($channelId !== null) {
+                    $message['message']['android'] = [
+                        'notification' => ['channel_id' => $channelId],
+                    ];
+                }
+
                 if ($this->dispatchMessage($projectId, $accessToken, $message)) {
                     $tokenDelivered = true;
                 } else {
@@ -111,6 +148,12 @@ class FcmService
 
                 if ($normalizedData !== []) {
                     $message['message']['data'] = $normalizedData;
+                }
+
+                if ($channelId !== null) {
+                    $message['message']['android'] = [
+                        'notification' => ['channel_id' => $channelId],
+                    ];
                 }
 
                 if ($this->dispatchMessage($projectId, $accessToken, $message)) {
