@@ -39,7 +39,7 @@ class RebuildConnector extends Module
         $this->need_instance = 0;
         $this->bootstrap = true;
 
-        $this->controllers = ['api', 'orders', 'products', 'customers', 'dashboard', 'notifications', 'baskets', 'reports'];
+        $this->controllers = ['api', 'orders', 'products', 'customers', 'dashboard', 'notifications', 'baskets', 'reports', 'invoice'];
 
         parent::__construct();
 
@@ -760,6 +760,20 @@ class RebuildConnector extends Module
                     'action' => [
                         'regexp' => '(status|shipping|invoice|shipping-label)',
                         'param' => 'action',
+                    ],
+                ],
+                'params' => [
+                    'fc' => 'module',
+                    'module' => $module,
+                ],
+            ],
+            'module-' . $module . '-api-orders-invoice' => [
+                'controller' => 'invoice',
+                'rule' => $baseRule . '/orders/{id}/invoice',
+                'keywords' => [
+                    'id' => [
+                        'regexp' => '[0-9]+',
+                        'param' => 'id',
                     ],
                 ],
                 'params' => [
