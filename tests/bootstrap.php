@@ -17,6 +17,7 @@ spl_autoload_register(static function (string $class): void {
     $map = [
         'SettingsService' => __DIR__ . '/../rebuildconnector/classes/SettingsService.php',
         'FcmService' => __DIR__ . '/../rebuildconnector/classes/FcmService.php',
+        'PushHubService' => __DIR__ . '/../rebuildconnector/classes/PushHubService.php',
         'FcmDeviceService' => __DIR__ . '/../rebuildconnector/classes/FcmDeviceService.php',
         'OrdersService' => __DIR__ . '/../rebuildconnector/classes/OrdersService.php',
         'CustomersService' => __DIR__ . '/../rebuildconnector/classes/CustomersService.php',

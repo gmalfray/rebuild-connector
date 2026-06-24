@@ -8,6 +8,7 @@ require_once __DIR__ . '/classes/UserService.php';
 require_once __DIR__ . '/classes/SettingsService.php';
 require_once __DIR__ . '/classes/FcmDeviceService.php';
 require_once __DIR__ . '/classes/FcmService.php';
+require_once __DIR__ . '/classes/PushHubService.php';
 require_once __DIR__ . '/classes/RateLimiterService.php';
 require_once __DIR__ . '/classes/WebhookService.php';
 require_once __DIR__ . '/classes/AuditLogService.php';
@@ -20,6 +21,7 @@ require_once __DIR__ . '/classes/UpdateCheckService.php';
 class RebuildConnector extends Module
 {
     private ?FcmService $fcmService = null;
+    private ?PushHubService $pushHubService = null;
     private ?SettingsService $settingsService = null;
     private ?TranslationService $translationService = null;
     private ?FcmDeviceService $fcmDeviceService = null;
@@ -32,7 +34,7 @@ class RebuildConnector extends Module
     {
         $this->name = 'rebuildconnector';
         $this->tab = 'administration';
-        $this->version = '1.4.11';
+        $this->version = '1.5.0';
         $this->author = 'Rebuild IT';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -234,6 +236,25 @@ class RebuildConnector extends Module
 
             if (Tools::getValue('REBUILDCONNECTOR_SHIPPING_NOTIFICATION') !== false) {
                 $settingsService->setShippingNotificationEnabled(Tools::getValue('REBUILDCONNECTOR_SHIPPING_NOTIFICATION') === '1');
+            }
+
+            if (Tools::getValue('REBUILDCONNECTOR_HUB_URL') !== false) {
+                try {
+                    $settingsService->setHubUrl((string) Tools::getValue('REBUILDCONNECTOR_HUB_URL', ''));
+                } catch (\InvalidArgumentException $exception) {
+                    $errors[] = $this->t('admin.error.invalid_hub_url', [], 'L\'URL du hub doit utiliser HTTPS.');
+                }
+            }
+
+            if (Tools::getValue('REBUILDCONNECTOR_HUB_LICENSE_KEY') !== false || Tools::getValue('REBUILDCONNECTOR_HUB_LICENSE_KEY_CLEAR') !== false) {
+                if (Tools::getValue('REBUILDCONNECTOR_HUB_LICENSE_KEY_CLEAR') === '1') {
+                    $settingsService->clearHubLicenseKey();
+                } else {
+                    $hubLicenseKey = trim((string) Tools::getValue('REBUILDCONNECTOR_HUB_LICENSE_KEY'));
+                    if ($hubLicenseKey !== '') {
+                        $settingsService->setHubLicenseKey($hubLicenseKey);
+                    }
+                }
             }
 
             if (Tools::getValue('REBUILDCONNECTOR_WEBHOOK_URL') !== false) {
@@ -498,6 +519,21 @@ class RebuildConnector extends Module
         $category = isset($data['event']) && is_string($data['event']) ? $data['event'] : '';
         $fallbackTokens = $this->getSettingsService()->getFcmDeviceTokens();
 
+        // Mode hub centralisé : on relaie l'envoi au hub, qui détient le compte de service FCM
+        // et cible ses propres devices. Le FCM direct ci-dessous sert de fallback si le hub est
+        // injoignable (réseau / HTTP non 2xx), pour ne pas perdre la notification.
+        $hub = $this->getPushHubService();
+        if ($hub->isEnabled() && $hub->notify($category, $notification, $data)) {
+            $this->recordAudit('notifications.dispatch', [
+                'event' => $category !== '' ? $category : null,
+                'success' => true,
+                'transport' => 'hub',
+                'category' => $category !== '' ? $category : null,
+            ]);
+
+            return;
+        }
+
         // Ciblage par catégorie d'événement :
         // - Si la catégorie est connue, on cible les appareils abonnés à cette catégorie
         //   (appareils avec topics vide inclus, pour rétrocompatibilité).
@@ -520,6 +556,7 @@ class RebuildConnector extends Module
         $this->recordAudit('notifications.dispatch', [
             'event' => $category !== '' ? $category : null,
             'success' => $success,
+            'transport' => $hub->isEnabled() ? 'fcm_direct_fallback' : 'fcm_direct',
             'primary_tokens' => count($primaryTokens),
             'fallback_tokens' => count($fallbackTokens),
             'category' => $category !== '' ? $category : null,
@@ -537,6 +574,15 @@ class RebuildConnector extends Module
         }
 
         return $this->fcmService;
+    }
+
+    private function getPushHubService(): PushHubService
+    {
+        if ($this->pushHubService === null) {
+            $this->pushHubService = new PushHubService($this->getSettingsService());
+        }
+
+        return $this->pushHubService;
     }
 
     private function getWebhookService(): WebhookService

@@ -114,6 +114,20 @@ l’app PrestaFlow). Le ciblage se fait côté module via le champ `topics` de l
 
 Un appareil sans préférence (`topics` vide) reçoit **toutes** les catégories (rétrocompatibilité).
 
+### Mode hub centralisé (depuis v1.5.0)
+
+Au lieu d'embarquer le compte de service FCM, le module peut **relayer l'envoi à un hub centralisé**
+(`push.rebuild-it.fr`) qui détient l'unique compte de service Rebuild IT, gère les licences/devices et
+envoie réellement à FCM. Indispensable en multi-boutiques (une app = un projet Firebase → un compte de
+service tiers donnerait `SENDER_ID_MISMATCH`).
+
+- Activation dans le BO (carte **Hub push centralisé**) : renseigner l'**URL du hub** + la **clé de licence**.
+- Une fois actif, le module relaie au hub : l'**enregistrement des devices** (`POST /v1/devices`),
+  leur **suppression** (`DELETE /v1/devices/{token}`) et l'**envoi** (`POST /v1/notify`).
+- **Fallback** : si le hub est injoignable (réseau / HTTP non 2xx), le module retombe automatiquement
+  sur l'envoi **FCM direct** local — aucune notification perdue pendant la transition.
+- Champ vide = mode hub désactivé → comportement FCM direct historique inchangé.
+
 ---
 
 ## 🛠️ Configuration back-office
@@ -123,6 +137,7 @@ L’onglet *Rebuild Connector* du back-office expose les réglages suivants :
 - **Accès & utilisateurs** : clé Admin (accès complet) traitée comme un **secret one-time** — affichée/QR une seule fois à la (re)génération puis masquée et stockée hachée — et **utilisateurs nommés** multiples avec scopes dédiés (chacun son QR et sa clé révocable).
 - **Configuration mobile** : QR code prêt à scanner dans PrestaFlow (payload JSON `{"version":1,"shopUrl":"https://…","apiKey":"…"}`) pour injecter automatiquement l’URL API et la clé.
 - **Firebase Cloud Messaging** : compte de service HTTP v1, topics par défaut et jetons fallback pour tester les notifications.
+- **Hub push centralisé** *(v1.5.0)* : URL du hub + clé de licence pour relayer l'envoi à `push.rebuild-it.fr` (fallback FCM direct automatique si le hub est injoignable).
 - **Webhooks** : URL de callback HTTPS, secret HMAC (aperçu + régénération) et reset possible.
 - **Protection d’accès** : liste blanche d’IP/CIDR, limitation de débit configurable (requêtes/minute), activation/désactivation rapide.
 - **Overrides d’environnement** : paires `KEY=VALUE` injectées dans le module pour piloter des comportements dynamiques sans redéploiement.
@@ -149,10 +164,10 @@ GET https://updates.rebuild-it.fr/rebuildconnector/version.json
 ```json
 {
   "module": "rebuildconnector",
-  "latest": "1.4.11",
-  "tag": "v1.4.11",
-  "url": "https://github.com/gmalfray/rebuild-connector/releases/tag/v1.4.11",
-  "download_url": "https://github.com/gmalfray/rebuild-connector/releases/download/v1.4.11/rebuildconnector.zip",
+  "latest": "1.5.0",
+  "tag": "v1.5.0",
+  "url": "https://github.com/gmalfray/rebuild-connector/releases/tag/v1.5.0",
+  "download_url": "https://github.com/gmalfray/rebuild-connector/releases/download/v1.5.0/rebuildconnector.zip",
   "published_at": "2026-06-24T00:00:00Z"
 }
 ```
