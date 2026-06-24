@@ -4,10 +4,12 @@ defined('_PS_VERSION_') || exit;
 
 require_once __DIR__ . '/BaseApiController.php';
 require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/FcmDeviceService.php';
+require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/PushHubService.php';
 
 class RebuildconnectorNotificationsModuleFrontController extends RebuildconnectorBaseApiModuleFrontController
 {
     private ?FcmDeviceService $deviceService = null;
+    private ?PushHubService $pushHubService = null;
 
     public function initContent(): void
     {
@@ -88,6 +90,13 @@ class RebuildconnectorNotificationsModuleFrontController extends Rebuildconnecto
 
         $this->getDeviceService()->registerDevice($token, $topics, $deviceId, $platform);
 
+        // Mode hub : on relaie l'enregistrement au hub (best-effort). L'enregistrement local
+        // ci-dessus est conservé pour garder le fallback FCM direct opérationnel.
+        $hub = $this->getPushHubService();
+        if ($hub->isEnabled()) {
+            $hub->registerDevice($token, $platform, $topics);
+        }
+
         $this->renderJson([
             'status' => 'registered',
             'token' => $token,
@@ -116,6 +125,11 @@ class RebuildconnectorNotificationsModuleFrontController extends Rebuildconnecto
 
         $this->getDeviceService()->unregisterDevice($token);
 
+        $hub = $this->getPushHubService();
+        if ($hub->isEnabled()) {
+            $hub->unregisterDevice($token);
+        }
+
         header('Content-Type: application/json');
         http_response_code(204);
         $this->ajaxRender('');
@@ -143,5 +157,14 @@ class RebuildconnectorNotificationsModuleFrontController extends Rebuildconnecto
         }
 
         return $this->deviceService;
+    }
+
+    private function getPushHubService(): PushHubService
+    {
+        if ($this->pushHubService === null) {
+            $this->pushHubService = new PushHubService($this->getSettingsService());
+        }
+
+        return $this->pushHubService;
     }
 }

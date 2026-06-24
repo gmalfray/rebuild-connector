@@ -6,6 +6,7 @@ require_once __DIR__ . '/BaseApiController.php';
 require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/OrdersService.php';
 require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/ShippingLabelService.php';
 require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/FcmService.php';
+require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/PushHubService.php';
 require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/FcmDeviceService.php';
 
 class RebuildconnectorOrdersModuleFrontController extends RebuildconnectorBaseApiModuleFrontController
@@ -259,16 +260,6 @@ class RebuildconnectorOrdersModuleFrontController extends RebuildconnectorBaseAp
             return;
         }
 
-        // Ciblage par catégorie : seuls les appareils abonnés à "order.shipping.updated"
-        // reçoivent cette notification. Les appareils avec topics vide (non configurés)
-        // reçoivent aussi (rétrocompatibilité).
-        $tokens = (new FcmDeviceService())->getTokensForCategory('order.shipping.updated');
-        $fallbackTokens = $settings->getFcmDeviceTokens();
-
-        if ($tokens === [] && $fallbackTokens === []) {
-            return;
-        }
-
         $notification = [
             'title' => $this->t('notifications.order_shipping_title'),
             'body' => $this->t('notifications.order_shipping_body', [$trackingNumber], sprintf('Tracking %s is now available.', $trackingNumber)),
@@ -282,6 +273,22 @@ class RebuildconnectorOrdersModuleFrontController extends RebuildconnectorBaseAp
 
         if ($carrierId !== null) {
             $data['carrier_id'] = (string) $carrierId;
+        }
+
+        // Mode hub centralisé : relai au hub (fallback FCM direct si le hub est injoignable).
+        $hub = new PushHubService($settings);
+        if ($hub->isEnabled() && $hub->notify('order.shipping.updated', $notification, $data)) {
+            return;
+        }
+
+        // Ciblage par catégorie : seuls les appareils abonnés à "order.shipping.updated"
+        // reçoivent cette notification. Les appareils avec topics vide (non configurés)
+        // reçoivent aussi (rétrocompatibilité).
+        $tokens = (new FcmDeviceService())->getTokensForCategory('order.shipping.updated');
+        $fallbackTokens = $settings->getFcmDeviceTokens();
+
+        if ($tokens === [] && $fallbackTokens === []) {
+            return;
         }
 
         $success = (new FcmService($settings))->sendNotification($tokens, $notification, $data, [], $fallbackTokens);

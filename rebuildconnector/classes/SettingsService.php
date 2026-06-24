@@ -118,6 +118,16 @@ class SettingsService
             $updated = true;
         }
 
+        if (!isset($settings['hub_url']) || !is_string($settings['hub_url'])) {
+            $settings['hub_url'] = '';
+            $updated = true;
+        }
+
+        if (!isset($settings['hub_license_key']) || !is_string($settings['hub_license_key'])) {
+            $settings['hub_license_key'] = '';
+            $updated = true;
+        }
+
         if (!isset($settings['env_overrides'])) {
             $settings['env_overrides'] = '';
             $updated = true;
@@ -746,6 +756,9 @@ class SettingsService
             'rate_limit' => $this->getRateLimit(),
             'env_overrides' => $this->getEnvOverridesRaw(),
             'shipping_notification_enabled' => $this->isShippingNotificationEnabled(),
+            'hub_url' => $this->getHubUrl(),
+            'hub_license_key_preview' => $this->renderSecretPreview($this->getHubLicenseKey()),
+            'hub_enabled' => $this->isHubEnabled(),
         ];
     }
 
@@ -760,6 +773,59 @@ class SettingsService
         $settings = $this->all();
         $settings['shipping_notification_enabled'] = $enabled;
         $this->save($settings);
+    }
+
+    /* ───────────── Hub push centralisé (push.rebuild-it.fr) ───────────── */
+
+    public function getHubUrl(): string
+    {
+        $settings = $this->all();
+        return isset($settings['hub_url']) && is_string($settings['hub_url']) ? trim($settings['hub_url']) : '';
+    }
+
+    /**
+     * @throws \InvalidArgumentException si l'URL n'est pas HTTPS (ou vide pour désactiver).
+     */
+    public function setHubUrl(string $url): void
+    {
+        $url = rtrim(trim($url), '/');
+        if ($url !== '' && stripos($url, 'https://') !== 0) {
+            throw new \InvalidArgumentException('L\'URL du hub doit utiliser HTTPS.');
+        }
+
+        $settings = $this->all();
+        $settings['hub_url'] = $url;
+        $this->save($settings);
+    }
+
+    public function getHubLicenseKey(): string
+    {
+        $settings = $this->all();
+        return isset($settings['hub_license_key']) && is_string($settings['hub_license_key'])
+            ? trim($settings['hub_license_key'])
+            : '';
+    }
+
+    public function setHubLicenseKey(string $key): void
+    {
+        $settings = $this->all();
+        $settings['hub_license_key'] = trim($key);
+        $this->save($settings);
+    }
+
+    public function clearHubLicenseKey(): void
+    {
+        $settings = $this->all();
+        $settings['hub_license_key'] = '';
+        $this->save($settings);
+    }
+
+    /**
+     * Le mode hub est actif quand l'URL et la clé de licence sont toutes deux renseignées.
+     */
+    public function isHubEnabled(): bool
+    {
+        return $this->getHubUrl() !== '' && $this->getHubLicenseKey() !== '';
     }
 
     /**

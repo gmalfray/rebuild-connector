@@ -579,6 +579,85 @@
 </div>
 
 
+<div class="panel" id="rbc-hub-panel">
+    <div class="panel-heading">
+        <i class="icon-cloud"></i>
+        Hub push centralisé (Rebuild IT)
+    </div>
+    <div class="panel-body">
+
+        {if $settings.hub_enabled}
+            <div class="alert alert-success" style="margin-bottom:16px;">
+                <i class="icon-check"></i>
+                Mode hub <strong>actif</strong> — les notifications sont relayées à
+                <strong>{$settings.hub_url|escape:'htmlall'}</strong>. Le FCM direct ci-dessus sert de secours
+                si le hub est injoignable.
+            </div>
+        {else}
+            <div class="alert alert-info" style="margin-bottom:16px;">
+                <i class="icon-info-circle"></i>
+                Mode hub désactivé — le module envoie directement à FCM (compte de service local).
+                Renseignez l'URL et la clé de licence pour relayer l'envoi au hub centralisé.
+            </div>
+        {/if}
+
+        <form method="post" class="form-horizontal">
+
+            <div class="form-group">
+                <label class="control-label col-lg-3" for="rebuildconnector_hub_url">URL du hub</label>
+                <div class="col-lg-9">
+                    <input
+                        type="text"
+                        id="rebuildconnector_hub_url"
+                        name="REBUILDCONNECTOR_HUB_URL"
+                        class="form-control"
+                        spellcheck="false"
+                        placeholder="https://push.rebuild-it.fr"
+                        value="{$settings.hub_url|escape:'htmlall'}"
+                    >
+                    <p class="help-block">
+                        URL HTTPS du hub push (laisser vide pour désactiver le mode hub et revenir au FCM direct).
+                    </p>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="control-label col-lg-3" for="rebuildconnector_hub_license_key">Clé de licence</label>
+                <div class="col-lg-9">
+                    {if $settings.hub_license_key_preview}
+                        <p class="form-control-static">
+                            <code>{$settings.hub_license_key_preview|escape:'htmlall'}</code>
+                        </p>
+                        <label class="checkbox-inline">
+                            <input type="checkbox" name="REBUILDCONNECTOR_HUB_LICENSE_KEY_CLEAR" value="1">
+                            Supprimer la clé de licence
+                        </label>
+                    {/if}
+                    <input
+                        type="password"
+                        id="rebuildconnector_hub_license_key"
+                        name="REBUILDCONNECTOR_HUB_LICENSE_KEY"
+                        class="form-control"
+                        spellcheck="false"
+                        autocomplete="off"
+                        placeholder="{if $settings.hub_license_key_preview}Laisser vide pour conserver la clé actuelle{else}rbk_…{/if}"
+                    >
+                    <p class="help-block">
+                        Clé de licence fournie par le hub (secret partagé module ↔ hub, transmis en HTTPS).
+                    </p>
+                </div>
+            </div>
+
+            <div class="panel-footer">
+                <button type="submit" name="submitRebuildconnectorModule" value="1" class="btn btn-primary">
+                    <i class="icon-save"></i> Enregistrer les paramètres du hub
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+
 {* ─────────────────────────────────────────────────────────────────────────────
    SECTION 4 — SÉCURITÉ
    ─────────────────────────────────────────────────────────────────────────────*}
