@@ -4,6 +4,14 @@ if (!defined('_PS_MODULE_DIR_')) {
     define('_PS_MODULE_DIR_', __DIR__ . '/');
 }
 
+if (!defined('_PS_ROOT_DIR_')) {
+    define('_PS_ROOT_DIR_', __DIR__ . '/');
+}
+
+if (!defined('_PS_CACHE_DIR_')) {
+    define('_PS_CACHE_DIR_', __DIR__ . '/var/cache');
+}
+
 if (!defined('_DB_PREFIX_')) {
     define('_DB_PREFIX_', 'ps_');
 }
@@ -192,6 +200,22 @@ class Module
     public function display(string $file, string $template): string
     {
         return '';
+    }
+
+    /**
+     * @return static|false
+     */
+    public static function getInstanceByName(string $moduleName)
+    {
+        return false;
+    }
+
+    /**
+     * @return bool|array<int, string>
+     */
+    public function runUpgradeModule()
+    {
+        return true;
     }
 }
 

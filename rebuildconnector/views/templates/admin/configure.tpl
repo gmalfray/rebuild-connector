@@ -8,17 +8,26 @@
    BANDEAU MISE À JOUR DISPONIBLE
    ─────────────────────────────────────────────────────────────────────────────*}
 {if $update_info}
-<div class="alert alert-warning" style="margin-bottom:16px; display:flex; align-items:center; gap:12px;">
+<div class="alert alert-warning" style="margin-bottom:16px; display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
     <i class="icon-download" style="font-size:20px; flex-shrink:0;"></i>
-    <div style="flex:1;">
+    <div style="flex:1; min-width:200px;">
         <strong>Mise à jour disponible : Rebuild Connector v{$update_info.latest|escape:'htmlall'}</strong>
         &nbsp;&mdash;&nbsp;
         version installée : <code>v{$module_version|escape:'htmlall'}</code>
     </div>
-    <div style="white-space:nowrap;">
+    <div style="white-space:nowrap; display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+        {* Bouton mise à jour en un clic — action réservée au BO authentifié, token CSRF PS inclus *}
+        <form method="post" style="display:inline;"
+              onsubmit="return confirm('Appliquer la mise à jour vers v{$update_info.latest|escape:'js'} ?\n\nUne sauvegarde sera créée automatiquement avant toute modification.');">
+            <input type="hidden" name="rebuildconnector_do_update" value="1">
+            <input type="hidden" name="token" value="{$smarty.get.token|escape:'htmlall'}">
+            <button type="submit" class="btn btn-warning btn-sm" style="margin-right:2px;">
+                <i class="icon-refresh"></i> Mettre à jour maintenant
+            </button>
+        </form>
         {if $update_info.download_url}
         <a href="{$update_info.download_url|escape:'htmlall'}" target="_blank" rel="noopener"
-           class="btn btn-warning btn-sm" style="margin-right:6px;">
+           class="btn btn-default btn-sm" style="margin-right:2px;">
             <i class="icon-download"></i> Télécharger
         </a>
         {/if}
