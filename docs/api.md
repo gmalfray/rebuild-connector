@@ -964,6 +964,47 @@ qu'aux appareils dont la liste `topics` intersecte la catégorie de l'événemen
 Les tokens de secours configurés en back-office (`getFcmDeviceTokens`) restent un filet de
 sécurité et reçoivent tous les événements sans condition (comportement inchangé).
 
+#### Canal Android (`channel_id`) — depuis v1.4.10
+
+Chaque notification FCM inclut désormais `message.android.notification.channel_id`, ce qui
+permet à l'app Android de router la notification vers le bon canal de notification (son distinct
+par type d'événement).
+
+**Mapping catégorie → `channel_id` (contrat immuable — partagé avec l'app Android) :**
+
+| `event` (`$data['event']`) | `channel_id`      | Usage                                         |
+|----------------------------|-------------------|-----------------------------------------------|
+| `order.created`            | `sales_v2`        | Nouvelle vente — son « caisse enregistreuse » |
+| `order.status.changed`     | `order_status`    | Changement de statut commande                 |
+| `order.shipping.updated`   | `order_shipping`  | Mise à jour numéro de suivi / expédition      |
+
+Si l'événement est absent ou inconnu, aucun `channel_id` n'est transmis : l'app utilise son
+canal par défaut. La clé `message.notification` (top-level) reste inchangée pour la
+compatibilité multi-plateforme.
+
+Exemple de payload FCM HTTP v1 pour `order.created` :
+
+```json
+{
+  "message": {
+    "token": "fXBKj4...",
+    "notification": {
+      "title": "Nouvelle commande",
+      "body": "Commande #42 — 29,90 €"
+    },
+    "data": {
+      "event": "order.created",
+      "order_id": "42"
+    },
+    "android": {
+      "notification": {
+        "channel_id": "sales_v2"
+      }
+    }
+  }
+}
+```
+
 ---
 
 ### DELETE `.../api/notifications/devices/{token}`
