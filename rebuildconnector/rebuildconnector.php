@@ -15,6 +15,7 @@ require_once __DIR__ . '/classes/Exceptions/AuthenticationException.php';
 require_once __DIR__ . '/classes/JwtService.php';
 require_once __DIR__ . '/classes/AuthService.php';
 require_once __DIR__ . '/classes/TranslationService.php';
+require_once __DIR__ . '/classes/UpdateCheckService.php';
 
 class RebuildConnector extends Module
 {
@@ -24,13 +25,14 @@ class RebuildConnector extends Module
     private ?FcmDeviceService $fcmDeviceService = null;
     private ?WebhookService $webhookService = null;
     private ?AuditLogService $auditLogService = null;
+    private ?UpdateCheckService $updateCheckService = null;
     private bool $settingsBootstrapped = false;
 
     public function __construct()
     {
         $this->name = 'rebuildconnector';
         $this->tab = 'administration';
-        $this->version = '1.4.10';
+        $this->version = '1.4.11';
         $this->author = 'Rebuild IT';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -322,6 +324,8 @@ class RebuildConnector extends Module
         }
         unset($user);
 
+        $updateInfo = $this->getUpdateCheckService()->getAvailableUpdate();
+
         $this->context->smarty->assign([
             'module_dir'                 => $this->_path,
             'settings'                   => $settingsForTemplate,
@@ -337,6 +341,7 @@ class RebuildConnector extends Module
             'regenerated_admin_qr_json'  => $regeneratedAdminQrJson,
             'fcm_project_id'             => $fcmProjectId,
             'module_version'             => $this->version,
+            'update_info'                => $updateInfo,
         ]);
 
         return $output . $this->display(__FILE__, 'views/templates/admin/configure.tpl');
@@ -582,6 +587,15 @@ class RebuildConnector extends Module
         }
 
         return $this->translationService;
+    }
+
+    private function getUpdateCheckService(): UpdateCheckService
+    {
+        if ($this->updateCheckService === null) {
+            $this->updateCheckService = new UpdateCheckService($this->version);
+        }
+
+        return $this->updateCheckService;
     }
 
     /**

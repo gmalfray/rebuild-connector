@@ -131,6 +131,34 @@ Toutes les entrées sont validées côté module (format JSON, URL HTTPS, IP/CID
 
 ---
 
+## Mise à jour
+
+Le module vérifie automatiquement la disponibilité d'une nouvelle version depuis le back-office PrestaShop.
+
+**Mécanisme :**
+- À chaque ouverture de la page de configuration du module, `UpdateCheckService` interroge l'endpoint `https://updates.rebuild-it.fr/rebuildconnector/version.json` qui expose la dernière release GitHub.
+- Le résultat est **mis en cache** 12 heures (clé `REBUILDCONNECTOR_UPDATE_CHECK` en base via `Configuration`). Aucune requête réseau n'est faite entre deux vérifications dans cette fenêtre.
+- Si une version plus récente est détectée (`version_compare`), un **bandeau d'alerte** s'affiche en haut de la page avec la version disponible, un bouton « Télécharger » (`.zip` GitHub Releases) et un lien « Voir la release ».
+- Le service est **fail-silent** : tout échec réseau, timeout (5 s) ou JSON invalide est absorbé silencieusement — aucun message d'erreur n'est visible, aucun log n'est écrit.
+- **Pas d'installation automatique** : la mise à jour reste manuelle (téléchargement + upload ZIP via le gestionnaire de modules PrestaShop).
+
+**Endpoint :**
+```
+GET https://updates.rebuild-it.fr/rebuildconnector/version.json
+```
+```json
+{
+  "module": "rebuildconnector",
+  "latest": "1.4.11",
+  "tag": "v1.4.11",
+  "url": "https://github.com/gmalfray/rebuild-connector/releases/tag/v1.4.11",
+  "download_url": "https://github.com/gmalfray/rebuild-connector/releases/download/v1.4.11/rebuildconnector.zip",
+  "published_at": "2026-06-24T00:00:00Z"
+}
+```
+
+---
+
 ## ⚙️ Build et packaging
 
 ```bash
