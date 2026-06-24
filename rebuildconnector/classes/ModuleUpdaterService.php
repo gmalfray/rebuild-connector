@@ -505,6 +505,13 @@ class ModuleUpdaterService
                 $this->clearDirectory($rootCacheDir);
             }
         }
+
+        // Réinitialise OPcache (best-effort) : sans ça, les fichiers PHP fraîchement
+        // extraits ne sont pas pris en compte avant un reload PHP-FPM. Silencieux si
+        // OPcache est absent, désactivé, ou restreint (opcache.restrict_api).
+        if (function_exists('opcache_reset')) {
+            @opcache_reset();
+        }
     }
 
     /**
