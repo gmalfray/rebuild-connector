@@ -26,6 +26,7 @@ class UpdateCheckService
     /**
      * Retourne les informations de mise à jour disponible, ou null si le module
      * est à jour (ou si la vérification a échoué).
+     * Utilise le cache local (TTL 12 h) — pour le bandeau automatique BO.
      *
      * @return array{latest: string, url: string, download_url: string}|null
      */
@@ -41,7 +42,37 @@ class UpdateCheckService
             return null;
         }
 
-        $latest = isset($cached['latest']) && is_string($cached['latest']) ? $cached['latest'] : '';
+        return $this->extractUpdateFromData($cached);
+    }
+
+    /**
+     * Force une vérification fraîche :
+     *   - contourne le cache edge Cloudflare via ?nocache=1 sur l'endpoint distant ;
+     *   - ignore le cache local (ps_configuration) et le remplace par la réponse fraîche.
+     * À utiliser uniquement sur action explicite de l'utilisateur (bouton BO).
+     *
+     * @return array{latest: string, url: string, download_url: string}|null
+     */
+    public function getAvailableUpdateFresh(): ?array
+    {
+        $fresh = $this->fetchAndCache(true);
+
+        if ($fresh === null) {
+            return null;
+        }
+
+        return $this->extractUpdateFromData($fresh);
+    }
+
+    /**
+     * Extrait les informations de mise à jour depuis les données (cache ou fetch).
+     *
+     * @param array<string, mixed> $data
+     * @return array{latest: string, url: string, download_url: string}|null
+     */
+    private function extractUpdateFromData(array $data): ?array
+    {
+        $latest = isset($data['latest']) && is_string($data['latest']) ? $data['latest'] : '';
         if ($latest === '') {
             return null;
         }
@@ -49,8 +80,8 @@ class UpdateCheckService
         if (version_compare($latest, $this->currentVersion, '>')) {
             return [
                 'latest'       => $latest,
-                'url'          => isset($cached['url']) && is_string($cached['url']) ? $cached['url'] : '',
-                'download_url' => isset($cached['download_url']) && is_string($cached['download_url']) ? $cached['download_url'] : '',
+                'url'          => isset($data['url']) && is_string($data['url']) ? $data['url'] : '',
+                'download_url' => isset($data['download_url']) && is_string($data['download_url']) ? $data['download_url'] : '',
             ];
         }
 
@@ -86,11 +117,13 @@ class UpdateCheckService
      * Interroge l'endpoint distant, met en cache, et retourne les données.
      * Fail-silent : retourne null en cas d'erreur réseau ou de JSON invalide.
      *
+     * @param bool $nocache Ajoute ?nocache=1 à l'URL pour bypasser le cache edge Cloudflare.
      * @return array<string, mixed>|null
      */
-    private function fetchAndCache(): ?array
+    private function fetchAndCache(bool $nocache = false): ?array
     {
-        $json = $this->fetchRemote();
+        $url = $nocache ? self::ENDPOINT . '?nocache=1' : self::ENDPOINT;
+        $json = $this->fetchRemote($url);
         if ($json === null) {
             return null;
         }
@@ -116,20 +149,20 @@ class UpdateCheckService
     }
 
     /**
-     * Effectue la requête HTTP vers l'endpoint de mise à jour.
+     * Effectue la requête HTTP vers l'URL fournie.
      * Utilise cURL si disponible, sinon file_get_contents avec stream context.
      * Timeout court (5 s) — fail-silent sur tout échec.
      */
-    private function fetchRemote(): ?string
+    private function fetchRemote(string $url): ?string
     {
         if (function_exists('curl_init')) {
-            return $this->fetchWithCurl();
+            return $this->fetchWithCurl($url);
         }
 
-        return $this->fetchWithFileGetContents();
+        return $this->fetchWithFileGetContents($url);
     }
 
-    private function fetchWithCurl(): ?string
+    private function fetchWithCurl(string $url): ?string
     {
         $ch = curl_init();
         if ($ch === false) {
@@ -137,7 +170,7 @@ class UpdateCheckService
         }
 
         curl_setopt_array($ch, [
-            CURLOPT_URL            => self::ENDPOINT,
+            CURLOPT_URL            => $url,
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_TIMEOUT        => self::REQUEST_TIMEOUT,
             CURLOPT_CONNECTTIMEOUT => self::REQUEST_TIMEOUT,
@@ -157,7 +190,7 @@ class UpdateCheckService
         return is_string($result) ? $result : null;
     }
 
-    private function fetchWithFileGetContents(): ?string
+    private function fetchWithFileGetContents(string $url): ?string
     {
         $context = stream_context_create([
             'http' => [
@@ -170,7 +203,7 @@ class UpdateCheckService
             ],
         ]);
 
-        $result = @file_get_contents(self::ENDPOINT, false, $context);
+        $result = @file_get_contents($url, false, $context);
 
         return ($result !== false && is_string($result)) ? $result : null;
     }
