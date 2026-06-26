@@ -104,7 +104,7 @@ class ModuleUpdaterService
         // Étape 5 — Sauvegarde du module actuel
         $backupDir = $this->backup($moduleDir);
         if ($backupDir === null) {
-            return ['success' => false, 'message' => 'Impossible de créer la sauvegarde du module. Vérifiez les droits en écriture sur le dossier modules/.'];
+            return ['success' => false, 'message' => 'Impossible de créer la sauvegarde du module. Aucun emplacement inscriptible disponible (var/rebuildconnector_backups/ et répertoire temporaire système inaccessibles). La mise à jour est annulée pour préserver le module existant.'];
         }
 
         // Étapes 6-8 avec rollback sur échec
@@ -269,8 +269,48 @@ class ModuleUpdaterService
     }
 
     /**
-     * Crée une copie de sauvegarde horodatée du module.
-     * Retourne le chemin du backup, ou null en cas d'échec.
+     * Détermine le répertoire de base pour stocker les sauvegardes,
+     * garanti inscriptible par le user web (www-data).
+     *
+     * Priorité :
+     *   1. _PS_ROOT_DIR_/var/rebuildconnector_backups/  — hors modules/, inscriptible par www-data
+     *      même quand modules/ appartient à l'uid SFTP (1002).
+     *   2. sys_get_temp_dir()/rebuildconnector_backups/ — dernier recours.
+     *
+     * Crée le répertoire si nécessaire. Retourne null si aucun emplacement
+     * inscriptible n'est disponible.
+     */
+    private function resolveBackupBaseDir(): ?string
+    {
+        $candidates = [];
+
+        // Candidat 1 : var/ de PrestaShop (hors modules/)
+        if (defined('_PS_ROOT_DIR_')) {
+            $candidates[] = rtrim((string) constant('_PS_ROOT_DIR_'), '/') . '/var/rebuildconnector_backups';
+        }
+
+        // Candidat 2 : répertoire temporaire système
+        $sysTemp = sys_get_temp_dir();
+        if ($sysTemp !== '') {
+            $candidates[] = rtrim($sysTemp, '/') . '/rebuildconnector_backups';
+        }
+
+        foreach ($candidates as $dir) {
+            if (!is_dir($dir) && !mkdir($dir, 0755, true)) {
+                continue;
+            }
+            if (is_writable($dir)) {
+                return $dir;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Crée une copie de sauvegarde horodatée du module dans un emplacement
+     * garanti inscriptible (voir resolveBackupBaseDir).
+     * Retourne le chemin complet du backup, ou null en cas d'échec.
      */
     private function backup(string $moduleDir): ?string
     {
@@ -278,15 +318,20 @@ class ModuleUpdaterService
             return null;
         }
 
-        $backupDir = _PS_MODULE_DIR_ . self::MODULE_FOLDER . '_backup_' . date('Ymd_His');
+        $baseDir = $this->resolveBackupBaseDir();
+        if ($baseDir === null) {
+            return null;
+        }
 
-        // Évite d'écraser un backup existant (collision théorique)
+        $backupDir = $baseDir . '/' . self::MODULE_FOLDER . '_backup_' . date('Ymd_His');
+
+        // Évite d'écraser un backup existant (collision théorique à la seconde près)
         if (is_dir($backupDir)) {
             $backupDir .= '_' . uniqid('', false);
         }
 
         if (!$this->copyDirectory($moduleDir, $backupDir)) {
-            // Nettoyage partiel
+            // Nettoyage partiel en cas de copie incomplète
             $this->removeDirectory($backupDir);
             return null;
         }
