@@ -585,9 +585,11 @@ class OrderCarrier
 
 class Carrier
 {
-    public static function getCarrierNameFromShopName(int $idCarrier): string
+    /** @var string */
+    public $name = '';
+
+    public function __construct(int $id_carrier, int $id_lang = 0)
     {
-        return '';
     }
 }
 
