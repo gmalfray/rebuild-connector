@@ -36,7 +36,7 @@ class RebuildConnector extends Module
     {
         $this->name = 'rebuildconnector';
         $this->tab = 'administration';
-        $this->version = '1.6.3';
+        $this->version = '1.6.4';
         $this->author = 'Rebuild IT';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -215,6 +215,17 @@ class RebuildConnector extends Module
                         $syncResult['skipped']
                     )
                 );
+            }
+        } elseif (Tools::isSubmit('rebuildconnector_check_update')) {
+            // Vérification manuelle forcée : bypass du cache edge (?nocache=1) ET du cache local.
+            $freshUpdate = $this->getUpdateCheckService()->getAvailableUpdateFresh();
+            if ($freshUpdate !== null) {
+                $messages[] = sprintf(
+                    'Mise à jour disponible : Rebuild Connector v%s est prêt à installer.',
+                    htmlspecialchars($freshUpdate['latest'], ENT_QUOTES)
+                );
+            } else {
+                $messages[] = 'Vous êtes à jour — Rebuild Connector v' . $this->version . ' est la dernière version disponible.';
             }
         } elseif (Tools::isSubmit('rebuildconnector_do_update')) {
             // Mise à jour en un clic — l'URL de téléchargement est toujours issue du service,

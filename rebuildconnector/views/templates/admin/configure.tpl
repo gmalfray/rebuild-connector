@@ -110,6 +110,14 @@
             </div>
         </div>
     </div>
+    <div class="panel-footer" style="text-align:right; padding:8px 15px;">
+        <form method="post" style="display:inline;">
+            <input type="hidden" name="token" value="{$smarty.get.token|escape:'htmlall'}">
+            <button type="submit" name="rebuildconnector_check_update" value="1" class="btn btn-default btn-sm">
+                <i class="icon-refresh"></i> Vérifier la mise à jour
+            </button>
+        </form>
+    </div>
 </div>
 
 
