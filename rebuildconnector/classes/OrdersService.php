@@ -183,7 +183,10 @@ class OrdersService
         }
 
         if ($carrierId > 0) {
-            $carrierName = Carrier::getCarrierNameFromShopName($carrierId) ?: '';
+            $carrier = new Carrier($carrierId, $langId);
+            if (Validate::isLoadedObject($carrier)) {
+                $carrierName = (string) $carrier->name;
+            }
         }
 
         $history = (array) $order->getHistory($langId);
