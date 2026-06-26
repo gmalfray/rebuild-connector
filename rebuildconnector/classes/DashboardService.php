@@ -47,6 +47,18 @@ class DashboardService
             'SELECT COUNT(*) FROM ' . _DB_PREFIX_ . 'order_return WHERE date_add BETWEEN "' . $fromSql . '" AND "' . $toSql . '"'
         );
 
+        // Période précédente de même durée (décalée en arrière pour comparatif CA).
+        $duration = $to->getTimestamp() - $from->getTimestamp();
+        $prevTo = $from->modify('-1 second');
+        // setTimestamp() sur $prevTo préserve le fuseau boutique (shopTimeZone) de $from/$to.
+        $prevFrom = $prevTo->setTimestamp($prevTo->getTimestamp() - $duration);
+        $prevFromSql = pSQL($prevFrom->format('Y-m-d H:i:s'));
+        $prevToSql = pSQL($prevTo->format('Y-m-d H:i:s'));
+        $previousTurnover = (float) $db->getValue(
+            'SELECT SUM(total_paid_tax_incl) FROM ' . _DB_PREFIX_ . 'orders WHERE date_add BETWEEN "'
+            . $prevFromSql . '" AND "' . $prevToSql . '"'
+        );
+
         $currency = $this->resolveCurrencyIso();
         $averageBasket = $ordersCount > 0 ? $revenueTaxIncl / $ordersCount : 0.0;
 
@@ -62,6 +74,7 @@ class DashboardService
                 'to' => $to->format(DATE_ATOM),
             ],
             'turnover' => $revenueTaxIncl,
+            'previous_turnover' => $previousTurnover,
             'orders_count' => $ordersCount,
             'customers_count' => $customersCount,
             'products_count' => $this->countActiveProducts(),
@@ -77,7 +90,7 @@ class DashboardService
             'pending_orders_count' => $pendingOrdersCount,
             'conversion_rate' => $conversionRate,
             'low_stock_alerts' => $lowStockProducts,
-            'chart' => $this->buildChart($from, $to),
+            'chart' => $this->buildChart($from, $to, $period),
         ];
     }
 
@@ -265,11 +278,65 @@ class DashboardService
     /**
      * @return array<int, array<string, mixed>>
      */
-    private function buildChart(\DateTimeImmutable $from, \DateTimeImmutable $to): array
+    private function buildChart(\DateTimeImmutable $from, \DateTimeImmutable $to, string $period = 'month'): array
     {
         $fromSql = pSQL($from->format('Y-m-d H:i:s'));
         $toSql = pSQL($to->format('Y-m-d H:i:s'));
 
+        $isToday = Tools::strtolower($period) === 'today' || Tools::strtolower($period) === 'day';
+
+        if ($isToday) {
+            // Granularité horaire : la vue journalière ne produit qu'1 point en granularité
+            // journalière → la courbe est vide côté app (guard size < 2). On groupe par heure.
+            $query = new DbQuery();
+            $query->select('DATE_FORMAT(o.date_add, \'%Y-%m-%d %H:00:00\') AS hour');
+            $query->select('SUM(o.total_paid_tax_incl) AS revenue');
+            $query->select('COUNT(*) AS orders');
+            $query->select('COUNT(DISTINCT o.id_customer) AS customers');
+            $query->from('orders', 'o');
+            $query->where('o.date_add BETWEEN "' . $fromSql . '" AND "' . $toSql . '"');
+            $query->groupBy('hour');
+            $query->orderBy('hour ASC');
+
+            $rows = (array) Db::getInstance()->executeS($query);
+            $indexed = [];
+            foreach ($rows as $row) {
+                /** @var array<string, mixed> $row */
+                if (!isset($row['hour'])) {
+                    continue;
+                }
+
+                $hour = (string) $row['hour'];
+                $indexed[$hour] = [
+                    'revenue' => isset($row['revenue']) ? (float) $row['revenue'] : 0.0,
+                    'orders' => isset($row['orders']) ? (int) $row['orders'] : 0,
+                    'customers' => isset($row['customers']) ? (int) $row['customers'] : 0,
+                ];
+            }
+
+            $chart = [];
+            // Itération heure par heure de 00:00 à 23:00 (24 points).
+            $hourPeriod = new \DatePeriod(
+                $from->setTime(0, 0, 0),
+                new \DateInterval('PT1H'),
+                $to->setTime(23, 59, 59)->modify('+1 second')
+            );
+
+            foreach ($hourPeriod as $dt) {
+                $key = $dt->format('Y-m-d H:00:00');
+                $data = $indexed[$key] ?? ['revenue' => 0.0, 'orders' => 0, 'customers' => 0];
+                $chart[] = [
+                    'label' => $key,
+                    'turnover' => (float) $data['revenue'],
+                    'orders' => (int) $data['orders'],
+                    'customers' => (int) $data['customers'],
+                ];
+            }
+
+            return $chart;
+        }
+
+        // Granularité journalière (toutes les autres périodes).
         $query = new DbQuery();
         $query->select('DATE(o.date_add) AS day');
         $query->select('SUM(o.total_paid_tax_incl) AS revenue');
@@ -297,13 +364,13 @@ class DashboardService
         }
 
         $chart = [];
-        $period = new \DatePeriod(
+        $datePeriod = new \DatePeriod(
             $from->setTime(0, 0, 0),
             new \DateInterval('P1D'),
             $to->setTime(23, 59, 59)->modify('+1 day')
         );
 
-        foreach ($period as $date) {
+        foreach ($datePeriod as $date) {
             $key = $date->format('Y-m-d');
             $data = $indexed[$key] ?? ['revenue' => 0.0, 'orders' => 0, 'customers' => 0];
             $chart[] = [
