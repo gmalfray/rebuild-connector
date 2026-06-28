@@ -5,18 +5,29 @@ defined('_PS_VERSION_') || exit;
 class DashboardService
 {
     /** Seuil de stock bas en dessous duquel un produit apparaît en alerte. */
-    private const LOW_STOCK_THRESHOLD = 5;
+    public const LOW_STOCK_THRESHOLD = 5;
 
     /**
-     * @param string $period
-     * @param int $lowStockThreshold Seuil de stock bas (défaut : 5)
+     * @param string $period          Preset temporel (today/week/month/quarter/year). Ignoré si $customFrom/$customTo sont fournis.
+     * @param int    $lowStockThreshold Seuil de stock bas (défaut : 5)
+     * @param \DateTimeImmutable|null $customFrom Début de la plage libre (inclus, heure déjà setée). Doit être fourni avec $customTo.
+     * @param \DateTimeImmutable|null $customTo   Fin de la plage libre (inclus, heure déjà setée). Doit être fourni avec $customFrom.
      * @return array<string, mixed>
      */
-    public function getMetrics(string $period = 'month', int $lowStockThreshold = self::LOW_STOCK_THRESHOLD): array
-    {
-        $range = $this->resolvePeriodRange($period);
-        $from = $range['from'];
-        $to = $range['to'];
+    public function getMetrics(
+        string $period = 'month',
+        int $lowStockThreshold = self::LOW_STOCK_THRESHOLD,
+        ?\DateTimeImmutable $customFrom = null,
+        ?\DateTimeImmutable $customTo = null
+    ): array {
+        if ($customFrom !== null && $customTo !== null) {
+            $from = $customFrom;
+            $to = $customTo;
+        } else {
+            $range = $this->resolvePeriodRange($period);
+            $from = $range['from'];
+            $to = $range['to'];
+        }
         $fromSql = pSQL($from->format('Y-m-d H:i:s'));
         $toSql = pSQL($to->format('Y-m-d H:i:s'));
 
@@ -90,7 +101,7 @@ class DashboardService
             'pending_orders_count' => $pendingOrdersCount,
             'conversion_rate' => $conversionRate,
             'low_stock_alerts' => $lowStockProducts,
-            'chart' => $this->buildChart($from, $to, $period),
+            'chart' => $this->buildChart($from, $to, $period, $customFrom !== null && $customTo !== null),
         ];
     }
 
@@ -213,9 +224,6 @@ class DashboardService
     }
 
     /**
-     * @return array<string, \DateTimeImmutable>
-     */
-    /**
      * Fuseau de la boutique (PS_TIMEZONE), avec repli sur le fuseau PHP puis UTC.
      */
     private static function shopTimeZone(): \DateTimeZone
@@ -276,16 +284,94 @@ class DashboardService
     }
 
     /**
+     * Résout la granularité du graphique selon la période et la plage réelle.
+     *
+     * - today / day → horaire (24 points)
+     * - plage libre d'exactement 1 jour → horaire
+     * - tout le reste → journalier
+     *
+     * @param bool $isCustomRange La plage est-elle libre (from/to explicites) ?
+     */
+    private function resolveGranularity(\DateTimeImmutable $from, \DateTimeImmutable $to, string $period, bool $isCustomRange): string
+    {
+        $periodLower = Tools::strtolower($period);
+        if ($periodLower === 'today' || $periodLower === 'day') {
+            return 'hour';
+        }
+
+        if ($isCustomRange) {
+            $days = (int) $from->diff($to)->days;
+            return $days === 0 ? 'hour' : 'day';
+        }
+
+        return 'day';
+    }
+
+    /**
+     * Construit un index de nouveaux clients par bucket temporel.
+     *
+     * Nouveaux clients = clients dont la date d'inscription (date_add dans ps_customer)
+     * tombe dans le bucket. Distinct de `customers` (qui compte les clients ayant commandé).
+     *
+     * @param string $granularity 'hour' ou 'day'
+     * @return array<string, int> Index clé = format du bucket ('Y-m-d H:00:00' ou 'Y-m-d')
+     */
+    private function buildNewCustomersIndex(
+        \DateTimeImmutable $from,
+        \DateTimeImmutable $to,
+        string $granularity
+    ): array {
+        $fromSql = pSQL($from->format('Y-m-d H:i:s'));
+        $toSql = pSQL($to->format('Y-m-d H:i:s'));
+        $shopId = (int) $this->getShopId();
+
+        $query = new DbQuery();
+        $query->from('customer', 'c');
+        $query->where('c.date_add BETWEEN "' . $fromSql . '" AND "' . $toSql . '"');
+        $query->where('c.deleted = 0');
+        $query->where('c.id_shop = ' . $shopId);
+
+        if ($granularity === 'hour') {
+            $query->select('DATE_FORMAT(c.date_add, \'%Y-%m-%d %H:00:00\') AS bucket');
+        } else {
+            $query->select('DATE(c.date_add) AS bucket');
+        }
+
+        $query->select('COUNT(*) AS new_customers');
+        $query->groupBy('bucket');
+
+        $rows = (array) Db::getInstance()->executeS($query);
+        $index = [];
+        foreach ($rows as $row) {
+            /** @var array<string, mixed> $row */
+            if (isset($row['bucket'])) {
+                $index[(string) $row['bucket']] = isset($row['new_customers']) ? (int) $row['new_customers'] : 0;
+            }
+        }
+
+        return $index;
+    }
+
+    /**
+     * @param bool $isCustomRange La plage provient-elle de from/to explicites ?
      * @return array<int, array<string, mixed>>
      */
-    private function buildChart(\DateTimeImmutable $from, \DateTimeImmutable $to, string $period = 'month'): array
-    {
+    private function buildChart(
+        \DateTimeImmutable $from,
+        \DateTimeImmutable $to,
+        string $period = 'month',
+        bool $isCustomRange = false
+    ): array {
         $fromSql = pSQL($from->format('Y-m-d H:i:s'));
         $toSql = pSQL($to->format('Y-m-d H:i:s'));
 
-        $isToday = Tools::strtolower($period) === 'today' || Tools::strtolower($period) === 'day';
+        $granularity = $this->resolveGranularity($from, $to, $period, $isCustomRange);
+        $isHourly = $granularity === 'hour';
 
-        if ($isToday) {
+        // Index des nouveaux clients par bucket.
+        $newCustomersIndex = $this->buildNewCustomersIndex($from, $to, $granularity);
+
+        if ($isHourly) {
             // Granularité horaire : la vue journalière ne produit qu'1 point en granularité
             // journalière → la courbe est vide côté app (guard size < 2). On groupe par heure.
             $query = new DbQuery();
@@ -330,6 +416,7 @@ class DashboardService
                     'turnover' => (float) $data['revenue'],
                     'orders' => (int) $data['orders'],
                     'customers' => (int) $data['customers'],
+                    'new_customers' => $newCustomersIndex[$key] ?? 0,
                 ];
             }
 
@@ -378,6 +465,7 @@ class DashboardService
                 'turnover' => (float) $data['revenue'],
                 'orders' => (int) $data['orders'],
                 'customers' => (int) $data['customers'],
+                'new_customers' => $newCustomersIndex[$key] ?? 0,
             ];
         }
 

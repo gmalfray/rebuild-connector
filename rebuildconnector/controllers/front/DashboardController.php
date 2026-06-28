@@ -53,6 +53,55 @@ class RebuildconnectorDashboardModuleFrontController extends RebuildconnectorBas
 
     private function handleGet(): void
     {
+        $fromParam = trim((string) Tools::getValue('from', ''));
+        $toParam = trim((string) Tools::getValue('to', ''));
+
+        // --- Mode plage libre (from + to fournis) ---
+        if ($fromParam !== '' || $toParam !== '') {
+            if ($fromParam === '' || $toParam === '') {
+                throw new \InvalidArgumentException(
+                    $this->t('dashboard.error.from_to_required', [], 'Both "from" and "to" parameters are required when using date range mode.')
+                );
+            }
+
+            $fromDate = \DateTimeImmutable::createFromFormat('Y-m-d', $fromParam);
+            $toDate = \DateTimeImmutable::createFromFormat('Y-m-d', $toParam);
+
+            // Vérification stricte du format (createFromFormat accepte des débordements comme 2025-13-01)
+            if (
+                $fromDate === false || $fromDate->format('Y-m-d') !== $fromParam
+                || $toDate === false || $toDate->format('Y-m-d') !== $toParam
+            ) {
+                throw new \InvalidArgumentException(
+                    $this->t('dashboard.error.invalid_date_format', [], 'Invalid date format. Use YYYY-MM-DD (e.g. 2025-06-01).')
+                );
+            }
+
+            // from doit être <= to
+            if ($fromDate > $toDate) {
+                throw new \InvalidArgumentException(
+                    $this->t('dashboard.error.from_after_to', [], '"from" must be earlier than or equal to "to".')
+                );
+            }
+
+            // Borne max : 2 ans (730 jours) pour éviter les requêtes trop lourdes
+            $diffDays = (int) $fromDate->diff($toDate)->days;
+            if ($diffDays > 730) {
+                throw new \InvalidArgumentException(
+                    $this->t('dashboard.error.range_too_large', [], 'Date range must not exceed 730 days (2 years).')
+                );
+            }
+
+            // On fixe les heures : 00:00:00 pour from, 23:59:59 pour to (fuseau boutique géré côté service)
+            $customFrom = $fromDate->setTime(0, 0, 0);
+            $customTo = $toDate->setTime(23, 59, 59);
+
+            $metrics = $this->getDashboardService()->getMetrics('custom', DashboardService::LOW_STOCK_THRESHOLD, $customFrom, $customTo);
+            $this->renderJson($metrics);
+            return;
+        }
+
+        // --- Mode preset (comportement historique inchangé) ---
         $period = Tools::strtolower((string) Tools::getValue('period', 'month'));
         $allowed = ['today', 'day', 'week', 'month', 'quarter', 'year'];
         if (!in_array($period, $allowed, true)) {
