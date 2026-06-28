@@ -120,11 +120,6 @@ class SettingsService
             $updated = true;
         }
 
-        if (!isset($settings['shipping_notification_enabled'])) {
-            $settings['shipping_notification_enabled'] = false;
-            $updated = true;
-        }
-
         if (!isset($settings['hub_license_key']) || !is_string($settings['hub_license_key'])) {
             $settings['hub_license_key'] = '';
             $updated = true;
@@ -503,24 +498,10 @@ class SettingsService
             'rate_limit_enabled' => $this->isRateLimitEnabled(),
             'rate_limit' => $this->getRateLimit(),
             'env_overrides' => $this->getEnvOverridesRaw(),
-            'shipping_notification_enabled' => $this->isShippingNotificationEnabled(),
             'hub_url' => $this->getHubUrl(),
             'hub_license_key_preview' => $this->renderSecretPreview($this->getHubLicenseKey()),
             'hub_enabled' => $this->isHubEnabled(),
         ];
-    }
-
-    public function isShippingNotificationEnabled(): bool
-    {
-        $settings = $this->all();
-        return isset($settings['shipping_notification_enabled']) ? (bool) $settings['shipping_notification_enabled'] : false;
-    }
-
-    public function setShippingNotificationEnabled(bool $enabled): void
-    {
-        $settings = $this->all();
-        $settings['shipping_notification_enabled'] = $enabled;
-        $this->save($settings);
     }
 
     /* ───────────── Hub push centralisé (push.rebuild-it.fr) ───────────── */

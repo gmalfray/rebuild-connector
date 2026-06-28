@@ -530,22 +530,6 @@
         <form method="post" class="form-horizontal">
 
             <div class="form-group">
-                <label class="control-label col-lg-3">Notification d'expédition</label>
-                <div class="col-lg-9">
-                    <input type="hidden" name="REBUILDCONNECTOR_SHIPPING_NOTIFICATION" value="0">
-                    <label class="checkbox-inline">
-                        <input
-                            type="checkbox"
-                            name="REBUILDCONNECTOR_SHIPPING_NOTIFICATION"
-                            value="1"
-                            {if $settings.shipping_notification_enabled}checked{/if}
-                        >
-                        Envoyer une notification push lors du changement de numéro de suivi / expédition
-                    </label>
-                </div>
-            </div>
-
-            <div class="form-group">
                 <label class="control-label col-lg-3" for="rebuildconnector_hub_license_key">Clé de licence</label>
                 <div class="col-lg-9">
                     {if $settings.hub_license_key_preview}

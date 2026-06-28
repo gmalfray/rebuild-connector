@@ -24,10 +24,5 @@ function upgrade_module_0_3_0($module): bool
     $scopes[] = 'reports.read';
     $settingsService->setScopes($scopes);
 
-    $settings = $settingsService->all();
-    if (!array_key_exists('shipping_notification_enabled', $settings)) {
-        $settingsService->setShippingNotificationEnabled(false);
-    }
-
     return $rateLimitInstalled && $auditLogInstalled;
 }
