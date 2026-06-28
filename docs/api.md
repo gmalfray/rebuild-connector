@@ -295,6 +295,69 @@ Content-Disposition: attachment; filename="bordereau-colissimo-6120-6A0552833389
 
 ---
 
+### POST `.../api/orders/{id}/shipping-label`  — Générer une étiquette Colissimo
+
+Scope requis : `orders.write`
+
+Génère une étiquette Colissimo via le webservice La Poste (`ws.colissimo.fr`), la stocke sur disque dans
+`modules/colissimo/documents/labels/` et enregistre le numéro de suivi sur la commande.
+
+**Conditions préalables** :
+- Le module Colissimo doit être installé et actif.
+- Les credentials Colissimo doivent être configurés dans le module (`COLISSIMO_ACCOUNT_LOGIN` / `COLISSIMO_ACCOUNT_PASSWORD` ou clé de connexion).
+- L'adresse expéditeur doit être configurée dans le module (`COLISSIMO_SENDER_ADDRESS`).
+
+**Corps JSON** : aucun corps requis. L'action est portée par le path `/orders/{id}/shipping-label`.
+
+**Idempotence** : si une étiquette Colissimo avec fichier PDF existe déjà pour cette commande,
+le webservice n'est PAS rappelé — la réponse retourne l'étiquette existante avec `generated: false`
+et HTTP 200.
+
+**Réponse 201** (nouvelle étiquette générée)
+
+```json
+{
+  "generated": true,
+  "tracking_number": "8L12345678901",
+  "has_label": true,
+  "carrier_type": "colissimo"
+}
+```
+
+**Réponse 200** (étiquette existante, idempotence)
+
+```json
+{
+  "generated": false,
+  "tracking_number": "8L12345678901",
+  "has_label": true,
+  "carrier_type": "colissimo"
+}
+```
+
+| Champ             | Type    | Description                                                          |
+|-------------------|---------|----------------------------------------------------------------------|
+| `generated`       | bool    | `true` si générée maintenant, `false` si étiquette existante renvoyée |
+| `tracking_number` | string  | Numéro de suivi Colissimo (`parcelNumber` retourné par le WS)        |
+| `has_label`       | bool    | Toujours `true` (le PDF est disponible via GET shipping-label)       |
+| `carrier_type`    | string  | Toujours `"colissimo"` pour cet endpoint                             |
+
+**Erreurs** :
+
+| Code | `error`                      | Raison                                                        |
+|------|------------------------------|---------------------------------------------------------------|
+| 404  | `not_found`                  | Commande introuvable                                          |
+| 422  | `carrier_not_supported`      | Transporteur non Colissimo (Mondial Relay = phase 2)          |
+| 501  | `generation_not_configured`  | Module Colissimo absent/inactif ou credentials non configurés |
+| 502  | `carrier_webservice_error`   | Erreur retournée par le webservice Colissimo (+ message)      |
+| 401  | `unauthenticated`            | Token manquant ou invalide                                    |
+| 403  | `forbidden`                  | Scope `orders.write` insuffisant                              |
+
+> Après une génération réussie (201), le PDF est immédiatement accessible via
+> `GET /orders/{id}/shipping-label`.
+
+---
+
 ### PATCH `.../api/orders/{id}`  — Changer le statut
 
 Scope requis : `orders.write`
