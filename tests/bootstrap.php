@@ -28,7 +28,6 @@ spl_autoload_register(static function (string $class): void {
         'AuditLogService' => __DIR__ . '/../rebuildconnector/classes/AuditLogService.php',
         'WebhookService' => __DIR__ . '/../rebuildconnector/classes/WebhookService.php',
         'UpdateCheckService' => __DIR__ . '/../rebuildconnector/classes/UpdateCheckService.php',
-        'ModuleUpdaterService' => __DIR__ . '/../rebuildconnector/classes/ModuleUpdaterService.php',
         'BasketsService' => __DIR__ . '/../rebuildconnector/classes/BasketsService.php',
         'ReportsService' => __DIR__ . '/../rebuildconnector/classes/ReportsService.php',
         'ProductsService' => __DIR__ . '/../rebuildconnector/classes/ProductsService.php',
