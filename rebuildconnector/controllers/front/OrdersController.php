@@ -5,6 +5,7 @@ defined('_PS_VERSION_') || exit;
 require_once __DIR__ . '/BaseApiController.php';
 require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/OrdersService.php';
 require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/ShippingLabelService.php';
+require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/ShippingLabelGenerator.php';
 require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/FcmService.php';
 require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/PushHubService.php';
 require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/FcmDeviceService.php';
@@ -13,6 +14,7 @@ class RebuildconnectorOrdersModuleFrontController extends RebuildconnectorBaseAp
 {
     private ?OrdersService $ordersService = null;
     private ?ShippingLabelService $shippingLabelService = null;
+    private ?ShippingLabelGenerator $shippingLabelGenerator = null;
 
     public function initContent(): void
     {
@@ -30,8 +32,12 @@ class RebuildconnectorOrdersModuleFrontController extends RebuildconnectorBaseAp
                     $authPayload = $this->requireAuth(['orders.write']);
                     $this->handlePatch($authPayload);
                     break;
+                case 'POST':
+                    $authPayload = $this->requireAuth(['orders.write']);
+                    $this->handlePost($authPayload);
+                    break;
                 default:
-                    header('Allow: GET, PATCH');
+                    header('Allow: GET, PATCH, POST');
                     $this->jsonError(
                         'method_not_allowed',
                         $this->t('api.error.method_not_allowed', [], 'HTTP method not allowed.'),
@@ -253,6 +259,106 @@ class RebuildconnectorOrdersModuleFrontController extends RebuildconnectorBaseAp
         }
     }
 
+    /**
+     * @param array<string, mixed> $authPayload
+     */
+    private function handlePost(array $authPayload = []): void
+    {
+        $orderId = (int) Tools::getValue('id_order', (int) Tools::getValue('id', 0));
+        if ($orderId <= 0) {
+            throw new \InvalidArgumentException($this->t('orders.error.not_found', [], 'Order not found.'));
+        }
+
+        $action = Tools::strtolower((string) Tools::getValue('action', ''));
+
+        if ($action === 'shipping-label') {
+            $this->handleGenerateShippingLabel($orderId, $authPayload);
+            return;
+        }
+
+        throw new \InvalidArgumentException($this->t('orders.error.invalid_action', [], 'Unsupported order action.'));
+    }
+
+    /**
+     * POST /orders/{id}/shipping-label — Déclenche la génération d'une étiquette de transport.
+     *
+     * Idempotence : si une étiquette existe déjà pour cette commande, retourne 200 sans régénérer.
+     * Si le transporteur est détecté mais la génération n'est pas encore configurée, retourne 501.
+     *
+     * @param array<string, mixed> $authPayload
+     */
+    private function handleGenerateShippingLabel(int $orderId, array $authPayload = []): void
+    {
+        $generator = $this->getShippingLabelGenerator();
+
+        try {
+            $result = $generator->generate($orderId);
+        } catch (\InvalidArgumentException $e) {
+            $this->jsonError(
+                'not_found',
+                $this->t('orders.error.not_found', [], 'Order not found.'),
+                404
+            );
+            return;
+        }
+
+        switch ($result->getStatus()) {
+            case ShippingLabelGenerationResult::STATUS_ALREADY_EXISTS:
+                // Étiquette déjà disponible : répondre 200 sans générer
+                $this->renderJson([
+                    'generated'    => false,
+                    'label_ready'  => true,
+                    'carrier_type' => $result->getCarrierType() !== '' ? $result->getCarrierType() : null,
+                ], 200);
+                return;
+
+            case ShippingLabelGenerationResult::STATUS_GENERATED:
+                $this->recordAuditEvent('orders.shipping_label.generated', [
+                    'order_id'      => $orderId,
+                    'carrier_type'  => $result->getCarrierType(),
+                    'token_subject' => $authPayload['sub'] ?? null,
+                ]);
+                $payload = [
+                    'generated'    => true,
+                    'label_ready'  => true,
+                    'carrier_type' => $result->getCarrierType(),
+                ];
+                if ($result->getTrackingNumber() !== null) {
+                    $payload['tracking_number'] = $result->getTrackingNumber();
+                }
+                $this->renderJson($payload, 201);
+                return;
+
+            case ShippingLabelGenerationResult::STATUS_NOT_CONFIGURED:
+                // Transporteur détecté mais génération non encore implémentée
+                $this->jsonError(
+                    'generation_not_configured',
+                    'Label generation is not yet configured for carrier: ' . $result->getCarrierType(),
+                    501
+                );
+                return;
+
+            case ShippingLabelGenerationResult::STATUS_UNSUPPORTED_CARRIER:
+                $this->jsonError(
+                    'carrier_not_supported',
+                    $this->t('orders.error.carrier_not_supported', [], 'Carrier not supported for label generation.'),
+                    422
+                );
+                return;
+
+            case ShippingLabelGenerationResult::STATUS_WEBSERVICE_ERROR:
+                $this->jsonError(
+                    'carrier_webservice_error',
+                    $result->getErrorDetail() ?? 'Carrier webservice error.',
+                    502
+                );
+                return;
+
+            default:
+                $this->jsonError('server_error', 'Unexpected generation result.', 500);
+        }
+    }
+
     private function notifyShippingUpdate(int $orderId, string $trackingNumber, ?int $carrierId): void
     {
         $settings = $this->getSettingsService();
@@ -356,5 +462,14 @@ class RebuildconnectorOrdersModuleFrontController extends RebuildconnectorBaseAp
         }
 
         return $this->shippingLabelService;
+    }
+
+    private function getShippingLabelGenerator(): ShippingLabelGenerator
+    {
+        if ($this->shippingLabelGenerator === null) {
+            $this->shippingLabelGenerator = new ShippingLabelGenerator();
+        }
+
+        return $this->shippingLabelGenerator;
     }
 }

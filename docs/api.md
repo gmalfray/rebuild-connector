@@ -295,6 +295,62 @@ Content-Disposition: attachment; filename="bordereau-colissimo-6120-6A0552833389
 
 ---
 
+### POST `.../api/orders/{id}/shipping-label`
+
+Scope requis : `orders.write`
+
+Déclenche la génération d'une étiquette de transport via le module transporteur installé sur la boutique (Colissimo, Mondial Relay). L'endpoint est **idempotent** : si une étiquette existe déjà pour cette commande, elle est retournée directement sans appel au webservice transporteur.
+
+**Corps JSON** : aucun (pas de body requis à ce stade).
+
+**Réponse 200** — étiquette déjà disponible (aucune génération déclenchée) :
+
+```json
+{
+  "generated": false,
+  "label_ready": true,
+  "carrier_type": "colissimo"
+}
+```
+
+**Réponse 201** — étiquette générée avec succès *(futur — rendu possible une fois les credentials transporteur configurés)* :
+
+```json
+{
+  "generated": true,
+  "label_ready": true,
+  "carrier_type": "colissimo",
+  "tracking_number": "6A12345678901"
+}
+```
+
+> `tracking_number` est présent dans la réponse 201 uniquement si le webservice transporteur le retourne.  
+> Après une réponse 200 ou 201, utiliser `GET /orders/{id}/shipping-label` pour streamer le PDF.
+
+**Erreurs** :
+
+| Code | `error`                      | Raison                                                                        |
+|------|------------------------------|-------------------------------------------------------------------------------|
+| 404  | `not_found`                  | Commande introuvable ou n'appartient pas à la boutique                        |
+| 422  | `carrier_not_supported`      | Transporteur de la commande non reconnu (ni Colissimo ni Mondial Relay)       |
+| 501  | `generation_not_configured`  | Transporteur détecté mais génération non encore implémentée (état actuel)     |
+| 502  | `carrier_webservice_error`   | Le webservice du transporteur a retourné une erreur *(futur)*                 |
+
+#### Statut d'implémentation par transporteur (v1.8.0)
+
+| Transporteur  | Lecture étiquette existante | Génération via API |
+|---------------|-----------------------------|--------------------|
+| Colissimo     | Oui (PDF local sur disque)  | Non — nécessite source module + contrat La Poste (LPCOL_LOGIN / LPCOL_PWD) |
+| Mondial Relay | Oui (proxy cURL label_url)  | Non — nécessite source module + compte MR (PS_MONDIALRELAY_ENSEIGNE / KEY) |
+
+Pour finaliser la génération :
+1. Récupérer les sources des modules `colissimo` et `mondialrelay` depuis le VPS pensebonheur (via infra-ops / SFTP).
+2. Identifier si les modules exposent des classes réutilisables (ColissimoApi, MondialRelayWs).
+3. Mettre en place les credentials transporteurs dans `ps_configuration` (déjà présents si les modules sont configurés côté boutique).
+4. Implémenter `ShippingLabelGenerator::generateColissimo()` et `generateMondialRelay()`.
+
+---
+
 ### PATCH `.../api/orders/{id}`  — Changer le statut
 
 Scope requis : `orders.write`
@@ -1158,6 +1214,7 @@ curl -X GET "https://example.com/module/rebuildconnector/api/dashboard/metrics?f
 | GET     | `.../api/orders/{id}`                           | orders       | `orders.read`       |
 | PATCH   | `.../api/orders/{id}`                           | orders       | `orders.write`      |
 | PATCH   | `.../api/orders/{id}/{action}`                  | orders       | `orders.write`      |
+| POST    | `.../api/orders/{id}/shipping-label`            | orders       | `orders.write`      |
 | GET     | `.../api/products`                              | products     | `products.read`     |
 | GET     | `.../api/products/{id}`                         | products     | `products.read`     |
 | GET     | `.../api/products/{id}/stock`                   | products     | `products.read`     |
