@@ -16,15 +16,6 @@
         version installée : <code>v{$module_version|escape:'htmlall'}</code>
     </div>
     <div style="white-space:nowrap; display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
-        {* Bouton mise à jour en un clic — action réservée au BO authentifié, token CSRF PS inclus *}
-        <form method="post" style="display:inline;"
-              onsubmit="return confirm('Appliquer la mise à jour vers v{$update_info.latest|escape:'js'} ?\n\nUne sauvegarde sera créée automatiquement avant toute modification.');">
-            <input type="hidden" name="rebuildconnector_do_update" value="1">
-            <input type="hidden" name="token" value="{$smarty.get.token|escape:'htmlall'}">
-            <button type="submit" class="btn btn-warning btn-sm" style="margin-right:2px;">
-                <i class="icon-refresh"></i> Mettre à jour maintenant
-            </button>
-        </form>
         {if $update_info.download_url}
         <a href="{$update_info.download_url|escape:'htmlall'}" target="_blank" rel="noopener"
            class="btn btn-default btn-sm" style="margin-right:2px;">
@@ -509,23 +500,13 @@
         {if $settings.hub_enabled}
             <div class="alert alert-success" style="margin-bottom:16px;">
                 <i class="icon-check"></i>
-                Hub push <strong>actif</strong> — les notifications sont relayées à
-                <strong>{$settings.hub_url|escape:'htmlall'}</strong>.
-                Le hub gère le compte de service FCM et la résilience d'envoi.
+                <strong>Notifications push activées.</strong>
             </div>
         {else}
-            <div class="alert alert-warning" style="margin-bottom:16px;">
-                <i class="icon-warning-sign"></i>
-                Hub push <strong>inactif</strong> — aucune clé de licence configurée.
-                Les notifications push ne seront pas envoyées tant que la clé n'est pas renseignée.
-            </div>
+            <p class="text-muted" style="margin-bottom:12px;">
+                Saisissez votre clé de licence pour activer les notifications.
+            </p>
         {/if}
-
-        <p class="text-muted" style="margin-bottom:12px;">
-            Hub centralisé : <strong>{$settings.hub_url|escape:'htmlall'}</strong>
-            (URL hardcodée — configurable uniquement via la constante PHP
-            <code>REBUILDCONNECTOR_HUB_URL_OVERRIDE</code> en environnement de développement).
-        </p>
 
         <form method="post" class="form-horizontal">
 
