@@ -65,6 +65,19 @@ class ShippingLabelService
     }
 
     /**
+     * Retourne le numéro de suivi Colissimo de la première étiquette non supprimée.
+     * Utilisé pour l'idempotence du POST /shipping-label : si une étiquette existe déjà
+     * avec son fichier sur disque, on renvoie le tracking_number sans régénérer.
+     *
+     * @return string|null null si aucune étiquette Colissimo n'existe
+     */
+    public function getColissimoTrackingNumber(int $orderId): ?string
+    {
+        $row = $this->findColissimoLabelRow($orderId);
+        return $row !== null ? (string) $row['shipping_number'] : null;
+    }
+
+    /**
      * Retourne les métadonnées du bordereau sans streamer le contenu.
      * Utilisé pour enrichir le détail commande avec has_shipping_label / carrier_type.
      *

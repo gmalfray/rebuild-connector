@@ -5,12 +5,14 @@ defined('_PS_VERSION_') || exit;
 require_once __DIR__ . '/BaseApiController.php';
 require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/OrdersService.php';
 require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/ShippingLabelService.php';
+require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/ColissimoLabelService.php';
 require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/PushHubService.php';
 
 class RebuildconnectorOrdersModuleFrontController extends RebuildconnectorBaseApiModuleFrontController
 {
     private ?OrdersService $ordersService = null;
     private ?ShippingLabelService $shippingLabelService = null;
+    private ?ColissimoLabelService $colissimoLabelService = null;
 
     public function initContent(): void
     {
@@ -28,8 +30,12 @@ class RebuildconnectorOrdersModuleFrontController extends RebuildconnectorBaseAp
                     $authPayload = $this->requireAuth(['orders.write']);
                     $this->handlePatch($authPayload);
                     break;
+                case 'POST':
+                    $this->requireAuth(['orders.write']);
+                    $this->handlePost();
+                    break;
                 default:
-                    header('Allow: GET, PATCH');
+                    header('Allow: GET, PATCH, POST');
                     $this->jsonError(
                         'method_not_allowed',
                         $this->t('api.error.method_not_allowed', [], 'HTTP method not allowed.'),
@@ -292,6 +298,144 @@ class RebuildconnectorOrdersModuleFrontController extends RebuildconnectorBaseAp
         return $offset;
     }
 
+    // =========================================================================
+    // POST : génération d'étiquette
+    // =========================================================================
+
+    private function handlePost(): void
+    {
+        $orderId = (int) Tools::getValue('id_order', (int) Tools::getValue('id', 0));
+        if ($orderId <= 0) {
+            $this->jsonError(
+                'not_found',
+                $this->t('orders.error.not_found', [], 'Order not found.'),
+                404
+            );
+            return;
+        }
+
+        $action = Tools::strtolower((string) Tools::getValue('action', ''));
+
+        if ($action === 'shipping-label') {
+            $this->handleGenerateShippingLabel($orderId);
+            return;
+        }
+
+        $this->jsonError(
+            'invalid_action',
+            $this->t('orders.error.invalid_action', [], 'Unsupported order action.'),
+            400
+        );
+    }
+
+    /**
+     * POST /orders/{id}/shipping-label
+     *
+     * Génère une étiquette Colissimo pour la commande.
+     * Idempotent : si une étiquette existe déjà (fichier PDF présent), retourne 200 avec l'existant.
+     * Uniquement Colissimo pour l'instant (Mondial Relay = phase 2).
+     */
+    private function handleGenerateShippingLabel(int $orderId): void
+    {
+        // Charger la commande en premier pour vérifier existence et transporteur
+        $order = new Order($orderId);
+        if (!Validate::isLoadedObject($order)) {
+            $this->jsonError(
+                'not_found',
+                $this->t('orders.error.not_found', [], 'Order not found.'),
+                404
+            );
+            return;
+        }
+
+        // Contrôle multistore (protection IDOR)
+        $currentShopId = (int) Context::getContext()->shop->id;
+        if ($currentShopId > 0 && (int) $order->id_shop !== $currentShopId) {
+            $this->jsonError(
+                'not_found',
+                $this->t('orders.error.not_found', [], 'Order not found.'),
+                404
+            );
+            return;
+        }
+
+        // Vérification transporteur : uniquement Colissimo pour l'instant
+        if (!$this->isColissimoOrder($order)) {
+            $this->jsonError(
+                'carrier_not_supported',
+                'La génération automatique d\'étiquette est disponible uniquement pour les commandes Colissimo. La prise en charge Mondial Relay est prévue en phase 2.',
+                422
+            );
+            return;
+        }
+
+        // Idempotence : si une étiquette Colissimo avec fichier PDF existe déjà, on la retourne
+        $meta = $this->getShippingLabelService()->getShippingLabelMeta($orderId);
+        if ($meta['has_shipping_label'] && $meta['carrier_type'] === 'colissimo') {
+            $existingTracking = $this->getShippingLabelService()->getColissimoTrackingNumber($orderId);
+            $this->renderJson([
+                'generated'       => false,
+                'tracking_number' => $existingTracking,
+                'has_label'       => true,
+                'carrier_type'    => 'colissimo',
+            ], 200);
+            return;
+        }
+
+        // Génération via webservice Colissimo
+        try {
+            $result = $this->getColissimoLabelService()->generateColissimoLabel($orderId);
+        } catch (\RuntimeException $e) {
+            switch ((int) $e->getCode()) {
+                case 501:
+                    $this->jsonError('generation_not_configured', $e->getMessage(), 501);
+                    return;
+                case 404:
+                    $this->jsonError('not_found', $e->getMessage(), 404);
+                    return;
+                case 502:
+                    $this->jsonError('carrier_webservice_error', $e->getMessage(), 502);
+                    return;
+                default:
+                    throw $e;
+            }
+        }
+
+        $this->recordAuditEvent('orders.shipping_label.generated', [
+            'order_id'        => $orderId,
+            'tracking_number' => $result['tracking_number'],
+            'carrier_type'    => 'colissimo',
+        ]);
+
+        $this->renderJson([
+            'generated'       => true,
+            'tracking_number' => $result['tracking_number'],
+            'has_label'       => true,
+            'carrier_type'    => 'colissimo',
+        ], 201);
+    }
+
+    /**
+     * Détermine si la commande est acheminée via Colissimo
+     * (même logique que ShippingLabelService::resolveCarrierType, dupliquée pour éviter d'exposer la méthode privée).
+     */
+    private function isColissimoOrder(Order $order): bool
+    {
+        $carrierId = (int) $order->id_carrier;
+        if ($carrierId <= 0) {
+            return false;
+        }
+        $carrier = new Carrier($carrierId);
+        if (!Validate::isLoadedObject($carrier)) {
+            return false;
+        }
+        return strpos(Tools::strtolower((string) $carrier->name), 'colissimo') !== false;
+    }
+
+    // =========================================================================
+    // Lazy getters
+    // =========================================================================
+
     private function getOrdersService(): OrdersService
     {
         if ($this->ordersService === null) {
@@ -308,5 +452,14 @@ class RebuildconnectorOrdersModuleFrontController extends RebuildconnectorBaseAp
         }
 
         return $this->shippingLabelService;
+    }
+
+    private function getColissimoLabelService(): ColissimoLabelService
+    {
+        if ($this->colissimoLabelService === null) {
+            $this->colissimoLabelService = new ColissimoLabelService();
+        }
+
+        return $this->colissimoLabelService;
     }
 }
