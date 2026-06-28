@@ -81,17 +81,16 @@ class RebuildconnectorNotificationsModuleFrontController extends Rebuildconnecto
         }
 
         $topics = $this->extractTopics($payload['topics'] ?? null);
-        if ($topics === []) {
-            $topics = $this->getSettingsService()->getFcmTopics();
-        }
+        // topics vide = appareil non configuré → le hub lui envoie tous les événements
+        // (comportement rétrocompatible, cohérent avec FcmDeviceService::getTokensForCategory).
 
         $deviceId = isset($payload['device_id']) ? trim((string) $payload['device_id']) : null;
         $platform = isset($payload['platform']) ? trim((string) $payload['platform']) : null;
 
+        // Enregistrement local (source de vérité pour la synchro hub via syncAllDevices).
         $this->getDeviceService()->registerDevice($token, $topics, $deviceId, $platform);
 
-        // Mode hub : on relaie l'enregistrement au hub (best-effort). L'enregistrement local
-        // ci-dessus est conservé pour garder le fallback FCM direct opérationnel.
+        // Relai au hub (best-effort) — le hub synchronise ses propres devices FCM.
         $hub = $this->getPushHubService();
         if ($hub->isEnabled()) {
             $hub->registerDevice($token, $platform, $topics);

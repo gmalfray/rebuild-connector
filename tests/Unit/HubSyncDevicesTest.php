@@ -22,7 +22,8 @@ final class HubSyncDevicesTest extends TestCase
 
     public function testSyncReturnsZeroCountsWhenHubDisabled(): void
     {
-        $hub = new SyncableHubService(new SyncHubSettingsStub('', ''), []);
+        // Hub désactivé = aucune clé de licence configurée.
+        $hub = new SyncableHubService(new SyncHubSettingsStub(''), []);
         $fcm = new FcmDeviceServiceStub([]);
 
         $result = $hub->syncAllDevices($fcm);
@@ -41,7 +42,7 @@ final class HubSyncDevicesTest extends TestCase
     public function testSyncWithNoDevicesReturnsZeroCounts(): void
     {
         $hub = new SyncableHubService(
-            new SyncHubSettingsStub('https://push.rebuild-it.fr', 'rbk_secret'),
+            new SyncHubSettingsStub('rbk_secret'),
             [['registered' => true]]
         );
         $fcm = new FcmDeviceServiceStub([]);
@@ -67,7 +68,7 @@ final class HubSyncDevicesTest extends TestCase
         ];
 
         $hub = new SyncableHubService(
-            new SyncHubSettingsStub('https://push.rebuild-it.fr', 'rbk_secret'),
+            new SyncHubSettingsStub('rbk_secret'),
             // Toutes les réponses hub = succès.
             array_fill(0, count($devices), ['registered' => true])
         );
@@ -110,7 +111,7 @@ final class HubSyncDevicesTest extends TestCase
         ];
 
         $hub = new SyncableHubService(
-            new SyncHubSettingsStub('https://push.rebuild-it.fr', 'rbk_secret'),
+            new SyncHubSettingsStub('rbk_secret'),
             [['registered' => true]]
         );
         $fcm = new FcmDeviceServiceStub($devices);
@@ -137,7 +138,7 @@ final class HubSyncDevicesTest extends TestCase
 
         // Réponses : succès, échec (null), succès.
         $hub = new SyncableHubService(
-            new SyncHubSettingsStub('https://push.rebuild-it.fr', 'rbk_secret'),
+            new SyncHubSettingsStub('rbk_secret'),
             [['ok' => true], null, ['ok' => true]]
         );
         $fcm = new FcmDeviceServiceStub($devices);
@@ -166,7 +167,7 @@ final class HubSyncDevicesTest extends TestCase
         $responses = array_fill(0, 110, ['registered' => true]);
 
         $hub = new SyncableHubService(
-            new SyncHubSettingsStub('https://push.rebuild-it.fr', 'rbk_secret'),
+            new SyncHubSettingsStub('rbk_secret'),
             $responses
         );
         $fcm = new FcmDeviceServiceStub([], [$batch1, $batch2, $batch3]);
@@ -235,21 +236,20 @@ final class HubSyncDevicesTest extends TestCase
  * Stub de SettingsService isolé pour les tests de synchronisation hub.
  * Nommé SyncHubSettingsStub pour ne pas entrer en conflit avec HubSettingsStub
  * défini dans PushHubServiceTest.php et chargé dans le même run PHPUnit.
+ * Hub-only : l'URL est hardcodée, seule la clé de licence est configurable.
  */
 final class SyncHubSettingsStub extends SettingsService
 {
-    private string $hubUrl;
     private string $hubKey;
 
-    public function __construct(string $hubUrl, string $hubKey)
+    public function __construct(string $hubKey)
     {
-        $this->hubUrl = $hubUrl;
         $this->hubKey = $hubKey;
     }
 
     public function getHubUrl(): string
     {
-        return $this->hubUrl;
+        return 'https://push.rebuild-it.fr';
     }
 
     public function getHubLicenseKey(): string
@@ -259,7 +259,7 @@ final class SyncHubSettingsStub extends SettingsService
 
     public function isHubEnabled(): bool
     {
-        return $this->hubUrl !== '' && $this->hubKey !== '';
+        return $this->hubKey !== '';
     }
 }
 

@@ -7,7 +7,6 @@ if (!defined('_PS_VERSION_')) {
 require_once __DIR__ . '/classes/UserService.php';
 require_once __DIR__ . '/classes/SettingsService.php';
 require_once __DIR__ . '/classes/FcmDeviceService.php';
-require_once __DIR__ . '/classes/FcmService.php';
 require_once __DIR__ . '/classes/PushHubService.php';
 require_once __DIR__ . '/classes/RateLimiterService.php';
 require_once __DIR__ . '/classes/WebhookService.php';
@@ -21,7 +20,6 @@ require_once __DIR__ . '/classes/ModuleUpdaterService.php';
 
 class RebuildConnector extends Module
 {
-    private ?FcmService $fcmService = null;
     private ?PushHubService $pushHubService = null;
     private ?SettingsService $settingsService = null;
     private ?TranslationService $translationService = null;
@@ -36,7 +34,7 @@ class RebuildConnector extends Module
     {
         $this->name = 'rebuildconnector';
         $this->tab = 'administration';
-        $this->version = '1.7.0';
+        $this->version = '1.7.1';
         $this->author = 'Rebuild IT';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -250,40 +248,8 @@ class RebuildConnector extends Module
                 $settingsService->setScopesFromString((string) Tools::getValue('REBUILDCONNECTOR_SCOPES', ''));
             }
 
-            if (Tools::getValue('REBUILDCONNECTOR_FCM_SERVICE_ACCOUNT') !== false) {
-                $serviceAccount = trim((string) Tools::getValue('REBUILDCONNECTOR_FCM_SERVICE_ACCOUNT'));
-                if ($serviceAccount !== '') {
-                    $decoded = json_decode($serviceAccount, true);
-                    if (!is_array($decoded)) {
-                        $errors[] = $this->t('admin.error.invalid_service_account');
-                    } else {
-                        $settingsService->setFcmServiceAccount(
-                            json_encode($decoded, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)
-                        );
-                    }
-                } else {
-                    $settingsService->setFcmServiceAccount(null);
-                }
-            }
-
-            if (Tools::getValue('REBUILDCONNECTOR_FCM_DEVICE_TOKENS') !== false) {
-                $settingsService->setFcmDeviceTokens((string) Tools::getValue('REBUILDCONNECTOR_FCM_DEVICE_TOKENS', ''));
-            }
-
-            if (Tools::getValue('REBUILDCONNECTOR_FCM_TOPICS') !== false) {
-                $settingsService->setFcmTopics((string) Tools::getValue('REBUILDCONNECTOR_FCM_TOPICS', ''));
-            }
-
             if (Tools::getValue('REBUILDCONNECTOR_SHIPPING_NOTIFICATION') !== false) {
                 $settingsService->setShippingNotificationEnabled(Tools::getValue('REBUILDCONNECTOR_SHIPPING_NOTIFICATION') === '1');
-            }
-
-            if (Tools::getValue('REBUILDCONNECTOR_HUB_URL') !== false) {
-                try {
-                    $settingsService->setHubUrl((string) Tools::getValue('REBUILDCONNECTOR_HUB_URL', ''));
-                } catch (\InvalidArgumentException $exception) {
-                    $errors[] = $this->t('admin.error.invalid_hub_url', [], 'L\'URL du hub doit utiliser HTTPS.');
-                }
             }
 
             if (Tools::getValue('REBUILDCONNECTOR_HUB_LICENSE_KEY') !== false || Tools::getValue('REBUILDCONNECTOR_HUB_LICENSE_KEY_CLEAR') !== false) {
@@ -374,7 +340,6 @@ class RebuildConnector extends Module
             }
         }
 
-        $fcmProjectId = $settingsService->getFcmProjectId();
         $users = $userService->listUsers();
 
         // Pré-décoder les scopes de chaque utilisateur pour éviter json_decode dans Smarty
@@ -400,7 +365,6 @@ class RebuildConnector extends Module
             'new_user_qr_json'           => $newUserQrJson,
             'regenerated_admin_api_key'  => $regeneratedAdminApiKey,
             'regenerated_admin_qr_json'  => $regeneratedAdminQrJson,
-            'fcm_project_id'             => $fcmProjectId,
             'module_version'             => $this->version,
             'update_info'                => $updateInfo,
         ]);
@@ -551,69 +515,34 @@ class RebuildConnector extends Module
     }
 
     /**
+     * Envoie une notification push via le hub centralisé (hub-only, pas de fallback FCM direct).
+     * Le hub détient le compte de service FCM et gère sa propre résilience.
+     *
      * @param array<string, string> $notification
      * @param array<string, mixed> $data
      */
     private function notifyDevices(array $notification, array $data): void
     {
         $category = isset($data['event']) && is_string($data['event']) ? $data['event'] : '';
-        $fallbackTokens = $this->getSettingsService()->getFcmDeviceTokens();
 
-        // Mode hub centralisé : on relaie l'envoi au hub, qui détient le compte de service FCM
-        // et cible ses propres devices. Le FCM direct ci-dessous sert de fallback si le hub est
-        // injoignable (réseau / HTTP non 2xx), pour ne pas perdre la notification.
         $hub = $this->getPushHubService();
-        if ($hub->isEnabled() && $hub->notify($category, $notification, $data)) {
-            $this->recordAudit('notifications.dispatch', [
-                'event' => $category !== '' ? $category : null,
-                'success' => true,
-                'transport' => 'hub',
-                'category' => $category !== '' ? $category : null,
-            ]);
-
+        if (!$hub->isEnabled()) {
+            // Clé de licence non configurée — aucune notification envoyée.
             return;
         }
 
-        // Ciblage par catégorie d'événement :
-        // - Si la catégorie est connue, on cible les appareils abonnés à cette catégorie
-        //   (appareils avec topics vide inclus, pour rétrocompatibilité).
-        // - Si la catégorie est vide/inconnue, on cible tous les tokens (comportement legacy).
-        if ($category !== '') {
-            $primaryTokens = $this->getFcmDeviceService()->getTokensForCategory($category);
-        } else {
-            $topics = $this->getSettingsService()->getFcmTopics();
-            $primaryTokens = $this->getFcmDeviceService()->getTokens($topics);
-        }
-
-        if ($primaryTokens === [] && $fallbackTokens === []) {
-            return;
-        }
-
-        $success = $this
-            ->getFcmService()
-            ->sendNotification($primaryTokens, $notification, $data, [], $fallbackTokens);
+        $success = $hub->notify($category, $notification, $data);
 
         $this->recordAudit('notifications.dispatch', [
             'event' => $category !== '' ? $category : null,
             'success' => $success,
-            'transport' => $hub->isEnabled() ? 'fcm_direct_fallback' : 'fcm_direct',
-            'primary_tokens' => count($primaryTokens),
-            'fallback_tokens' => count($fallbackTokens),
+            'transport' => 'hub',
             'category' => $category !== '' ? $category : null,
         ]);
 
         if (!$success && $this->isDevMode()) {
-            error_log('[RebuildConnector] FCM notification failed (all channels).');
+            error_log('[RebuildConnector] Hub push notification failed.');
         }
-    }
-
-    private function getFcmService(): FcmService
-    {
-        if ($this->fcmService === null) {
-            $this->fcmService = new FcmService($this->getSettingsService());
-        }
-
-        return $this->fcmService;
     }
 
     private function getPushHubService(): PushHubService

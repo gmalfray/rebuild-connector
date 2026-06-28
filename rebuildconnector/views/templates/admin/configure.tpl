@@ -63,14 +63,14 @@
 
             <div class="col-lg-3 col-md-6" style="margin-bottom:12px;">
                 <div class="well well-sm text-center" style="min-height:80px; padding:12px;">
-                    {if $fcm_project_id}
-                        <div style="font-size:22px; color:#5cb85c;"><i class="icon-bell"></i></div>
-                        <strong>FCM configuré</strong><br>
-                        <small class="text-muted">{$fcm_project_id|escape:'htmlall'}</small>
+                    {if $settings.hub_enabled}
+                        <div style="font-size:22px; color:#5cb85c;"><i class="icon-cloud"></i></div>
+                        <strong>Hub push actif</strong><br>
+                        <small class="text-muted">push.rebuild-it.fr</small>
                     {else}
-                        <div style="font-size:22px; color:#d9534f;"><i class="icon-bell-slash"></i></div>
-                        <strong style="color:#d9534f;">FCM non configuré</strong><br>
-                        <small class="text-muted">Aucun compte de service</small>
+                        <div style="font-size:22px; color:#d9534f;"><i class="icon-cloud"></i></div>
+                        <strong style="color:#d9534f;">Hub push inactif</strong><br>
+                        <small class="text-muted">Clé de licence manquante</small>
                     {/if}
                 </div>
             </div>
@@ -495,105 +495,8 @@
 
 
 {* ─────────────────────────────────────────────────────────────────────────────
-   SECTION 3 — NOTIFICATIONS PUSH (FCM)
+   SECTION 3 — NOTIFICATIONS PUSH (hub-only)
    ─────────────────────────────────────────────────────────────────────────────*}
-<div class="panel" id="rbc-fcm-panel">
-    <div class="panel-heading">
-        <i class="icon-bell"></i>
-        Notifications push (FCM)
-    </div>
-    <div class="panel-body">
-
-        {if $fcm_project_id}
-            <div class="alert alert-success" style="margin-bottom:16px;">
-                <i class="icon-check"></i>
-                Compte de service FCM chargé — projet : <strong>{$fcm_project_id|escape:'htmlall'}</strong>
-            </div>
-        {else}
-            <div class="alert alert-warning" style="margin-bottom:16px;">
-                <i class="icon-warning-sign"></i>
-                Aucun compte de service configuré — les notifications push sont désactivées.
-            </div>
-        {/if}
-
-        <form method="post" class="form-horizontal">
-
-            <div class="form-group">
-                <label class="control-label col-lg-3" for="rebuildconnector_fcm_service_account">
-                    Compte de service (JSON)
-                </label>
-                <div class="col-lg-9">
-                    <textarea
-                        id="rebuildconnector_fcm_service_account"
-                        name="REBUILDCONNECTOR_FCM_SERVICE_ACCOUNT"
-                        rows="6"
-                        class="form-control"
-                        spellcheck="false"
-                        placeholder='{ldelim}"type": "service_account", "project_id": "...", ...{rdelim}'
-                    >{$settings.fcm_service_account|escape:'htmlall'}</textarea>
-                    <div style="margin-top: 8px;">
-                        <input type="file" id="rebuildconnector_fcm_file" accept="application/json,.json" style="display: none;" />
-                        <button type="button" class="btn btn-default btn-sm" id="rebuildconnector_fcm_file_btn">
-                            <i class="icon-upload"></i> Charger un fichier JSON
-                        </button>
-                        <span id="rebuildconnector_fcm_file_name" class="help-inline" style="margin-left: 8px;"></span>
-                    </div>
-                    <p class="help-block">
-                        {$i18n.service_account_help|escape:'htmlall'}
-                    </p>
-                </div>
-            </div>
-
-            <div class="form-group">
-                <label class="control-label col-lg-3" for="rebuildconnector_fcm_topics">Topics FCM</label>
-                <div class="col-lg-9">
-                    <textarea
-                        id="rebuildconnector_fcm_topics"
-                        name="REBUILDCONNECTOR_FCM_TOPICS"
-                        rows="3"
-                        class="form-control"
-                    >{$settings.fcm_topics|escape:'htmlall'}</textarea>
-                    <p class="help-block">{$i18n.topics_help|escape:'htmlall'}</p>
-                </div>
-            </div>
-
-            <div class="form-group">
-                <label class="control-label col-lg-3" for="rebuildconnector_fcm_device_tokens">Tokens appareils (fallback)</label>
-                <div class="col-lg-9">
-                    <textarea
-                        id="rebuildconnector_fcm_device_tokens"
-                        name="REBUILDCONNECTOR_FCM_DEVICE_TOKENS"
-                        rows="4"
-                        class="form-control"
-                    >{$settings.fcm_device_tokens|escape:'htmlall'}</textarea>
-                    <p class="help-block">{$i18n.device_tokens_help|escape:'htmlall'}</p>
-                </div>
-            </div>
-
-            <div class="form-group">
-                <label class="control-label col-lg-3">Notification d'expédition</label>
-                <div class="col-lg-9">
-                    <input type="hidden" name="REBUILDCONNECTOR_SHIPPING_NOTIFICATION" value="0">
-                    <label class="checkbox-inline">
-                        <input
-                            type="checkbox"
-                            name="REBUILDCONNECTOR_SHIPPING_NOTIFICATION"
-                            value="1"
-                            {if $settings.shipping_notification_enabled}checked{/if}
-                        >
-                        Envoyer une notification push lors du changement de statut d'expédition
-                    </label>
-                </div>
-            </div>
-
-            <div class="panel-footer">
-                <button type="submit" name="submitRebuildconnectorModule" value="1" class="btn btn-primary">
-                    <i class="icon-save"></i> Enregistrer les paramètres FCM
-                </button>
-            </div>
-        </form>
-    </div>
-</div>
 
 
 <div class="panel" id="rbc-hub-panel">
@@ -606,35 +509,39 @@
         {if $settings.hub_enabled}
             <div class="alert alert-success" style="margin-bottom:16px;">
                 <i class="icon-check"></i>
-                Mode hub <strong>actif</strong> — les notifications sont relayées à
-                <strong>{$settings.hub_url|escape:'htmlall'}</strong>. Le FCM direct ci-dessus sert de secours
-                si le hub est injoignable.
+                Hub push <strong>actif</strong> — les notifications sont relayées à
+                <strong>{$settings.hub_url|escape:'htmlall'}</strong>.
+                Le hub gère le compte de service FCM et la résilience d'envoi.
             </div>
         {else}
-            <div class="alert alert-info" style="margin-bottom:16px;">
-                <i class="icon-info-circle"></i>
-                Mode hub désactivé — le module envoie directement à FCM (compte de service local).
-                Renseignez l'URL et la clé de licence pour relayer l'envoi au hub centralisé.
+            <div class="alert alert-warning" style="margin-bottom:16px;">
+                <i class="icon-warning-sign"></i>
+                Hub push <strong>inactif</strong> — aucune clé de licence configurée.
+                Les notifications push ne seront pas envoyées tant que la clé n'est pas renseignée.
             </div>
         {/if}
+
+        <p class="text-muted" style="margin-bottom:12px;">
+            Hub centralisé : <strong>{$settings.hub_url|escape:'htmlall'}</strong>
+            (URL hardcodée — configurable uniquement via la constante PHP
+            <code>REBUILDCONNECTOR_HUB_URL_OVERRIDE</code> en environnement de développement).
+        </p>
 
         <form method="post" class="form-horizontal">
 
             <div class="form-group">
-                <label class="control-label col-lg-3" for="rebuildconnector_hub_url">URL du hub</label>
+                <label class="control-label col-lg-3">Notification d'expédition</label>
                 <div class="col-lg-9">
-                    <input
-                        type="text"
-                        id="rebuildconnector_hub_url"
-                        name="REBUILDCONNECTOR_HUB_URL"
-                        class="form-control"
-                        spellcheck="false"
-                        placeholder="https://push.rebuild-it.fr"
-                        value="{$settings.hub_url|escape:'htmlall'}"
-                    >
-                    <p class="help-block">
-                        URL HTTPS du hub push (laisser vide pour désactiver le mode hub et revenir au FCM direct).
-                    </p>
+                    <input type="hidden" name="REBUILDCONNECTOR_SHIPPING_NOTIFICATION" value="0">
+                    <label class="checkbox-inline">
+                        <input
+                            type="checkbox"
+                            name="REBUILDCONNECTOR_SHIPPING_NOTIFICATION"
+                            value="1"
+                            {if $settings.shipping_notification_enabled}checked{/if}
+                        >
+                        Envoyer une notification push lors du changement de numéro de suivi / expédition
+                    </label>
                 </div>
             </div>
 
@@ -991,25 +898,6 @@
 
         e.preventDefault();
     });
-
-    // ── Upload JSON FCM ──
-    var fcmBtn = document.getElementById('rebuildconnector_fcm_file_btn');
-    var fcmInput = document.getElementById('rebuildconnector_fcm_file');
-    var fcmTa = document.getElementById('rebuildconnector_fcm_service_account');
-    var fcmName = document.getElementById('rebuildconnector_fcm_file_name');
-    if (fcmBtn && fcmInput && fcmTa) {
-        fcmBtn.addEventListener('click', function () { fcmInput.click(); });
-        fcmInput.addEventListener('change', function () {
-            var file = fcmInput.files && fcmInput.files[0];
-            if (!file) { return; }
-            var reader = new FileReader();
-            reader.onload = function (ev) {
-                fcmTa.value = ev.target.result;
-                if (fcmName) { fcmName.textContent = file.name; }
-            };
-            reader.readAsText(file);
-        });
-    }
 
 })();
 </script>

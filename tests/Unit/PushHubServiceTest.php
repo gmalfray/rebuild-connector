@@ -8,22 +8,21 @@ require_once __DIR__ . '/../bootstrap.php';
 
 final class PushHubServiceTest extends TestCase
 {
-    public function testIsDisabledWhenUrlOrKeyMissing(): void
+    public function testIsDisabledWhenKeyMissing(): void
     {
-        $this->assertFalse((new PushHubService(new HubSettingsStub('', '')))->isEnabled());
-        $this->assertFalse((new PushHubService(new HubSettingsStub('https://push.example', '')))->isEnabled());
-        $this->assertFalse((new PushHubService(new HubSettingsStub('', 'rbk_x')))->isEnabled());
+        // Hub-only : l'URL est hardcodée, seule la clé de licence active le hub.
+        $this->assertFalse((new PushHubService(new HubSettingsStub('')))->isEnabled());
     }
 
-    public function testIsEnabledWhenUrlAndKeyPresent(): void
+    public function testIsEnabledWhenKeyPresent(): void
     {
-        $service = new PushHubService(new HubSettingsStub('https://push.rebuild-it.fr', 'rbk_secret'));
+        $service = new PushHubService(new HubSettingsStub('rbk_secret'));
         $this->assertTrue($service->isEnabled());
     }
 
     public function testNotifyDoesNothingWhenDisabled(): void
     {
-        $service = new TestPushHubService(new HubSettingsStub('', ''), null);
+        $service = new TestPushHubService(new HubSettingsStub(''), null);
         $this->assertFalse($service->notify('order.created', ['title' => 'A', 'body' => 'B']));
         $this->assertSame([], $service->calls);
     }
@@ -31,7 +30,7 @@ final class PushHubServiceTest extends TestCase
     public function testNotifyBuildsExpectedPayload(): void
     {
         $service = new TestPushHubService(
-            new HubSettingsStub('https://push.rebuild-it.fr', 'rbk_secret'),
+            new HubSettingsStub('rbk_secret'),
             ['sent' => 1]
         );
 
@@ -56,7 +55,7 @@ final class PushHubServiceTest extends TestCase
     public function testNotifyReturnsFalseWhenHubFails(): void
     {
         $service = new TestPushHubService(
-            new HubSettingsStub('https://push.rebuild-it.fr', 'rbk_secret'),
+            new HubSettingsStub('rbk_secret'),
             null
         );
 
@@ -66,7 +65,7 @@ final class PushHubServiceTest extends TestCase
     public function testRegisterDeviceSendsTokenAndTopics(): void
     {
         $service = new TestPushHubService(
-            new HubSettingsStub('https://push.rebuild-it.fr', 'rbk_secret'),
+            new HubSettingsStub('rbk_secret'),
             ['registered' => true]
         );
 
@@ -83,7 +82,7 @@ final class PushHubServiceTest extends TestCase
     public function testUnregisterDeviceUsesDeleteWithEncodedToken(): void
     {
         $service = new TestPushHubService(
-            new HubSettingsStub('https://push.rebuild-it.fr', 'rbk_secret'),
+            new HubSettingsStub('rbk_secret'),
             []
         );
 
@@ -95,20 +94,21 @@ final class PushHubServiceTest extends TestCase
     }
 }
 
+/**
+ * Hub-only : l'URL est hardcodée, seule la clé de licence est configurable.
+ */
 final class HubSettingsStub extends SettingsService
 {
-    private string $hubUrl;
     private string $hubKey;
 
-    public function __construct(string $hubUrl, string $hubKey)
+    public function __construct(string $hubKey)
     {
-        $this->hubUrl = $hubUrl;
         $this->hubKey = $hubKey;
     }
 
     public function getHubUrl(): string
     {
-        return $this->hubUrl;
+        return 'https://push.rebuild-it.fr';
     }
 
     public function getHubLicenseKey(): string
@@ -118,7 +118,7 @@ final class HubSettingsStub extends SettingsService
 
     public function isHubEnabled(): bool
     {
-        return $this->hubUrl !== '' && $this->hubKey !== '';
+        return $this->hubKey !== '';
     }
 }
 

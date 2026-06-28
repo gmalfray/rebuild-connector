@@ -5,14 +5,14 @@ defined('_PS_VERSION_') || exit;
 /**
  * Relai vers le hub push centralisé Rebuild IT (push.rebuild-it.fr).
  *
- * Quand un `hub_url` + une `hub_license_key` sont configurés, le module relaie au hub :
+ * Le module relaie au hub :
  *   - l'enregistrement / la suppression des devices (POST/DELETE /v1/devices) ;
  *   - l'envoi des notifications (POST /v1/notify).
  *
  * Le hub détient le compte de service FCM (unique, Rebuild IT) et envoie réellement à FCM.
- * Le module ne porte donc plus de secret FCM dans ce mode. Le FCM direct (FcmService) reste
- * disponible en **fallback** : si l'appel au hub échoue techniquement (réseau / HTTP non 2xx),
- * l'appelant retombe sur l'envoi direct pour ne pas perdre la notification.
+ * Le module ne porte aucun secret FCM — la résilience est gérée côté hub.
+ * L'URL du hub est hardcodée dans SettingsService::HUB_URL ; seule la clé de licence
+ * est configurable en back-office.
  *
  * Auth : header `Authorization: Bearer <hub_license_key>`.
  */
@@ -41,7 +41,7 @@ class PushHubService
      * @param array<string, string> $notification ['title' => ..., 'body' => ...]
      * @param array<string, mixed>  $data
      *
-     * @return bool true si le hub a accepté la requête (HTTP 2xx), false sinon (→ fallback FCM direct)
+     * @return bool true si le hub a accepté la requête (HTTP 2xx), false sinon
      */
     public function notify(string $event, array $notification, array $data = []): bool
     {

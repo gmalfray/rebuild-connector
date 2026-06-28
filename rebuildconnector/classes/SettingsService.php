@@ -5,6 +5,13 @@ defined('_PS_VERSION_') || exit;
 class SettingsService
 {
     private const CONFIG_KEY = 'REBUILDCONNECTOR_SETTINGS';
+
+    /**
+     * URL du hub push centralisé. Hardcodée — les boutiques distribuées n'ont pas accès
+     * au compte de service FCM, seul le hub y a accès.
+     * Override DEV uniquement : définir la constante PHP `REBUILDCONNECTOR_HUB_URL_OVERRIDE`.
+     */
+    private const HUB_URL = 'https://push.rebuild-it.fr';
     private const DEFAULT_SCOPES = [
         'orders.read',
         'orders.write',
@@ -115,11 +122,6 @@ class SettingsService
 
         if (!isset($settings['shipping_notification_enabled'])) {
             $settings['shipping_notification_enabled'] = false;
-            $updated = true;
-        }
-
-        if (!isset($settings['hub_url']) || !is_string($settings['hub_url'])) {
-            $settings['hub_url'] = '';
             $updated = true;
         }
 
@@ -351,254 +353,6 @@ class SettingsService
         $this->save($settings);
     }
 
-    /**
-     * Chemin du fichier de compte de service FCM (env REBUILDCONNECTOR_FCM_FILE, ou défaut hors
-     * webroot). Sert à LIRE une clé déjà migrée sur disque. L'ÉCRITURE vers ce fichier est
-     * best-effort : si le répertoire n'est pas writable (cas /var/www avec www-data), on retombe
-     * sur le stockage en base sans jamais casser le module (cf. writeFcmServiceAccountFile).
-     */
-    public static function getFcmServiceAccountFilePath(): ?string
-    {
-        $envPath = getenv('REBUILDCONNECTOR_FCM_FILE');
-        if (is_string($envPath) && $envPath !== '') {
-            return $envPath;
-        }
-
-        $base = defined('_PS_ROOT_DIR_') ? rtrim((string) constant('_PS_ROOT_DIR_'), '/') : '/var/www/html';
-
-        return dirname($base) . '/rebuildconnector-secrets/fcm-service-account.json';
-    }
-
-    /**
-     * @return array<string, mixed>|null
-     */
-    public function getFcmServiceAccount(): ?array
-    {
-        // 1. Lire depuis le fichier hors webroot (si un chemin est configuré)
-        $filePath = self::getFcmServiceAccountFilePath();
-        if ($filePath !== null && is_file($filePath) && is_readable($filePath)) {
-            $raw = file_get_contents($filePath);
-            if (is_string($raw) && $raw !== '') {
-                $decoded = json_decode($raw, true);
-                if (is_array($decoded) && !empty($decoded)) {
-                    return $decoded;
-                }
-            }
-        }
-
-        // 2. Fallback rétrocompatible : ancienne valeur en base (lecture + migration au premier accès)
-        $settings = $this->all();
-        if (!isset($settings['fcm_service_account'])) {
-            return null;
-        }
-
-        $account = $settings['fcm_service_account'];
-        $json = null;
-
-        if (is_array($account) && !empty($account)) {
-            $json = json_encode($account, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-        } elseif (is_string($account) && $account !== '') {
-            $decoded = json_decode($account, true);
-            if (is_array($decoded) && !empty($decoded)) {
-                $json = $account;
-            }
-        }
-
-        if ($json === null || $json === false) {
-            return null;
-        }
-
-        // Migration au premier accès vers le fichier — uniquement si un chemin est configuré.
-        if (self::getFcmServiceAccountFilePath() !== null) {
-            $this->migrateFcmServiceAccountToFile((string) $json);
-        }
-
-        $decoded = json_decode((string) $json, true);
-        return is_array($decoded) ? $decoded : null;
-    }
-
-    /**
-     * Persiste le compte de service FCM : dans le fichier hors base si REBUILDCONNECTOR_FCM_FILE
-     * est configuré et writable, sinon en base (fallback robuste). Ne casse jamais le module.
-     */
-    public function setFcmServiceAccount(?string $json): void
-    {
-        if ($json === null || trim($json) === '') {
-            // Suppression : vider fichier (si configuré) + base
-            $filePath = self::getFcmServiceAccountFilePath();
-            if ($filePath !== null && is_file($filePath)) {
-                @unlink($filePath);
-            }
-            $settings = $this->all();
-            $settings['fcm_service_account'] = null;
-            $this->save($settings);
-            return;
-        }
-
-        $json = trim($json);
-        $decoded = json_decode($json, true);
-        if (!is_array($decoded) || empty($decoded)) {
-            throw new \InvalidArgumentException('JSON du compte de service FCM invalide.');
-        }
-
-        // Écrit hors base si un chemin est configuré ET writable ; sinon fallback base (robuste).
-        $filePath = self::getFcmServiceAccountFilePath();
-        $settings = $this->all();
-        if ($filePath !== null && $this->writeFcmServiceAccountFile($json)) {
-            $settings['fcm_service_account'] = null;
-        } else {
-            $settings['fcm_service_account'] = $json;
-        }
-        $this->save($settings);
-    }
-
-    /**
-     * Migration one-shot : écrit le JSON sur disque, puis vide la base.
-     */
-    private function migrateFcmServiceAccountToFile(string $json): void
-    {
-        // Ne vide la base QUE si l'écriture fichier a réussi (sinon on conserve la clé en base).
-        if ($this->writeFcmServiceAccountFile($json)) {
-            $settings = $this->all();
-            $settings['fcm_service_account'] = null;
-            $this->save($settings);
-        }
-    }
-
-    /**
-     * Écrit le compte de service FCM dans le fichier configuré. Ne lève JAMAIS d'exception :
-     * retourne false si l'écriture est impossible → l'appelant retombe sur le stockage en base.
-     */
-    private function writeFcmServiceAccountFile(string $json): bool
-    {
-        $filePath = self::getFcmServiceAccountFilePath();
-        if ($filePath === null) {
-            return false;
-        }
-        $dir = dirname($filePath);
-
-        if (!is_dir($dir) && !@mkdir($dir, 0700, true)) {
-            return false;
-        }
-
-        if (@file_put_contents($filePath, $json, LOCK_EX) === false) {
-            return false;
-        }
-
-        // Permissions restrictives : lisible uniquement par le processus courant (www-data)
-        @chmod($filePath, 0600);
-
-        return true;
-    }
-
-    public function getFcmDeviceTokensRaw(): string
-    {
-        $settings = $this->all();
-        if (!isset($settings['fcm_device_tokens'])) {
-            return '';
-        }
-
-        $tokens = $settings['fcm_device_tokens'];
-        if (is_string($tokens)) {
-            return $tokens;
-        }
-
-        if (is_array($tokens)) {
-            return implode("\n", $tokens);
-        }
-
-        return '';
-    }
-
-    public function setFcmDeviceTokens(string $tokens): void
-    {
-        $settings = $this->all();
-        $settings['fcm_device_tokens'] = trim($tokens);
-        $this->save($settings);
-    }
-
-    /**
-     * @return array<int, string>
-     */
-    public function getFcmDeviceTokens(): array
-    {
-        $settings = $this->all();
-        if (!isset($settings['fcm_device_tokens'])) {
-            return [];
-        }
-
-        $raw = $settings['fcm_device_tokens'];
-        if (is_string($raw)) {
-            $pieces = preg_split('/[\r\n,]+/', $raw) ?: [];
-        } elseif (is_array($raw)) {
-            $pieces = $raw;
-        } else {
-            return [];
-        }
-
-        $tokens = [];
-        foreach ($pieces as $token) {
-            if (!is_string($token)) {
-                continue;
-            }
-            $trimmed = trim($token);
-            if ($trimmed !== '') {
-                $tokens[] = $trimmed;
-            }
-        }
-
-        return array_values(array_unique($tokens));
-    }
-
-    public function getFcmTopicsRaw(): string
-    {
-        $settings = $this->all();
-        if (!isset($settings['fcm_topics'])) {
-            return '';
-        }
-
-        $topics = $settings['fcm_topics'];
-        if (is_string($topics)) {
-            return trim($topics);
-        }
-
-        if (is_array($topics)) {
-            return implode("\n", $this->sanitizeTopics($topics));
-        }
-
-        return '';
-    }
-
-    public function setFcmTopics(string $topics): void
-    {
-        $settings = $this->all();
-        $parts = preg_split('/[\r\n,]+/', $topics) ?: [];
-        $settings['fcm_topics'] = implode("\n", $this->sanitizeTopics($parts));
-        $this->save($settings);
-    }
-
-    /**
-     * @return array<int, string>
-     */
-    public function getFcmTopics(): array
-    {
-        $settings = $this->all();
-        if (!isset($settings['fcm_topics'])) {
-            return [];
-        }
-
-        $raw = $settings['fcm_topics'];
-        if (is_string($raw)) {
-            $parts = preg_split('/[\r\n,]+/', $raw) ?: [];
-        } elseif (is_array($raw)) {
-            $parts = $raw;
-        } else {
-            return [];
-        }
-
-        return $this->sanitizeTopics($parts);
-    }
-
     public function getAllowedIpRangesRaw(): string
     {
         $settings = $this->all();
@@ -741,12 +495,6 @@ class SettingsService
                     ? $settings['jwt_secret']
                     : ''
             ),
-            'fcm_service_account' => isset($settings['fcm_service_account']) && is_string($settings['fcm_service_account'])
-                ? $settings['fcm_service_account']
-                : '',
-            'fcm_device_tokens' => $this->getFcmDeviceTokensRaw(),
-            'fcm_topics' => $this->getFcmTopicsRaw(),
-            'fcm_topics_list' => $this->getFcmTopics(),
             'scopes' => $this->getScopes(),
             'scopes_text' => implode("\n", $this->getScopes()),
             'webhook_url' => $this->getWebhookUrl(),
@@ -777,25 +525,20 @@ class SettingsService
 
     /* ───────────── Hub push centralisé (push.rebuild-it.fr) ───────────── */
 
+    /**
+     * URL du hub push. Hardcodée — les boutiques distribuées n'ont pas de compte FCM.
+     * Override DEV uniquement via la constante PHP REBUILDCONNECTOR_HUB_URL_OVERRIDE.
+     */
     public function getHubUrl(): string
     {
-        $settings = $this->all();
-        return isset($settings['hub_url']) && is_string($settings['hub_url']) ? trim($settings['hub_url']) : '';
-    }
-
-    /**
-     * @throws \InvalidArgumentException si l'URL n'est pas HTTPS (ou vide pour désactiver).
-     */
-    public function setHubUrl(string $url): void
-    {
-        $url = rtrim(trim($url), '/');
-        if ($url !== '' && stripos($url, 'https://') !== 0) {
-            throw new \InvalidArgumentException('L\'URL du hub doit utiliser HTTPS.');
+        if (defined('REBUILDCONNECTOR_HUB_URL_OVERRIDE')) {
+            $override = constant('REBUILDCONNECTOR_HUB_URL_OVERRIDE');
+            if (is_string($override) && $override !== '') {
+                return $override;
+            }
         }
 
-        $settings = $this->all();
-        $settings['hub_url'] = $url;
-        $this->save($settings);
+        return self::HUB_URL;
     }
 
     public function getHubLicenseKey(): string
@@ -821,25 +564,13 @@ class SettingsService
     }
 
     /**
-     * Le mode hub est actif quand l'URL et la clé de licence sont toutes deux renseignées.
+     * Le mode hub est actif dès qu'une clé de licence est configurée.
+     * L'URL du hub est hardcodée (push.rebuild-it.fr) — les boutiques distribuées n'ont pas
+     * accès au compte de service FCM, la résilience est gérée côté hub.
      */
     public function isHubEnabled(): bool
     {
-        return $this->getHubUrl() !== '' && $this->getHubLicenseKey() !== '';
-    }
-
-    /**
-     * Retourne le project_id FCM depuis le compte de service, ou null si non configuré.
-     */
-    public function getFcmProjectId(): ?string
-    {
-        $account = $this->getFcmServiceAccount();
-        if (!is_array($account)) {
-            return null;
-        }
-
-        $projectId = $account['project_id'] ?? null;
-        return is_string($projectId) && $projectId !== '' ? $projectId : null;
+        return $this->getHubLicenseKey() !== '';
     }
 
     /**

@@ -586,7 +586,8 @@ Liste paginée de clients avec pagination par offset et filtres avancés.
       "email": "anna@example.com",
       "orders_count": 3,
       "total_spent": 240.50,
-      "last_order_at": "2025-05-15 10:00:00"
+      "last_order_at": "2025-05-15 10:00:00",
+      "date_add": "2024-11-03 14:22:00"
     }
   ],
   "pagination": {
@@ -599,7 +600,12 @@ Liste paginée de clients avec pagination par offset et filtres avancés.
 }
 ```
 
-> `last_order_at` est `null` si le client n'a jamais commandé. `next_offset` est `null` quand il n'y a pas de page suivante.
+| Champ          | Type          | Description                                                         |
+|----------------|---------------|---------------------------------------------------------------------|
+| `last_order_at`| string\|null  | Date de la dernière commande (`null` si aucune commande).           |
+| `date_add`     | string\|null  | Date d'inscription du client (`ps_customer.date_add`, format `YYYY-MM-DD HH:MM:SS`). Permet de filtrer les nouveaux clients du mois côté app. |
+
+> `last_order_at` et `date_add` sont `null` s'ils sont absents en base. `next_offset` est `null` quand il n'y a pas de page suivante.
 
 ---
 
@@ -645,6 +651,7 @@ Fiche client détaillée avec les 10 dernières commandes (format liste, voir `G
     "orders_count": 3,
     "total_spent": 240.50,
     "last_order_at": "2025-05-15 10:00:00",
+    "date_add": "2024-11-03 14:22:00",
     "orders": [
       {
         "id": 123,
@@ -949,11 +956,16 @@ Détail d'un panier avec la liste des produits.
 
 ## Notifications / Appareils FCM
 
+> **Architecture hub-only (depuis v1.7.1)** — le module ne détient plus de compte de service FCM.
+> Toutes les notifications push transitent par le hub centralisé `push.rebuild-it.fr` (clé de
+> licence configurable en back-office). La résilience est gérée côté hub. Aucun fallback FCM
+> direct dans le module.
+
 ### POST `.../api/notifications/devices`
 
 Scope requis : `notifications.send`
 
-Enregistre un appareil mobile pour les notifications push (FCM).
+Enregistre un appareil mobile pour les notifications push.
 
 Corps JSON :
 
