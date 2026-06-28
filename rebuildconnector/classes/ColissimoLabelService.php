@@ -154,6 +154,7 @@ class ColissimoLabelService
 
     /**
      * Retrouve le product_code Colissimo (ex. 'DOM', 'COL', 'BPR'…) à partir de l'id_carrier PS.
+     * Le module Colissimo stocke l'id_reference du carrier dans colissimo_service.id_carrier.
      * Fallback sur 'DOM' (France domicile sans signature) si non trouvé.
      */
     private function resolveProductCode(int $carrierId): string
@@ -162,19 +163,16 @@ class ColissimoLabelService
             return 'DOM';
         }
 
-        // Le module Colissimo lie ses services au carrier via id_carrier (référence).
-        // On cherche par id_carrier direct ou via la table carrier (id_reference).
+        // colissimo_service.id_carrier = Carrier::id_reference (pas l'id direct)
+        $carrier = new Carrier($carrierId);
+        $idReference = Validate::isLoadedObject($carrier) ? (int) $carrier->id_reference : $carrierId;
+
         $query = new DbQuery();
-        $query->select('cs.product_code');
-        $query->from('colissimo_service', 'cs');
-        $query->leftJoin(
-            'carrier',
-            'c',
-            'c.id_reference = cs.id_carrier'
-        );
-        $query->where('(cs.id_carrier = ' . (int) $carrierId . ' OR c.id_carrier = ' . (int) $carrierId . ')');
-        $query->where('cs.is_return = 0');
-        $query->orderBy('cs.id_colissimo_service ASC');
+        $query->select('product_code');
+        $query->from('colissimo_service');
+        $query->where('id_carrier = ' . $idReference);
+        $query->where('is_return = 0');
+        $query->orderBy('id_colissimo_service ASC');
 
         $productCode = (string) Db::getInstance(_PS_USE_SQL_SLAVE_)->getValue($query);
         return $productCode !== '' ? $productCode : 'DOM';
@@ -224,7 +222,8 @@ class ColissimoLabelService
         float $weight,
         array $creds
     ): array {
-        $labelFormat = (string) (Configuration::get('COLISSIMO_LABEL_FORMAT') ?: 'PDF_10x15_300dpi');
+        // PDF_A4_300dpi est la valeur par défaut configurée par le module Colissimo lors de l'installation
+        $labelFormat = (string) (Configuration::get('COLISSIMO_LABEL_FORMAT') ?: 'PDF_A4_300dpi');
 
         // Montant transport en centimes (minimum 1 centime requis par le WS)
         $shippingAmountCents = max(1, (int) round((float) $order->total_shipping_tax_excl * 100));
@@ -439,18 +438,22 @@ class ColissimoLabelService
     }
 
     /**
-     * Cherche l'id_colissimo_service associé au carrier PS.
-     * Retourne 0 si non trouvé (l'entrée colissimo_order sera créée sans service lié).
+     * Cherche l'id_colissimo_service associé au carrier PS (via id_reference).
+     * Retourne 0 si non trouvé.
      */
     private function findColissimoServiceId(int $carrierId): int
     {
         if ($carrierId <= 0) {
             return 0;
         }
+        // colissimo_service.id_carrier = Carrier::id_reference
+        $carrier = new Carrier($carrierId);
+        $idReference = Validate::isLoadedObject($carrier) ? (int) $carrier->id_reference : $carrierId;
+
         $query = new DbQuery();
         $query->select('id_colissimo_service');
         $query->from('colissimo_service');
-        $query->where('id_carrier = ' . (int) $carrierId);
+        $query->where('id_carrier = ' . $idReference);
         $query->where('is_return = 0');
         $query->orderBy('id_colissimo_service ASC');
 
