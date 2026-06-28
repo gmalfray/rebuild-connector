@@ -107,7 +107,99 @@ final class DashboardServiceTest extends TestCase
     }
 
     // -----------------------------------------------------------------------
-    // Période
+    // Nouveau champ new_customers dans chart[]
+    // -----------------------------------------------------------------------
+
+    public function testChartPointsHaveNewCustomersKey(): void
+    {
+        $service = new StubDashboardService();
+        $metrics = $service->getMetrics('month');
+
+        $this->assertIsArray($metrics['chart']);
+        // Le stub Db renvoie [] pour executeS → 30 points vides générés par DatePeriod.
+        // Chaque point doit avoir la clé new_customers.
+        foreach ($metrics['chart'] as $point) {
+            $this->assertArrayHasKey('new_customers', $point, 'Champ new_customers manquant dans un point du chart.');
+            $this->assertIsInt($point['new_customers']);
+        }
+    }
+
+    public function testChartTodayPointsHaveNewCustomersKey(): void
+    {
+        $service = new StubDashboardService();
+        $metrics = $service->getMetrics('today');
+
+        $this->assertIsArray($metrics['chart']);
+        foreach ($metrics['chart'] as $point) {
+            $this->assertArrayHasKey('new_customers', $point, 'Champ new_customers manquant dans un point horaire.');
+        }
+    }
+
+    public function testChartPointsNewCustomersDefaultsToZero(): void
+    {
+        $service = new StubDashboardService();
+        $metrics = $service->getMetrics('week');
+
+        foreach ($metrics['chart'] as $point) {
+            // Avec le stub Db (executeS → []), tous les new_customers doivent valoir 0.
+            $this->assertSame(0, $point['new_customers']);
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Mode plage libre (from / to)
+    // -----------------------------------------------------------------------
+
+    public function testCustomRangeUsesProvidedDates(): void
+    {
+        $from = new \DateTimeImmutable('2025-01-01 00:00:00');
+        $to = new \DateTimeImmutable('2025-01-31 23:59:59');
+        $service = new StubDashboardService();
+        $metrics = $service->getMetrics('custom', DashboardService::LOW_STOCK_THRESHOLD, $from, $to);
+
+        $this->assertSame('custom', $metrics['period']['label']);
+        $this->assertStringStartsWith('2025-01-01', $metrics['period']['from']);
+        $this->assertStringStartsWith('2025-01-31', $metrics['period']['to']);
+    }
+
+    public function testCustomRangeChartHasNewCustomers(): void
+    {
+        $from = new \DateTimeImmutable('2025-06-01 00:00:00');
+        $to = new \DateTimeImmutable('2025-06-07 23:59:59');
+        $service = new StubDashboardService();
+        $metrics = $service->getMetrics('custom', DashboardService::LOW_STOCK_THRESHOLD, $from, $to);
+
+        $this->assertIsArray($metrics['chart']);
+        $this->assertNotEmpty($metrics['chart']);
+        foreach ($metrics['chart'] as $point) {
+            $this->assertArrayHasKey('new_customers', $point);
+        }
+    }
+
+    public function testCustomRangeSingleDayIsHourly(): void
+    {
+        // Plage d'un seul jour → granularité horaire (24 points).
+        $from = new \DateTimeImmutable('2025-06-15 00:00:00');
+        $to = new \DateTimeImmutable('2025-06-15 23:59:59');
+        $service = new StubDashboardService();
+        $metrics = $service->getMetrics('custom', DashboardService::LOW_STOCK_THRESHOLD, $from, $to);
+
+        $this->assertCount(24, $metrics['chart'], 'Une plage d\'un seul jour doit générer 24 points horaires.');
+    }
+
+    public function testCustomRangeMultiDayIsDaily(): void
+    {
+        // Plage de 7 jours → granularité journalière (7 points).
+        $from = new \DateTimeImmutable('2025-06-01 00:00:00');
+        $to = new \DateTimeImmutable('2025-06-07 23:59:59');
+        $service = new StubDashboardService();
+        $metrics = $service->getMetrics('custom', DashboardService::LOW_STOCK_THRESHOLD, $from, $to);
+
+        $this->assertCount(7, $metrics['chart'], 'Une plage de 7 jours doit générer 7 points journaliers.');
+    }
+
+    // -----------------------------------------------------------------------
+    // Période (rétrocompat)
     // -----------------------------------------------------------------------
 
     public function testPeriodLabelIsPreserved(): void
@@ -116,6 +208,21 @@ final class DashboardServiceTest extends TestCase
             $service = new StubDashboardService();
             $metrics = $service->getMetrics($period);
             $this->assertSame($period, $metrics['period']['label'], "Période '$period' incorrecte.");
+        }
+    }
+
+    public function testExistingChartFieldsArePreserved(): void
+    {
+        // Vérifie que les champs historiques du chart ne sont pas cassés par l'ajout de new_customers.
+        $service = new StubDashboardService();
+        $metrics = $service->getMetrics('week');
+
+        foreach ($metrics['chart'] as $point) {
+            $this->assertArrayHasKey('label', $point);
+            $this->assertArrayHasKey('turnover', $point);
+            $this->assertArrayHasKey('orders', $point);
+            $this->assertArrayHasKey('customers', $point);
+            $this->assertArrayHasKey('new_customers', $point);
         }
     }
 }

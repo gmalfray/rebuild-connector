@@ -674,11 +674,34 @@ Fiche client détaillée avec les 10 dernières commandes (format liste, voir `G
 
 Scope requis : `dashboard.read`
 
-Métriques agrégées sur une période.
+Métriques agrégées sur une période. Deux modes exclusifs :
 
-| Paramètre | Type   | Valeurs                              |
-|-----------|--------|--------------------------------------|
-| `period`  | string | `day`, `week`, `month` (défaut), `year` |
+#### Mode preset (comportement historique, inchangé)
+
+| Paramètre | Type   | Valeurs                                              |
+|-----------|--------|------------------------------------------------------|
+| `period`  | string | `today`/`day`, `week`, `month` (défaut), `quarter`, `year` |
+
+#### Mode plage libre (depuis v1.7.0)
+
+Fournir **les deux** paramètres suivants à la place de `period` :
+
+| Paramètre | Type   | Description                                                             |
+|-----------|--------|-------------------------------------------------------------------------|
+| `from`    | string | Début de la plage, format `YYYY-MM-DD` (ex : `2025-01-01`). Inclus, heure 00:00:00. |
+| `to`      | string | Fin de la plage, format `YYYY-MM-DD` (ex : `2025-03-31`). Inclus, heure 23:59:59. |
+
+Règles de validation :
+- Format strict `YYYY-MM-DD` ; dates invalides (ex : `2025-13-01`) → `400 invalid_payload`.
+- `from` doit être ≤ `to` → sinon `400 invalid_payload`.
+- Plage maximale : 730 jours (2 ans) → sinon `400 invalid_payload`.
+- Fournir un seul des deux paramètres → `400 invalid_payload`.
+
+En mode plage libre, `period.label` vaut `"custom"`. `previous_turnover` compare à la plage précédente de même durée (identique aux presets).
+
+**Granularité du `chart[]` :**
+- Plage d'exactement 1 jour → points **horaires** (24 points, labels `YYYY-MM-DD HH:00:00`).
+- Toute autre plage (preset ou plage libre) → points **journaliers** (1 point par jour, labels `YYYY-MM-DD`).
 
 **Réponse 200**
 
@@ -706,19 +729,45 @@ Métriques agrégées sur une période.
       "label": "2025-06-01",
       "turnover": 450.00,
       "orders": 5,
-      "customers": 4
+      "customers": 4,
+      "new_customers": 2
     },
     {
       "label": "2025-06-02",
       "turnover": 0.0,
       "orders": 0,
-      "customers": 0
+      "customers": 0,
+      "new_customers": 0
     }
   ]
 }
 ```
 
-> `turnover` et `revenue` sont identiques et correspondent au CA TTC. `chart` contient un point par jour sur toute la période, y compris les jours sans ventes (revenue/orders/customers à zéro).
+**Champs du `chart[]`**
+
+| Champ           | Type  | Description                                                                                  |
+|-----------------|-------|----------------------------------------------------------------------------------------------|
+| `label`         | string | Clé temporelle du bucket : date `YYYY-MM-DD` (journalier) ou `YYYY-MM-DD HH:00:00` (horaire). |
+| `turnover`      | float | CA TTC sur ce bucket.                                                                        |
+| `orders`        | int   | Nombre de commandes créées sur ce bucket.                                                    |
+| `customers`     | int   | Nombre de clients **ayant commandé** (COUNT DISTINCT id_customer) sur ce bucket.             |
+| `new_customers` | int   | **Nouveau (v1.7.0).** Nombre de clients dont la date d'inscription (`date_add` dans `ps_customer`) tombe dans ce bucket. Distinct de `customers` (qui mesure l'activité achat). Vaut 0 si aucune inscription. |
+
+> `turnover` et `revenue` sont identiques et correspondent au CA TTC. `chart` contient un point par bucket sur toute la période, y compris les buckets sans activité (toutes les valeurs à zéro).
+
+**Exemples cURL**
+
+Preset mensuel (inchangé) :
+```bash
+curl "https://example.com/module/rebuildconnector/api/dashboard/metrics?period=month" \
+  -H "Authorization: Bearer <token>"
+```
+
+Plage libre du 1er janvier au 31 mars 2025 :
+```bash
+curl "https://example.com/module/rebuildconnector/api/dashboard/metrics?from=2025-01-01&to=2025-03-31" \
+  -H "Authorization: Bearer <token>"
+```
 
 ---
 
@@ -1083,10 +1132,17 @@ curl -X PATCH "https://example.com/module/rebuildconnector/api/products/88?actio
   -d '{"quantity": 50}'
 ```
 
-### Dashboard du mois
+### Dashboard du mois (preset)
 
 ```bash
 curl -X GET "https://example.com/module/rebuildconnector/api/dashboard/metrics?period=month" \
+  -H "Authorization: Bearer eyJhbGci..."
+```
+
+### Dashboard sur une plage libre
+
+```bash
+curl -X GET "https://example.com/module/rebuildconnector/api/dashboard/metrics?from=2025-01-01&to=2025-03-31" \
   -H "Authorization: Bearer eyJhbGci..."
 ```
 
