@@ -243,46 +243,10 @@ class RebuildconnectorOrdersModuleFrontController extends RebuildconnectorBaseAp
                     $webhookPayload['carrier_id'] = $carrierId;
                 }
                 $this->dispatchWebhookEvent('order.shipping.updated', $webhookPayload);
-                $this->notifyShippingUpdate($orderId, $trackingNumber, $carrierId);
                 $this->renderJson([], 204);
                 return;
             default:
                 throw new \InvalidArgumentException($this->t('orders.error.invalid_action', [], 'Unsupported order action.'));
-        }
-    }
-
-    private function notifyShippingUpdate(int $orderId, string $trackingNumber, ?int $carrierId): void
-    {
-        $settings = $this->getSettingsService();
-        if (!$settings->isShippingNotificationEnabled()) {
-            return;
-        }
-
-        $notification = [
-            'title' => $this->t('notifications.order_shipping_title'),
-            'body' => $this->t('notifications.order_shipping_body', [$trackingNumber], sprintf('Tracking %s is now available.', $trackingNumber)),
-        ];
-
-        $data = [
-            'event' => 'order.shipping.updated',
-            'order_id' => (string) $orderId,
-            'tracking_number' => $trackingNumber,
-        ];
-
-        if ($carrierId !== null) {
-            $data['carrier_id'] = (string) $carrierId;
-        }
-
-        // Hub-only : relai au hub centralisé. Pas de fallback FCM direct.
-        $hub = new PushHubService($settings);
-        if (!$hub->isEnabled()) {
-            return;
-        }
-
-        $success = $hub->notify('order.shipping.updated', $notification, $data);
-
-        if (!$success && $this->isDevMode()) {
-            error_log('[RebuildConnector] Hub shipping notification failed.');
         }
     }
 

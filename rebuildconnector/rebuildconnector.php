@@ -34,7 +34,7 @@ class RebuildConnector extends Module
     {
         $this->name = 'rebuildconnector';
         $this->tab = 'administration';
-        $this->version = '1.7.1';
+        $this->version = '1.7.2';
         $this->author = 'Rebuild IT';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -246,10 +246,6 @@ class RebuildConnector extends Module
 
             if (Tools::getValue('REBUILDCONNECTOR_SCOPES') !== false) {
                 $settingsService->setScopesFromString((string) Tools::getValue('REBUILDCONNECTOR_SCOPES', ''));
-            }
-
-            if (Tools::getValue('REBUILDCONNECTOR_SHIPPING_NOTIFICATION') !== false) {
-                $settingsService->setShippingNotificationEnabled(Tools::getValue('REBUILDCONNECTOR_SHIPPING_NOTIFICATION') === '1');
             }
 
             if (Tools::getValue('REBUILDCONNECTOR_HUB_LICENSE_KEY') !== false || Tools::getValue('REBUILDCONNECTOR_HUB_LICENSE_KEY_CLEAR') !== false) {
