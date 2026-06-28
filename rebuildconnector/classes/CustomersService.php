@@ -221,6 +221,7 @@ class CustomersService
             'orders_count' => isset($row['orders_count']) ? (int) $row['orders_count'] : 0,
             'total_spent' => isset($row['total_spent']) ? (float) $row['total_spent'] : 0.0,
             'last_order_at' => isset($row['last_order_date']) ? (string) $row['last_order_date'] : null,
+            'date_add' => isset($row['date_add']) ? (string) $row['date_add'] : null,
         ];
     }
 

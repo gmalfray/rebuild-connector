@@ -5,9 +5,7 @@ defined('_PS_VERSION_') || exit;
 require_once __DIR__ . '/BaseApiController.php';
 require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/OrdersService.php';
 require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/ShippingLabelService.php';
-require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/FcmService.php';
 require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/PushHubService.php';
-require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/FcmDeviceService.php';
 
 class RebuildconnectorOrdersModuleFrontController extends RebuildconnectorBaseApiModuleFrontController
 {
@@ -275,26 +273,16 @@ class RebuildconnectorOrdersModuleFrontController extends RebuildconnectorBaseAp
             $data['carrier_id'] = (string) $carrierId;
         }
 
-        // Mode hub centralisé : relai au hub (fallback FCM direct si le hub est injoignable).
+        // Hub-only : relai au hub centralisé. Pas de fallback FCM direct.
         $hub = new PushHubService($settings);
-        if ($hub->isEnabled() && $hub->notify('order.shipping.updated', $notification, $data)) {
+        if (!$hub->isEnabled()) {
             return;
         }
 
-        // Ciblage par catégorie : seuls les appareils abonnés à "order.shipping.updated"
-        // reçoivent cette notification. Les appareils avec topics vide (non configurés)
-        // reçoivent aussi (rétrocompatibilité).
-        $tokens = (new FcmDeviceService())->getTokensForCategory('order.shipping.updated');
-        $fallbackTokens = $settings->getFcmDeviceTokens();
-
-        if ($tokens === [] && $fallbackTokens === []) {
-            return;
-        }
-
-        $success = (new FcmService($settings))->sendNotification($tokens, $notification, $data, [], $fallbackTokens);
+        $success = $hub->notify('order.shipping.updated', $notification, $data);
 
         if (!$success && $this->isDevMode()) {
-            error_log('[RebuildConnector] FCM shipping notification failed.');
+            error_log('[RebuildConnector] Hub shipping notification failed.');
         }
     }
 
