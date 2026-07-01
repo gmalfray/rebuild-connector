@@ -228,6 +228,7 @@ class OrdersService
         return [
             'id' => (int) $order->id,
             'reference' => (string) $order->reference,
+            'customer_id' => (int) $order->id_customer,
             'status' => [
                 'id' => (int) $order->current_state,
                 'name' => $statusName,

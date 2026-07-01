@@ -221,6 +221,7 @@ Détail d'une commande avec historique et lignes de produits.
   "order": {
     "id": 123,
     "reference": "ABCDEF123",
+    "customer_id": 50,
     "status": {
       "id": 4,
       "name": "Expédiée"
@@ -275,6 +276,8 @@ Détail d'une commande avec historique et lignes de produits.
   }
 }
 ```
+
+`customer_id` (nouveau **v1.9.1**) : alias de premier niveau de `customer.id` — l'ID du client (`id_customer` PrestaShop). Permet à l'app d'ouvrir la fiche client directement depuis le détail commande sans désimbriquer `customer.id`.
 
 `carrier_type` vaut `"colissimo"`, `"mondialrelay"` ou `null` si le transporteur n'est pas reconnu.  
 `has_shipping_label` est `false` même si `carrier_type` est non nul (ex : Colissimo détecté mais PDF pas encore généré).
