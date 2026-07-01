@@ -154,15 +154,28 @@ Scope requis : `orders.read`
 
 Liste paginée des commandes.
 
-| Paramètre     | Type       | Description                                    |
-|---------------|------------|------------------------------------------------|
-| `limit`       | int        | Nombre max de résultats (défaut 20, min 1)     |
-| `offset`      | int        | Décalage de pagination (défaut 0)              |
-| `customer_id` | int        | Filtre par ID client                           |
-| `status`      | int/string | ID d'état numérique ou libellé partiel (LIKE)  |
-| `date_from`   | datetime   | Filtre `date_add >=` (format Y-m-d H:i:s)      |
-| `date_to`     | datetime   | Filtre `date_add <=` (format Y-m-d H:i:s)      |
-| `search`      | string     | Recherche sur référence, prénom, nom, email    |
+| Paramètre     | Type       | Description                                                                                                                                  |
+|---------------|------------|----------------------------------------------------------------------------------------------------------------------------------------------|
+| `limit`       | int        | Nombre max de résultats (défaut 20, min 1, max 100)                                                                                          |
+| `offset`      | int        | Décalage de pagination (défaut 0)                                                                                                            |
+| `customer_id` | int        | Filtre par ID client                                                                                                                         |
+| `status`      | int/string | ID d'état numérique ou libellé partiel (LIKE) — ignoré si `statuses` est fourni                                                             |
+| `statuses`    | string/array | Liste CSV d'IDs d'état : `statuses=2,3,4,5` ou tableau `statuses[]=2&statuses[]=3`. Prime sur `status`. Valeurs non-entières ignorées silencieusement. |
+| `sort`        | string     | Ordre de tri. Valeurs acceptées : `date_desc` (défaut), `date_asc`, `total_desc`, `total_asc`, `status`, `reference`. Valeur inconnue → défaut `date_desc`. |
+| `date_from`   | datetime   | Filtre `date_add >=` (format Y-m-d ou Y-m-d H:i:s)                                                                                          |
+| `date_to`     | datetime   | Filtre `date_add <=` (format Y-m-d ou Y-m-d H:i:s)                                                                                          |
+| `search`      | string     | Recherche sur référence, prénom, nom, email                                                                                                  |
+
+**Valeurs de `sort` :**
+
+| Valeur       | Ordre SQL                          |
+|--------------|------------------------------------|
+| `date_desc`  | `o.date_add DESC` (défaut)         |
+| `date_asc`   | `o.date_add ASC`                   |
+| `total_desc` | `o.total_paid_tax_incl DESC`       |
+| `total_asc`  | `o.total_paid_tax_incl ASC`        |
+| `status`     | `o.current_state ASC`              |
+| `reference`  | `o.reference ASC`                  |
 
 **Réponse 200**
 
@@ -173,10 +186,12 @@ Liste paginée des commandes.
       "id": 123,
       "reference": "ABCDEF123",
       "status": "Expédiée",
+      "status_color": "#3498D8",
       "total_paid": 72.90,
       "currency": "EUR",
       "date_add": "2025-05-20 09:15:00",
       "date_upd": "2025-06-01 14:30:00",
+      "has_invoice": false,
       "customer": {
         "id": 50,
         "firstname": "Anna",
@@ -189,6 +204,7 @@ Liste paginée des commandes.
 
 > Note : dans la liste (`getOrders`), `status` est une chaîne (le libellé d'état). Ce n'est **pas** `{id, name}` — cette structure enrichie n'existe que sur l'endpoint de détail. La liste est volontairement allégée (pas de `shipping`/`items`/`history`).
 > `date_add` (date de création de la commande) et `date_upd` (dernière mise à jour) sont tous deux exposés ; pour l'affichage « date de commande », utiliser **`date_add`**.
+> `status_color` est la couleur hexadécimale de l'état telle que configurée dans le BO PrestaShop (ex. `#3498D8`). Chaîne vide si non définie.
 
 ---
 

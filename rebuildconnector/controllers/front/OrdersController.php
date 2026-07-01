@@ -139,13 +139,15 @@ class RebuildconnectorOrdersModuleFrontController extends RebuildconnectorBaseAp
         }
 
         $filters = [
-            'limit' => $this->parseLimit(Tools::getValue('limit')),
-            'offset' => $this->parseOffset(Tools::getValue('offset')),
+            'limit'       => $this->parseLimit(Tools::getValue('limit')),
+            'offset'      => $this->parseOffset(Tools::getValue('offset')),
             'customer_id' => Tools::getValue('customer_id'),
-            'status' => Tools::getValue('status'),
-            'date_from' => Tools::getValue('date_from'),
-            'date_to' => Tools::getValue('date_to'),
-            'search' => Tools::getValue('search'),
+            'status'      => Tools::getValue('status'),
+            'statuses'    => $this->parseStatusesParam(Tools::getValue('statuses')),
+            'sort'        => Tools::getValue('sort'),
+            'date_from'   => Tools::getValue('date_from'),
+            'date_to'     => Tools::getValue('date_to'),
+            'search'      => Tools::getValue('search'),
         ];
 
         $orders = $this->getOrdersService()->getOrders($filters);
@@ -296,6 +298,28 @@ class RebuildconnectorOrdersModuleFrontController extends RebuildconnectorBaseAp
         }
 
         return $offset;
+    }
+
+    /**
+     * Normalise le paramètre `statuses` reçu depuis la requête HTTP.
+     *
+     * Tools::getValue() peut retourner :
+     *  - false/null si le paramètre est absent → on laisse tel quel (ignoré côté service)
+     *  - une chaîne CSV "2,3,4,5" envoyée via query string
+     *  - un tableau si le client envoie statuses[]=2&statuses[]=3
+     *
+     * La validation et le cast int restent dans OrdersService::parseStatusesFilter().
+     *
+     * @param mixed $value
+     * @return mixed
+     */
+    private function parseStatusesParam($value)
+    {
+        if ($value === false || $value === null || $value === '') {
+            return null;
+        }
+
+        return $value;
     }
 
     // =========================================================================

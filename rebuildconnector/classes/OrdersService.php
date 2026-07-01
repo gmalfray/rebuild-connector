@@ -10,6 +10,21 @@ class OrdersService
     public const MAX_LIMIT = 100;
 
     /**
+     * Whitelist des valeurs acceptées pour le paramètre `sort`.
+     * Mappe chaque valeur vers la clause ORDER BY sûre à injecter dans DbQuery.
+     *
+     * @var array<string, string>
+     */
+    private const SORT_WHITELIST = [
+        'date_desc'  => 'o.date_add DESC',
+        'date_asc'   => 'o.date_add ASC',
+        'total_desc' => 'o.total_paid_tax_incl DESC',
+        'total_asc'  => 'o.total_paid_tax_incl ASC',
+        'status'     => 'o.current_state ASC',
+        'reference'  => 'o.reference ASC',
+    ];
+
+    /**
      * @param array<string, mixed> $filters
      * @return array<int, array<string, mixed>>
      */
@@ -25,7 +40,7 @@ class OrdersService
         $query->select('o.id_order, o.reference, o.current_state, o.id_currency, o.id_customer, o.invoice_number');
         $query->select('o.total_paid_tax_incl AS total_paid_tax_incl, o.total_paid_tax_excl AS total_paid_tax_excl');
         $query->select('o.date_add, o.date_upd, c.firstname, c.lastname, c.email');
-        $query->select('osl.name AS status_name, cur.iso_code AS currency_iso');
+        $query->select('osl.name AS status_name, cur.iso_code AS currency_iso, os.color AS status_color');
         $query->from('orders', 'o');
         $query->innerJoin('customer', 'c', 'c.id_customer = o.id_customer');
         $query->leftJoin(
@@ -34,12 +49,19 @@ class OrdersService
             'osl.id_order_state = o.current_state AND osl.id_lang = ' . (int) $langId
         );
         $query->leftJoin('currency', 'cur', 'cur.id_currency = o.id_currency');
+        $query->leftJoin('order_state', 'os', 'os.id_order_state = o.current_state');
 
         if (!empty($filters['customer_id'])) {
             $query->where('o.id_customer = ' . (int) $filters['customer_id']);
         }
 
-        if (!empty($filters['status'])) {
+        // Filtre multi-statuts `statuses` (liste CSV ou tableau d'IDs) — prime sur `status` unique.
+        $statusesFilter = $this->parseStatusesFilter($filters['statuses'] ?? null);
+        if ($statusesFilter !== []) {
+            $inList = implode(',', $statusesFilter);
+            $query->where('o.current_state IN (' . $inList . ')');
+        } elseif (!empty($filters['status'])) {
+            // Rétrocompat : filtre `status` unique (id numérique ou nom LIKE).
             if (is_numeric($filters['status'])) {
                 $query->where('o.current_state = ' . (int) $filters['status']);
             } else {
@@ -69,7 +91,10 @@ class OrdersService
             );
         }
 
-        $query->orderBy('o.date_add DESC');
+        // Tri : résolution via whitelist — aucune interpolation directe du paramètre dans le SQL.
+        $sortParam = isset($filters['sort']) ? (string) $filters['sort'] : '';
+        $orderClause = self::SORT_WHITELIST[$sortParam] ?? self::SORT_WHITELIST['date_desc'];
+        $query->orderBy($orderClause);
         $query->limit($limit, $offset);
 
         $rows = (array) Db::getInstance()->executeS($query);
@@ -348,6 +373,7 @@ class OrdersService
             'id' => isset($row['id_order']) ? (int) $row['id_order'] : 0,
             'reference' => isset($row['reference']) ? (string) $row['reference'] : '',
             'status' => $statusName,
+            'status_color' => isset($row['status_color']) ? (string) $row['status_color'] : '',
             'total_paid' => isset($row['total_paid_tax_incl']) ? (float) $row['total_paid_tax_incl'] : 0.0,
             'currency' => isset($row['currency_iso']) ? (string) $row['currency_iso'] : '',
             'date_add' => isset($row['date_add']) ? (string) $row['date_add'] : null,
@@ -359,6 +385,45 @@ class OrdersService
                 'lastname' => isset($row['lastname']) ? (string) $row['lastname'] : '',
             ],
         ];
+    }
+
+    /**
+     * Normalise et valide la valeur du paramètre `statuses` (filtre multi-statuts).
+     *
+     * Accepte :
+     *  - une chaîne CSV : "2,3,4,5"
+     *  - un tableau d'IDs (int ou string) : [2, 3, 4, 5]
+     *  - null / chaîne vide → tableau vide (filtre ignoré)
+     *
+     * Seules les valeurs castées en int > 0 sont conservées (défense contre l'injection).
+     * Le résultat est un tableau d'ints prêts à être interpolés dans un IN(...).
+     *
+     * @param mixed $raw
+     * @return int[]
+     */
+    private function parseStatusesFilter($raw): array
+    {
+        if ($raw === null || $raw === '' || $raw === false) {
+            return [];
+        }
+
+        if (is_string($raw)) {
+            $parts = explode(',', $raw);
+        } elseif (is_array($raw)) {
+            $parts = $raw;
+        } else {
+            return [];
+        }
+
+        $ids = [];
+        foreach ($parts as $part) {
+            $id = (int) $part;
+            if ($id > 0) {
+                $ids[] = $id;
+            }
+        }
+
+        return array_values(array_unique($ids));
     }
 
     /**
