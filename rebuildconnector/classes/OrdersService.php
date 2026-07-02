@@ -244,11 +244,14 @@ class OrdersService
                 'lastname' => $customer instanceof Customer ? (string) $customer->lastname : '',
                 'email' => $customer instanceof Customer ? (string) $customer->email : '',
             ],
-            'shipping' => [
+            // Une commande physique a toujours un transporteur assigné (100% des cas métier).
+            // L'absence de transporteur (carrier_id <= 0) signale donc une commande virtuelle
+            // (produit dématérialisé) : on renvoie `shipping: null` plutôt qu'un bloc vide/inutile.
+            'shipping' => $carrierId > 0 ? [
                 'carrier_id' => $carrierId,
                 'carrier_name' => $carrierName,
                 'tracking_number' => $trackingNumber,
-            ],
+            ] : null,
             'dates' => [
                 'created_at' => (string) $order->date_add,
                 'updated_at' => (string) $order->date_upd,

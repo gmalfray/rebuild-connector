@@ -279,6 +279,12 @@ Détail d'une commande avec historique et lignes de produits.
 
 `customer_id` (nouveau **v1.9.1**) : alias de premier niveau de `customer.id` — l'ID du client (`id_customer` PrestaShop). Permet à l'app d'ouvrir la fiche client directement depuis le détail commande sans désimbriquer `customer.id`.
 
+`shipping` (**v1.9.2**) : peut être `null` pour une commande **virtuelle** (sans transporteur — produit dématérialisé). Critère : `carrier_id <= 0`. En pratique, une commande physique a toujours un transporteur assigné ; l'absence de transporteur signale donc une commande virtuelle plutôt qu'un bloc `shipping` vide (`carrier_id: 0, carrier_name: ""`).
+
+```json
+"shipping": null
+```
+
 `carrier_type` vaut `"colissimo"`, `"mondialrelay"` ou `null` si le transporteur n'est pas reconnu.  
 `has_shipping_label` est `false` même si `carrier_type` est non nul (ex : Colissimo détecté mais PDF pas encore généré).
 
