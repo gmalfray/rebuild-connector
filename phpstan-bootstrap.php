@@ -620,6 +620,8 @@ class Product
     public $price = 0.0;
     /** @var bool */
     public $active = true;
+    /** @var string */
+    public $ean13 = '';
     /** @var string|array<int, string> */
     public $link_rewrite = '';
 

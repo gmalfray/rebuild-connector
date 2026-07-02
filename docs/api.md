@@ -616,19 +616,27 @@ Corps JSON (tous les champs sont optionnels, au moins un requis) :
 |-----------------|-----------|-------------------------------------------|
 | `active`        | bool/int  | Activer (`true`/`1`) ou désactiver le produit |
 | `price_tax_excl`| float     | Prix HT (le module recalcule le prix TTC) |
+| `ean13`         | string    | Code-barres EAN13 du produit (**v1.10.1**). 1 à 13 chiffres, ou chaîne vide `""` pour effacer un EAN13 existant. |
 
 ```json
 { "active": true, "price_tax_excl": 15.90 }
 ```
 
-**Réponse 200** — retourne la fiche produit mise à jour.
+```json
+{ "ean13": "3760123456789" }
+```
+
+**Réponse 200** — retourne la fiche produit mise à jour (inclut `ean13`).
 
 **Erreurs** :
 
 | Code | `error`           | Raison                                         |
 |------|-------------------|------------------------------------------------|
 | 400  | `invalid_payload` | Aucun champ modifiable fourni ou valeur invalide |
+| 400  | `invalid_payload` | `ean13` n'est pas une chaîne, ou ne respecte pas le format `[0-9]{1,13}` (hors chaîne vide) |
 | 404  | `not_found`       | Produit introuvable                            |
+
+> **v1.10.1** — Ajoute `ean13` aux champs modifiables via `PATCH /products/{id}` (action `attributes`). Permet à l'app d'associer un code-barres scanné à un produit existant (auto-association lors d'une réception sans EAN13 connu). Usage typique : `GET /products?barcode=<code>` ne retourne rien → l'utilisateur choisit le produit dans la liste → `PATCH /products/{id} { "ean13": "<code>" }`.
 
 ---
 

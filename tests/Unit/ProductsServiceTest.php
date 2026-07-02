@@ -64,4 +64,50 @@ final class ProductsServiceTest extends TestCase
 
         $this->assertSame([], $products);
     }
+
+    public function testUpdateProductAcceptsValidEan13(): void
+    {
+        $service = new ProductsService();
+
+        $result = $service->updateProduct(88, ['ean13' => '3760123456789']);
+
+        $this->assertTrue($result);
+    }
+
+    public function testUpdateProductAcceptsEmptyEan13ToClearIt(): void
+    {
+        $service = new ProductsService();
+
+        $result = $service->updateProduct(88, ['ean13' => '']);
+
+        $this->assertTrue($result);
+    }
+
+    public function testUpdateProductRejectsNonNumericEan13(): void
+    {
+        $service = new ProductsService();
+
+        $result = $service->updateProduct(88, ['ean13' => 'ABC123']);
+
+        $this->assertFalse($result);
+    }
+
+    public function testUpdateProductRejectsTooLongEan13(): void
+    {
+        $service = new ProductsService();
+
+        $result = $service->updateProduct(88, ['ean13' => '12345678901234']);
+
+        $this->assertFalse($result);
+    }
+
+    public function testUpdateProductRejectsNonStringEan13(): void
+    {
+        $service = new ProductsService();
+
+        /** @phpstan-ignore-next-line argument.type (payload volontairement mal typé pour le test) */
+        $result = $service->updateProduct(88, ['ean13' => 12345]);
+
+        $this->assertFalse($result);
+    }
 }

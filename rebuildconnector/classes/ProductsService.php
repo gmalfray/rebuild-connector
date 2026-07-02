@@ -265,6 +265,23 @@ class ProductsService
             $updated = true;
         }
 
+        if (array_key_exists('ean13', $payload)) {
+            $rawEan13 = $payload['ean13'];
+            if (!is_string($rawEan13)) {
+                return false;
+            }
+
+            $ean13 = trim($rawEan13);
+            // Chaîne vide autorisée pour effacer un EAN13 existant. Sinon : 1 à 13 chiffres
+            // (format admin PrestaShop standard pour ce champ).
+            if ($ean13 !== '' && !preg_match('/^[0-9]{1,13}$/', $ean13)) {
+                return false;
+            }
+
+            $product->ean13 = pSQL($ean13);
+            $updated = true;
+        }
+
         if (!$updated) {
             return false;
         }

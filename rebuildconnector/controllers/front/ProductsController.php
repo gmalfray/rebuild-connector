@@ -212,6 +212,26 @@ class RebuildconnectorProductsModuleFrontController extends RebuildconnectorBase
                     $payload['price_tax_excl'] = (float) $rawPrice;
                 }
 
+                if (array_key_exists('ean13', $payload)) {
+                    $rawEan13 = $payload['ean13'];
+                    if (!is_string($rawEan13)) {
+                        throw new \InvalidArgumentException(
+                            $this->t('products.error.invalid_ean13', [], 'The ean13 field must be a string.')
+                        );
+                    }
+                    $ean13 = trim($rawEan13);
+                    if ($ean13 !== '' && !preg_match('/^[0-9]{1,13}$/', $ean13)) {
+                        throw new \InvalidArgumentException(
+                            $this->t(
+                                'products.error.invalid_ean13_format',
+                                [],
+                                'The ean13 field must contain 1 to 13 digits, or be empty to clear it.'
+                            )
+                        );
+                    }
+                    $payload['ean13'] = $ean13;
+                }
+
                 if (!$this->getProductsService()->updateProduct($productId, $payload)) {
                     $this->jsonError(
                         'invalid_payload',
@@ -226,6 +246,9 @@ class RebuildconnectorProductsModuleFrontController extends RebuildconnectorBase
                 }
                 if (array_key_exists('price_tax_excl', $payload)) {
                     $changes['price_tax_excl'] = (float) $payload['price_tax_excl'];
+                }
+                if (array_key_exists('ean13', $payload)) {
+                    $changes['ean13'] = (string) $payload['ean13'];
                 }
                 $product = $this->getProductsService()->getProductById($productId);
                 $this->recordAuditEvent('products.attributes.updated', [
