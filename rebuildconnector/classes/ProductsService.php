@@ -218,6 +218,17 @@ class ProductsService
             return isset($image['url']) && is_string($image['url']) && $image['url'] !== '';
         }));
 
+        // Descriptions (potentiellement volumineuses en HTML) exposées uniquement sur le DÉTAIL,
+        // pas dans la liste, pour ne pas gonfler la réponse paginée. Nécessaires au préremplissage
+        // de l'écran d'édition de fiche produit côté app.
+        if (class_exists('Product')) {
+            $productObject = new Product($productId, false, $langId);
+            if (Validate::isLoadedObject($productObject)) {
+                $product['description'] = (string) $productObject->description;
+                $product['description_short'] = (string) $productObject->description_short;
+            }
+        }
+
         return $product;
     }
 
@@ -404,6 +415,7 @@ class ProductsService
             'reference' => isset($row['reference']) ? (string) $row['reference'] : '',
             'ean13' => isset($row['ean13']) ? (string) $row['ean13'] : '',
             'price' => $priceTaxIncl,
+            'price_tax_excl' => $priceTaxExcl,
             'active' => isset($row['active']) ? (bool) $row['active'] : false,
             'stock' => [
                 'quantity' => $quantity,

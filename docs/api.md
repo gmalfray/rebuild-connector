@@ -516,7 +516,7 @@ Liste paginée de produits.
 |---------|------|------------------------------------------------------------------------------------|
 | `total` | int  | Nombre total de produits correspondant aux filtres actifs, indépendamment de la pagination (`limit`/`offset` ignorés). Permet à l'app d'afficher un compteur global et de calculer le nombre de pages. |
 
-> `price` est le prix TTC (`Product::getPriceStatic($id, true)`). Le prix HT brut est disponible sur le détail produit (`price_tax_excl` PATCH uniquement).
+> `price` est le prix TTC (`Product::getPriceStatic($id, true)`). `price_tax_excl` (prix HT brut) est exposé en lecture depuis **v1.10.3** (liste + détail).
 > Toute valeur du filtre `stock` autre que les trois valeurs listées retourne `400 invalid_payload`.
 > **v1.4.3** — Corrige un bug où l'absence du paramètre `active` appliquait un filtre `p.active = 0` non désiré, causant le retour de produits inactifs uniquement et une liste tronquée.
 > **v1.10.0** — Ajoute le champ `ean13` (liste + détail) et le filtre `barcode` pour la mise en stock par scan de code-barres. `barcode` fait une correspondance exacte sur `ean13` OU `reference` ; `search` reste un LIKE partiel sur `name`/`reference`. Si `ean13` n'est pas renseigné en base, la valeur retournée est `""`.
@@ -527,7 +527,9 @@ Liste paginée de produits.
 
 Scope requis : `products.read`
 
-Fiche produit détaillée. La réponse est identique à un élément de la liste mais inclut toutes les images.
+Fiche produit détaillée. La réponse est identique à un élément de la liste mais inclut toutes les images
+et, depuis **v1.10.3**, `description` / `description_short` (exposées uniquement sur le détail, pas dans la
+liste, car potentiellement volumineuses ; nécessaires au préremplissage de l'écran d'édition de fiche).
 
 **Réponse 200**
 
@@ -539,7 +541,10 @@ Fiche produit détaillée. La réponse est identique à un élément de la liste
     "reference": "TSHIRT-BLACK",
     "ean13": "3760123456789",
     "price": 19.08,
+    "price_tax_excl": 15.90,
     "active": true,
+    "description": "<p>T-shirt en coton bio, coupe droite.</p>",
+    "description_short": "<p>T-shirt en coton bio.</p>",
     "stock": {
       "quantity": 24,
       "low_stock_threshold": 5,
@@ -639,7 +644,7 @@ Corps JSON (tous les champs sont optionnels, au moins un requis) :
 }
 ```
 
-**Réponse 200** — retourne la fiche produit mise à jour (même format que `GET /products/{id}` — ce format n'inclut pas `description`/`description_short`, seuls `name`, `reference` et `ean13` sont exposés en lecture).
+**Réponse 200** — retourne la fiche produit mise à jour (même format que `GET /products/{id}`, qui expose depuis **v1.10.3** `price_tax_excl`, `description` et `description_short` en lecture sur le détail).
 
 **Erreurs** :
 
@@ -655,6 +660,7 @@ Corps JSON (tous les champs sont optionnels, au moins un requis) :
 > **v1.10.1** — Ajoute `ean13` aux champs modifiables via `PATCH /products/{id}` (action `attributes`). Permet à l'app d'associer un code-barres scanné à un produit existant (auto-association lors d'une réception sans EAN13 connu). Usage typique : `GET /products?barcode=<code>` ne retourne rien → l'utilisateur choisit le produit dans la liste → `PATCH /products/{id} { "ean13": "<code>" }`.
 
 > **v1.10.2** — Ajoute `name`, `description`, `description_short` et `reference` aux champs modifiables via `PATCH /products/{id}` (action `attributes`), pour l'édition des champs simples de la fiche produit côté app. `name`, `description` et `description_short` sont des champs multilang PrestaShop : le module applique la même valeur reçue à toutes les langues installées de la boutique (`Language::getLanguages(false)`), l'app n'a pas à gérer le multilang côté client.
+> **v1.10.3** — Expose en **lecture** `price_tax_excl` (liste + détail) et `description` / `description_short` (détail uniquement, pour ne pas gonfler la liste paginée). Permet à l'écran d'édition de fiche de préremplir fidèlement le prix HT et les descriptions (avant v1.10.3, le prix HT n'était pas lisible et les descriptions n'étaient pas retournées).
 
 ---
 
