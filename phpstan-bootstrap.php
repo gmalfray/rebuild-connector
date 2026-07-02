@@ -192,6 +192,11 @@ class Module
         return $message;
     }
 
+    public function displayWarning(string $message): string
+    {
+        return $message;
+    }
+
     protected function l(string $string): string
     {
         return $string;

@@ -32,7 +32,7 @@ class RebuildConnector extends Module
     {
         $this->name = 'rebuildconnector';
         $this->tab = 'administration';
-        $this->version = '1.9.1';
+        $this->version = '1.9.2';
         $this->author = 'Rebuild IT';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -97,6 +97,7 @@ class RebuildConnector extends Module
         $settingsService = $this->getSettingsService();
         $messages = [];
         $errors = [];
+        $warnings = [];
         $newUserApiKey = null;
         $newUserQrJson = null;
         $regeneratedAdminApiKey = null;
@@ -214,14 +215,24 @@ class RebuildConnector extends Module
             }
         } elseif (Tools::isSubmit('rebuildconnector_check_update')) {
             // Vérification manuelle forcée : bypass du cache edge (?nocache=1) ET du cache local.
-            $freshUpdate = $this->getUpdateCheckService()->getAvailableUpdateFresh();
-            if ($freshUpdate !== null) {
-                $messages[] = sprintf(
-                    'Mise à jour disponible : Rebuild Connector v%s est prêt à installer.',
-                    htmlspecialchars($freshUpdate['latest'], ENT_QUOTES)
-                );
-            } else {
-                $messages[] = 'Vous êtes à jour — Rebuild Connector v' . $this->version . ' est la dernière version disponible.';
+            // checkForUpdateFresh() distingue explicitement 3 cas (un simple `null` masquait
+            // auparavant un échec réseau/timeout derrière un trompeur « vous êtes à jour »).
+            $checkResult = $this->getUpdateCheckService()->checkForUpdateFresh();
+            switch ($checkResult['status']) {
+                case UpdateCheckService::STATUS_UPDATE_AVAILABLE:
+                    $latestVersion = $checkResult['update']['latest'] ?? '';
+                    $messages[] = sprintf(
+                        'Mise à jour disponible : Rebuild Connector v%s est prêt à installer.',
+                        htmlspecialchars($latestVersion, ENT_QUOTES)
+                    );
+                    break;
+                case UpdateCheckService::STATUS_UP_TO_DATE:
+                    $messages[] = 'Vous êtes à jour — Rebuild Connector v' . $this->version . ' est la dernière version disponible.';
+                    break;
+                case UpdateCheckService::STATUS_CHECK_FAILED:
+                default:
+                    $warnings[] = 'Vérification impossible pour le moment, réessayez.';
+                    break;
             }
         } elseif (Tools::isSubmit('submitRebuildconnectorModule')) {
             // Les sections (FCM / Sécurité / Scopes) sont des formulaires DISTINCTS partageant ce
@@ -301,6 +312,10 @@ class RebuildConnector extends Module
 
         foreach ($errors as $error) {
             $output .= $this->displayError($error);
+        }
+
+        foreach ($warnings as $warning) {
+            $output .= $this->displayWarning($warning);
         }
 
         foreach ($messages as $message) {
