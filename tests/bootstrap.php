@@ -38,6 +38,7 @@ spl_autoload_register(static function (string $class): void {
         'RebuildconnectorCustomersModuleFrontController' => __DIR__ . '/../rebuildconnector/controllers/front/CustomersController.php',
         'RebuildconnectorOrdersModuleFrontController' => __DIR__ . '/../rebuildconnector/controllers/front/OrdersController.php',
         'RebuildconnectorProductsModuleFrontController' => __DIR__ . '/../rebuildconnector/controllers/front/ProductsController.php',
+        'RebuildconnectorProductimagesModuleFrontController' => __DIR__ . '/../rebuildconnector/controllers/front/ProductImagesController.php',
         'RebuildconnectorDashboardModuleFrontController' => __DIR__ . '/../rebuildconnector/controllers/front/DashboardController.php',
         'RebuildconnectorBasketsModuleFrontController' => __DIR__ . '/../rebuildconnector/controllers/front/BasketsController.php',
         'RebuildconnectorReportsModuleFrontController' => __DIR__ . '/../rebuildconnector/controllers/front/ReportsController.php',

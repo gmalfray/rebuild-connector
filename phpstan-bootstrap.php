@@ -112,6 +112,49 @@ class Cart
 
 class Image
 {
+    /** @var int */
+    public $id = 0;
+    /** @var int */
+    public $id_image = 0;
+    /** @var int */
+    public $id_product = 0;
+    /** @var int */
+    public $position = 0;
+    /** @var bool|int|null */
+    public $cover;
+    /** @var string */
+    public $image_format = 'jpg';
+
+    public function __construct(?int $idImage = null, ?int $idLang = null)
+    {
+    }
+
+    public function add(bool $autoDate = true, bool $nullValues = false): bool
+    {
+        return true;
+    }
+
+    public function delete(): bool
+    {
+        return true;
+    }
+
+    /**
+     * @return string|false
+     */
+    public function getPathForCreation()
+    {
+        return sys_get_temp_dir() . '/ps-image-stub-' . (int) $this->id;
+    }
+
+    /**
+     * @return string|false
+     */
+    public function getExistingImgPath()
+    {
+        return '';
+    }
+
     /**
      * @return array<string, mixed>|false
      */
@@ -121,11 +164,67 @@ class Image
     }
 
     /**
+     * @return array<string, mixed>|false
+     */
+    public static function getGlobalCover(int $idProduct)
+    {
+        return ['id_image' => 0];
+    }
+
+    /**
+     * @return int|null
+     */
+    public static function getHighestPosition(int $idProduct)
+    {
+        return 0;
+    }
+
+    /**
      * @return array<int, array<string, mixed>>|false
      */
     public static function getImages(int $idLang, int $idProduct)
     {
         return [];
+    }
+}
+
+class ImageType
+{
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    public static function getImagesTypes(?string $type = null): array
+    {
+        return [];
+    }
+}
+
+class ImageManager
+{
+    /**
+     * Bascule de test : permet aux tests PHPUnit de simuler un échec de redimensionnement
+     * (rollback de l'Image nouvellement créée dans ProductsService::addProductImage).
+     */
+    public static bool $resizeSucceeds = true;
+
+    /**
+     * @param int|string|null $destinationWidth
+     * @param int|string|null $destinationHeight
+     */
+    public static function resize(
+        string $sourceFile,
+        string $destinationFile,
+        $destinationWidth = null,
+        $destinationHeight = null,
+        string $fileType = 'jpg',
+        bool $forceType = false
+    ): bool {
+        return self::$resizeSucceeds;
+    }
+
+    public static function checkImageMemoryLimit(string $image): bool
+    {
+        return true;
     }
 }
 
@@ -682,6 +781,14 @@ class Product
     public static function getPriceStatic(int $idProduct, bool $withTax): float
     {
         return 0.0;
+    }
+
+    /**
+     * @return array<string, mixed>|false
+     */
+    public static function getCover(int $idProduct)
+    {
+        return ['id_image' => 0];
     }
 
     public function update(): bool

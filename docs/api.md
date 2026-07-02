@@ -664,6 +664,80 @@ Corps JSON (tous les champs sont optionnels, au moins un requis) :
 
 ---
 
+### POST `.../api/products/{id}/images`  — Ajouter une image
+
+Scope requis : `products.write`
+
+Corps `multipart/form-data`, un seul champ fichier nommé **`image`**.
+
+| Champ   | Type   | Description                                  |
+|---------|--------|-----------------------------------------------|
+| `image` | fichier | JPEG, PNG ou WEBP. Taille max **8 Mo**.       |
+
+Le type réel du fichier est vérifié à partir de son **contenu** (`getimagesize()` + sniffing MIME via `finfo`), jamais à partir du nom de fichier ni du `Content-Type` déclaré par le client. Le controller dédié (`ProductImagesController`) gère ce endpoint séparément des autres routes `products/*` car le multipart ne se prête pas au dispatch JSON habituel (`decodeRequestBody`).
+
+Traitement côté module (suit le flux standard du core PrestaShop, `Image::add()` + `ImageManager::resize()`) :
+- Position = dernière position du produit + 1.
+- **Couverture (`cover`) automatique si c'est la première image du produit** (aucune couverture existante) ; sinon l'image est ajoutée sans toucher à la couverture actuelle.
+- Génère le fichier principal puis une déclinaison par taille active (`ImageType::getImagesTypes('products')`).
+- Le fichier temporaire d'upload est supprimé après traitement (succès ou échec).
+
+```bash
+curl -X POST '.../api/products/42/images' \
+  -H "Authorization: Bearer <token>" \
+  -F "image=@photo.jpg;type=image/jpeg"
+```
+
+**Réponse 201** — retourne la fiche produit mise à jour (même format que `GET /products/{id}`, donc `images[]` à jour).
+
+```json
+{
+  "product": {
+    "id": 42,
+    "...": "...",
+    "images": [
+      { "id": 501, "url": "https://boutique.example/501-large_default/produit.jpg" },
+      { "id": 512, "url": "https://boutique.example/512-large_default/produit.jpg" }
+    ]
+  }
+}
+```
+
+**Erreurs** :
+
+| Code | `error`           | Raison                                              |
+|------|-------------------|------------------------------------------------------|
+| 400  | `invalid_payload` | Champ `image` absent, upload échoué (`is_uploaded_file`), taille > 8 Mo, ou type réel non JPEG/PNG/WEBP |
+| 404  | `not_found`       | Produit introuvable                                  |
+| 500  | `server_error`    | Échec technique (écriture disque, redimensionnement) |
+
+---
+
+### DELETE `.../api/products/{id}/images/{imageId}`  — Supprimer une image
+
+Scope requis : `products.write`
+
+Supprime l'image (`Image::delete()` core, qui nettoie le fichier source **et** toutes ses déclinaisons de taille). Vérifie d'abord que l'image appartient bien au produit `{id}` (sinon `404 not_found`, pas de fuite d'existence d'image d'un autre produit).
+
+Si l'image supprimée était la couverture, la première image restante est automatiquement promue couverture (même logique que l'admin PrestaShop `ajaxProcessDeleteProductImage`).
+
+```bash
+curl -X DELETE '.../api/products/42/images/512' \
+  -H "Authorization: Bearer <token>"
+```
+
+**Réponse 200** — retourne la fiche produit mise à jour (même format que `GET /products/{id}`).
+
+**Erreurs** :
+
+| Code | `error`     | Raison                                                        |
+|------|-------------|----------------------------------------------------------------|
+| 404  | `not_found` | Produit introuvable, image introuvable, ou image n'appartenant pas à ce produit |
+
+> **v1.10.4** — Ajoute l'upload (`POST /products/{id}/images`) et la suppression (`DELETE /products/{id}/images/{imageId}`) d'images produit, pour l'écran d'édition de fiche côté app (étape « images de la fiche produit »). Nouveau controller dédié `ProductImagesController` (scope `products.write`, réutilise `ProductsService::getProductById` pour la fiche à jour en réponse).
+
+---
+
 ## Clients
 
 ### GET `.../api/customers`
@@ -1298,6 +1372,8 @@ curl -X GET "https://example.com/module/rebuildconnector/api/dashboard/metrics?f
 | GET     | `.../api/products/{id}`                         | products     | `products.read`     |
 | GET     | `.../api/products/{id}/stock`                   | products     | `products.read`     |
 | PATCH   | `.../api/products/{id}`                         | products     | `products.write`    |
+| POST    | `.../api/products/{id}/images`                  | productimages| `products.write`    |
+| DELETE  | `.../api/products/{id}/images/{imageId}`        | productimages| `products.write`    |
 | GET     | `.../api/customers`                             | customers    | `customers.read`    |
 | GET     | `.../api/customers/stats`                       | customers    | `customers.read`    |
 | GET     | `.../api/customers/{id}`                        | customers    | `customers.read`    |

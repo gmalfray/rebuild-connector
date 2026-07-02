@@ -32,12 +32,12 @@ class RebuildConnector extends Module
     {
         $this->name = 'rebuildconnector';
         $this->tab = 'administration';
-        $this->version = '1.10.3';
+        $this->version = '1.10.4';
         $this->author = 'Rebuild IT';
         $this->need_instance = 0;
         $this->bootstrap = true;
 
-        $this->controllers = ['api', 'orders', 'products', 'customers', 'dashboard', 'notifications', 'baskets', 'reports', 'invoice'];
+        $this->controllers = ['api', 'orders', 'products', 'productimages', 'customers', 'dashboard', 'notifications', 'baskets', 'reports', 'invoice'];
 
         parent::__construct();
 
@@ -768,6 +768,38 @@ class RebuildConnector extends Module
                     'fc' => 'module',
                     'module' => $module,
                     'action' => 'stock',
+                ],
+            ],
+            'module-' . $module . '-api-products-images' => [
+                'controller' => 'productimages',
+                'rule' => $baseRule . '/products/{id}/images',
+                'keywords' => [
+                    'id' => [
+                        'regexp' => '[0-9]+',
+                        'param' => 'id',
+                    ],
+                ],
+                'params' => [
+                    'fc' => 'module',
+                    'module' => $module,
+                ],
+            ],
+            'module-' . $module . '-api-products-images-id' => [
+                'controller' => 'productimages',
+                'rule' => $baseRule . '/products/{id}/images/{imageId}',
+                'keywords' => [
+                    'id' => [
+                        'regexp' => '[0-9]+',
+                        'param' => 'id',
+                    ],
+                    'imageId' => [
+                        'regexp' => '[0-9]+',
+                        'param' => 'imageId',
+                    ],
+                ],
+                'params' => [
+                    'fc' => 'module',
+                    'module' => $module,
                 ],
             ],
             'module-' . $module . '-api-baskets' => [

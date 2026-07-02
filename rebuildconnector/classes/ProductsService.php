@@ -245,6 +245,133 @@ class ProductsService
     }
 
     /**
+     * Ajoute une image à un produit à partir d'une entrée $_FILES déjà validée (type/taille) par le
+     * controller, puis renvoie la fiche produit à jour (même format que getProductById).
+     * Suit le flux standard du core PrestaShop (cf. AdminProductsController::ajaxProcessAddProductImage /
+     * classes/Image.php) : Image::add() (position + cover auto), copie/redimensionnement du fichier
+     * source via ImageManager::resize() vers le chemin généré par Image::getPathForCreation(), puis une
+     * déclinaison par ImageType actif pour les produits.
+     *
+     * @param array<string, mixed> $file entrée $_FILES['image']
+     * @return array<string, mixed> fiche produit à jour, ou [] si le produit n'existe pas / échec technique
+     */
+    public function addProductImage(int $productId, array $file): array
+    {
+        if ($productId <= 0 || !class_exists('Image') || !class_exists('ImageManager') || !class_exists('ImageType')) {
+            return [];
+        }
+
+        $product = new Product($productId);
+        if (!Validate::isLoadedObject($product)) {
+            return [];
+        }
+
+        $tmpName = isset($file['tmp_name']) ? (string) $file['tmp_name'] : '';
+        if ($tmpName === '' || !is_file($tmpName)) {
+            return [];
+        }
+
+        $image = new Image();
+        $image->id_product = $productId;
+        $image->position = (int) Image::getHighestPosition($productId) + 1;
+        // Première image du produit (pas encore de cover) : elle devient automatiquement la couverture.
+        $image->cover = Image::getCover($productId) === false;
+
+        if (!$image->add()) {
+            return [];
+        }
+
+        $newPath = $image->getPathForCreation();
+        if (!is_string($newPath) || $newPath === '') {
+            $image->delete();
+
+            return [];
+        }
+
+        $extension = '.' . $image->image_format;
+
+        if (!ImageManager::resize($tmpName, $newPath . $extension)) {
+            $image->delete();
+
+            return [];
+        }
+
+        /** @var array<int, array<string, mixed>> $imageTypes */
+        $imageTypes = ImageType::getImagesTypes('products');
+        foreach ($imageTypes as $imageType) {
+            $typeName = isset($imageType['name']) ? (string) $imageType['name'] : '';
+            if ($typeName === '') {
+                continue;
+            }
+
+            $width = isset($imageType['width']) ? (int) $imageType['width'] : 0;
+            $height = isset($imageType['height']) ? (int) $imageType['height'] : 0;
+
+            ImageManager::resize($tmpName, $newPath . '-' . stripslashes($typeName) . $extension, $width, $height);
+        }
+
+        return $this->getProductById($productId);
+    }
+
+    /**
+     * Supprime une image de produit (fichiers + déclinaisons nettoyés par Image::delete()) après avoir
+     * vérifié qu'elle appartient bien au produit demandé. Si l'image supprimée était la couverture,
+     * promeut la première image restante en couverture (même logique que
+     * AdminProductsController::ajaxProcessDeleteProductImage du core).
+     */
+    public function deleteProductImage(int $productId, int $imageId): bool
+    {
+        if ($productId <= 0 || $imageId <= 0 || !class_exists('Image')) {
+            return false;
+        }
+
+        $image = new Image($imageId);
+        if (!Validate::isLoadedObject($image) || (int) $image->id_product !== $productId) {
+            return false;
+        }
+
+        $wasCover = (bool) $image->cover;
+
+        if (!$image->delete()) {
+            return false;
+        }
+
+        if ($wasCover) {
+            $this->promoteFirstRemainingImageToCover($productId);
+        }
+
+        return true;
+    }
+
+    /**
+     * Réassigne la couverture à la première image restante d'un produit qui vient d'en perdre une
+     * (niveau boutique puis niveau global), à l'identique du core.
+     */
+    private function promoteFirstRemainingImageToCover(int $productId): void
+    {
+        if (!class_exists('Image')) {
+            return;
+        }
+
+        if (Image::getCover($productId) === false) {
+            Db::getInstance()->execute(
+                'UPDATE `' . _DB_PREFIX_ . 'image_shop` image_shop SET image_shop.`cover` = 1'
+                . ' WHERE image_shop.`id_product` = ' . (int) $productId
+                . ' AND image_shop.`id_shop` = ' . (int) $this->getShopId()
+                . ' LIMIT 1'
+            );
+        }
+
+        if (Image::getGlobalCover($productId) === false) {
+            Db::getInstance()->execute(
+                'UPDATE `' . _DB_PREFIX_ . 'image` i SET i.`cover` = 1'
+                . ' WHERE i.`id_product` = ' . (int) $productId
+                . ' LIMIT 1'
+            );
+        }
+    }
+
+    /**
      * @param array<string, mixed> $payload
      */
     public function updateProduct(int $productId, array $payload): bool

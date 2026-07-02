@@ -251,4 +251,87 @@ final class ProductsServiceTest extends TestCase
         // on vérifie que la valeur est bien dupliquée sur cette langue via sa clé id_lang.
         $this->assertSame(['1' => 'T-shirt noir'], $values);
     }
+
+    protected function tearDown(): void
+    {
+        // Les bascules de test du stub ImageManager (phpstan-bootstrap.php) sont globales (static) :
+        // on les remet à leur valeur par défaut pour ne pas polluer les autres tests.
+        ImageManager::$resizeSucceeds = true;
+
+        parent::tearDown();
+    }
+
+    public function testAddProductImageReturnsEmptyArrayWhenTmpNameMissing(): void
+    {
+        $service = new ProductsService();
+
+        $result = $service->addProductImage(88, []);
+
+        $this->assertSame([], $result);
+    }
+
+    public function testAddProductImageReturnsEmptyArrayWhenTmpFileDoesNotExist(): void
+    {
+        $service = new ProductsService();
+
+        $result = $service->addProductImage(88, ['tmp_name' => '/tmp/does-not-exist-rebuildconnector-test']);
+
+        $this->assertSame([], $result);
+    }
+
+    public function testAddProductImageReturnsEmptyArrayForInvalidProductId(): void
+    {
+        $service = new ProductsService();
+
+        $result = $service->addProductImage(0, ['tmp_name' => '/tmp/whatever']);
+
+        $this->assertSame([], $result);
+    }
+
+    public function testAddProductImageRollsBackWhenResizeFails(): void
+    {
+        $tmpFile = tempnam(sys_get_temp_dir(), 'rc-service-test-');
+        $this->assertNotFalse($tmpFile);
+        file_put_contents($tmpFile, 'dummy-bytes');
+
+        try {
+            // Simule un échec de ImageManager::resize() (ex. fichier corrompu, disque plein...) :
+            // l'Image core PrestaShop nouvellement créée doit être retirée (rollback), et la méthode
+            // doit renvoyer [] plutôt qu'une fiche produit à moitié construite.
+            ImageManager::$resizeSucceeds = false;
+
+            $service = new ProductsService();
+            $result = $service->addProductImage(88, ['tmp_name' => $tmpFile]);
+
+            $this->assertSame([], $result);
+        } finally {
+            @unlink($tmpFile);
+        }
+    }
+
+    public function testDeleteProductImageReturnsFalseForInvalidProductId(): void
+    {
+        $service = new ProductsService();
+
+        $this->assertFalse($service->deleteProductImage(0, 501));
+    }
+
+    public function testDeleteProductImageReturnsFalseForInvalidImageId(): void
+    {
+        $service = new ProductsService();
+
+        $this->assertFalse($service->deleteProductImage(88, 0));
+    }
+
+    public function testDeleteProductImageReturnsFalseWhenImageDoesNotBelongToProduct(): void
+    {
+        $service = new ProductsService();
+
+        // Le stub Image (phpstan-bootstrap.php) instancie toujours un objet avec id_product = 0 :
+        // pour tout id_product demandé > 0, la vérification d'appartenance doit rejeter la suppression
+        // (l'image n'appartient pas — ou plus — au produit visé) plutôt que de la supprimer à l'aveugle.
+        $result = $service->deleteProductImage(88, 501);
+
+        $this->assertFalse($result);
+    }
 }
