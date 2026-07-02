@@ -355,6 +355,38 @@ class Validate
 
         return filter_var($url, FILTER_VALIDATE_URL) !== false;
     }
+
+    /**
+     * Stub simplifié du cœur PrestaShop : rejette les caractères réservés `<>;=#{}`.
+     */
+    public static function isCatalogName(string $name): bool
+    {
+        return preg_match('/^[^<>;=#{}]*$/u', $name) === 1;
+    }
+
+    /**
+     * Stub simplifié du cœur PrestaShop : rejette les balises dangereuses (script/iframe/onXxx).
+     */
+    public static function isCleanHtml(string $html, bool $allowIframe = false): bool
+    {
+        if (preg_match('/<\s*script/i', $html) === 1) {
+            return false;
+        }
+
+        if (!$allowIframe && preg_match('/<\s*iframe/i', $html) === 1) {
+            return false;
+        }
+
+        return preg_match('/\son[a-z]+\s*=/i', $html) !== 1;
+    }
+
+    /**
+     * Stub simplifié du cœur PrestaShop : rejette les caractères réservés `<>;={}`.
+     */
+    public static function isReference(string $reference): bool
+    {
+        return preg_match('/^[^<>;={}]*$/u', $reference) === 1;
+    }
 }
 
 class Db
@@ -463,6 +495,16 @@ class Language
     public $id = 1;
     /** @var string|null */
     public $iso_code = null;
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    public static function getLanguages(bool $active = true, $idShop = false, bool $idsOnly = false): array
+    {
+        return [
+            ['id_lang' => 1, 'iso_code' => 'fr'],
+        ];
+    }
 }
 
 class Currency
@@ -624,6 +666,14 @@ class Product
     public $ean13 = '';
     /** @var string|array<int, string> */
     public $link_rewrite = '';
+    /** @var string|array<int, string> */
+    public $name = '';
+    /** @var string|array<int, string> */
+    public $description = '';
+    /** @var string|array<int, string> */
+    public $description_short = '';
+    /** @var string */
+    public $reference = '';
 
     public function __construct(int $id_product, bool $full = false, ?int $id_lang = null, ?int $id_shop = null)
     {

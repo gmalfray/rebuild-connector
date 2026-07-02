@@ -612,11 +612,15 @@ Paramètre URL `action=attributes` (auto-détecté si ni `quantity` ni `action=s
 
 Corps JSON (tous les champs sont optionnels, au moins un requis) :
 
-| Champ           | Type      | Description                               |
-|-----------------|-----------|-------------------------------------------|
-| `active`        | bool/int  | Activer (`true`/`1`) ou désactiver le produit |
-| `price_tax_excl`| float     | Prix HT (le module recalcule le prix TTC) |
-| `ean13`         | string    | Code-barres EAN13 du produit (**v1.10.1**). 1 à 13 chiffres, ou chaîne vide `""` pour effacer un EAN13 existant. |
+| Champ                | Type      | Description                               |
+|-----------------------|-----------|-------------------------------------------|
+| `active`              | bool/int  | Activer (`true`/`1`) ou désactiver le produit |
+| `price_tax_excl`      | float     | Prix HT (le module recalcule le prix TTC) |
+| `ean13`               | string    | Code-barres EAN13 du produit (**v1.10.1**). 1 à 13 chiffres, ou chaîne vide `""` pour effacer un EAN13 existant. |
+| `name`                | string    | Nom du produit (**v1.10.2**). Non vide. Champ multilang PrestaShop : la même valeur est appliquée à **toutes les langues installées** de la boutique. |
+| `description`         | string    | Description longue, HTML autorisé (**v1.10.2**). Champ multilang (toutes langues). Chaîne vide autorisée pour l'effacer. |
+| `description_short`   | string    | Description courte, HTML autorisé (**v1.10.2**). Champ multilang (toutes langues). Chaîne vide autorisée pour l'effacer. |
+| `reference`           | string    | Référence produit (**v1.10.2**). ≤ 64 caractères. Chaîne vide autorisée pour l'effacer. |
 
 ```json
 { "active": true, "price_tax_excl": 15.90 }
@@ -626,7 +630,16 @@ Corps JSON (tous les champs sont optionnels, au moins un requis) :
 { "ean13": "3760123456789" }
 ```
 
-**Réponse 200** — retourne la fiche produit mise à jour (inclut `ean13`).
+```json
+{
+  "name": "T-shirt noir",
+  "description": "<p>Coton bio, coupe droite.</p>",
+  "description_short": "<p>T-shirt en coton bio.</p>",
+  "reference": "TSHIRT-BLACK"
+}
+```
+
+**Réponse 200** — retourne la fiche produit mise à jour (même format que `GET /products/{id}` — ce format n'inclut pas `description`/`description_short`, seuls `name`, `reference` et `ean13` sont exposés en lecture).
 
 **Erreurs** :
 
@@ -634,9 +647,14 @@ Corps JSON (tous les champs sont optionnels, au moins un requis) :
 |------|-------------------|------------------------------------------------|
 | 400  | `invalid_payload` | Aucun champ modifiable fourni ou valeur invalide |
 | 400  | `invalid_payload` | `ean13` n'est pas une chaîne, ou ne respecte pas le format `[0-9]{1,13}` (hors chaîne vide) |
+| 400  | `invalid_payload` | `name` n'est pas une chaîne, est vide, ou contient des caractères interdits (`Validate::isCatalogName`) |
+| 400  | `invalid_payload` | `description`/`description_short` n'est pas une chaîne ou contient du HTML jugé dangereux (`Validate::isCleanHtml`) |
+| 400  | `invalid_payload` | `reference` n'est pas une chaîne, dépasse 64 caractères, ou contient des caractères interdits (`Validate::isReference`) |
 | 404  | `not_found`       | Produit introuvable                            |
 
 > **v1.10.1** — Ajoute `ean13` aux champs modifiables via `PATCH /products/{id}` (action `attributes`). Permet à l'app d'associer un code-barres scanné à un produit existant (auto-association lors d'une réception sans EAN13 connu). Usage typique : `GET /products?barcode=<code>` ne retourne rien → l'utilisateur choisit le produit dans la liste → `PATCH /products/{id} { "ean13": "<code>" }`.
+
+> **v1.10.2** — Ajoute `name`, `description`, `description_short` et `reference` aux champs modifiables via `PATCH /products/{id}` (action `attributes`), pour l'édition des champs simples de la fiche produit côté app. `name`, `description` et `description_short` sont des champs multilang PrestaShop : le module applique la même valeur reçue à toutes les langues installées de la boutique (`Language::getLanguages(false)`), l'app n'a pas à gérer le multilang côté client.
 
 ---
 

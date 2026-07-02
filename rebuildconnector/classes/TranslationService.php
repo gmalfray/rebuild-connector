@@ -153,7 +153,7 @@ class TranslationService
             'en' => 'Optional static tokens (one per line) used until the app registers users automatically.',
             'fr' => 'Jetons statiques optionnels (un par ligne) utilisés jusqu’à l’enregistrement automatique des appareils par l’application.',
         ],
-        ‘admin.form.webhook_url_label’ => [
+        'admin.form.webhook_url_label' => [
             'en' => 'Webhook URL',
             'fr' => 'URL du webhook',
         ],
@@ -328,6 +328,30 @@ class TranslationService
         'products.error.invalid_price' => [
             'en' => 'The price_tax_excl field must be a numeric value.',
             'fr' => 'Le champ price_tax_excl doit être une valeur numérique.',
+        ],
+        'products.error.invalid_ean13' => [
+            'en' => 'The ean13 field must be a string.',
+            'fr' => 'Le champ ean13 doit être une chaîne de caractères.',
+        ],
+        'products.error.invalid_ean13_format' => [
+            'en' => 'The ean13 field must contain 1 to 13 digits, or be empty to clear it.',
+            'fr' => 'Le champ ean13 doit contenir de 1 à 13 chiffres, ou être vide pour l’effacer.',
+        ],
+        'products.error.invalid_name' => [
+            'en' => 'The name field is invalid or empty.',
+            'fr' => 'Le champ name est invalide ou vide.',
+        ],
+        'products.error.invalid_description' => [
+            'en' => 'The description field is invalid.',
+            'fr' => 'Le champ description est invalide.',
+        ],
+        'products.error.invalid_description_short' => [
+            'en' => 'The description_short field is invalid.',
+            'fr' => 'Le champ description_short est invalide.',
+        ],
+        'products.error.invalid_reference' => [
+            'en' => 'The reference field is invalid or exceeds 64 characters.',
+            'fr' => 'Le champ reference est invalide ou dépasse 64 caractères.',
         ],
         'reports.error.unknown_resource' => [
             'en' => 'Unknown report resource.',

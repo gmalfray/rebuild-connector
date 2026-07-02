@@ -110,4 +110,145 @@ final class ProductsServiceTest extends TestCase
 
         $this->assertFalse($result);
     }
+
+    public function testUpdateProductAcceptsValidName(): void
+    {
+        $service = new ProductsService();
+
+        $result = $service->updateProduct(88, ['name' => 'T-shirt noir']);
+
+        $this->assertTrue($result);
+    }
+
+    public function testUpdateProductRejectsEmptyName(): void
+    {
+        $service = new ProductsService();
+
+        $result = $service->updateProduct(88, ['name' => '   ']);
+
+        $this->assertFalse($result);
+    }
+
+    public function testUpdateProductRejectsNonStringName(): void
+    {
+        $service = new ProductsService();
+
+        /** @phpstan-ignore-next-line argument.type (payload volontairement mal typé pour le test) */
+        $result = $service->updateProduct(88, ['name' => 12345]);
+
+        $this->assertFalse($result);
+    }
+
+    public function testUpdateProductAcceptsValidDescription(): void
+    {
+        $service = new ProductsService();
+
+        $result = $service->updateProduct(88, ['description' => '<p>Un joli t-shirt en coton bio.</p>']);
+
+        $this->assertTrue($result);
+    }
+
+    public function testUpdateProductAcceptsEmptyDescriptionToClearIt(): void
+    {
+        $service = new ProductsService();
+
+        $result = $service->updateProduct(88, ['description' => '']);
+
+        $this->assertTrue($result);
+    }
+
+    public function testUpdateProductRejectsUnsafeDescriptionHtml(): void
+    {
+        $service = new ProductsService();
+
+        $result = $service->updateProduct(88, ['description' => '<script>alert(1)</script>']);
+
+        $this->assertFalse($result);
+    }
+
+    public function testUpdateProductAcceptsValidDescriptionShort(): void
+    {
+        $service = new ProductsService();
+
+        $result = $service->updateProduct(88, ['description_short' => '<p>Résumé court.</p>']);
+
+        $this->assertTrue($result);
+    }
+
+    public function testUpdateProductRejectsUnsafeDescriptionShortHtml(): void
+    {
+        $service = new ProductsService();
+
+        $result = $service->updateProduct(88, ['description_short' => '<iframe src="evil"></iframe>']);
+
+        $this->assertFalse($result);
+    }
+
+    public function testUpdateProductAcceptsValidReference(): void
+    {
+        $service = new ProductsService();
+
+        $result = $service->updateProduct(88, ['reference' => 'TSHIRT-BLACK-2']);
+
+        $this->assertTrue($result);
+    }
+
+    public function testUpdateProductAcceptsEmptyReferenceToClearIt(): void
+    {
+        $service = new ProductsService();
+
+        $result = $service->updateProduct(88, ['reference' => '']);
+
+        $this->assertTrue($result);
+    }
+
+    public function testUpdateProductRejectsTooLongReference(): void
+    {
+        $service = new ProductsService();
+
+        $result = $service->updateProduct(88, ['reference' => str_repeat('A', 65)]);
+
+        $this->assertFalse($result);
+    }
+
+    public function testUpdateProductRejectsNonStringReference(): void
+    {
+        $service = new ProductsService();
+
+        /** @phpstan-ignore-next-line argument.type (payload volontairement mal typé pour le test) */
+        $result = $service->updateProduct(88, ['reference' => 12345]);
+
+        $this->assertFalse($result);
+    }
+
+    public function testUpdateProductAcceptsMultipleSimpleFieldsAtOnce(): void
+    {
+        $service = new ProductsService();
+
+        $result = $service->updateProduct(88, [
+            'name' => 'T-shirt noir',
+            'description' => '<p>Description</p>',
+            'description_short' => '<p>Résumé</p>',
+            'reference' => 'TSHIRT-BLACK',
+            'price_tax_excl' => 15.9,
+            'active' => true,
+            'ean13' => '3760123456789',
+        ]);
+
+        $this->assertTrue($result);
+    }
+
+    public function testApplyToAllLanguagesDuplicatesValueAcrossInstalledLanguages(): void
+    {
+        $service = new ProductsService();
+
+        $method = new ReflectionMethod(ProductsService::class, 'applyToAllLanguages');
+        $method->setAccessible(true);
+        /** @var array<int, string> $values */
+        $values = $method->invoke($service, 'T-shirt noir');
+
+        // Le stub de test Language::getLanguages() expose une seule langue (id_lang=1) :
+        // on vérifie que la valeur est bien dupliquée sur cette langue via sa clé id_lang.
+        $this->assertSame(['1' => 'T-shirt noir'], $values);
+    }
 }

@@ -232,6 +232,62 @@ class RebuildconnectorProductsModuleFrontController extends RebuildconnectorBase
                     $payload['ean13'] = $ean13;
                 }
 
+                if (array_key_exists('name', $payload)) {
+                    $rawName = $payload['name'];
+                    if (!is_string($rawName)) {
+                        throw new \InvalidArgumentException(
+                            $this->t('products.error.invalid_name', [], 'The name field must be a string.')
+                        );
+                    }
+                    $name = trim($rawName);
+                    if ($name === '' || !Validate::isCatalogName($name)) {
+                        throw new \InvalidArgumentException(
+                            $this->t('products.error.invalid_name', [], 'The name field is invalid.')
+                        );
+                    }
+                    $payload['name'] = $name;
+                }
+
+                if (array_key_exists('description', $payload)) {
+                    $rawDescription = $payload['description'];
+                    if (!is_string($rawDescription) || !Validate::isCleanHtml($rawDescription)) {
+                        throw new \InvalidArgumentException(
+                            $this->t('products.error.invalid_description', [], 'The description field is invalid.')
+                        );
+                    }
+                    $payload['description'] = $rawDescription;
+                }
+
+                if (array_key_exists('description_short', $payload)) {
+                    $rawDescriptionShort = $payload['description_short'];
+                    if (!is_string($rawDescriptionShort) || !Validate::isCleanHtml($rawDescriptionShort)) {
+                        throw new \InvalidArgumentException(
+                            $this->t(
+                                'products.error.invalid_description_short',
+                                [],
+                                'The description_short field is invalid.'
+                            )
+                        );
+                    }
+                    $payload['description_short'] = $rawDescriptionShort;
+                }
+
+                if (array_key_exists('reference', $payload)) {
+                    $rawReference = $payload['reference'];
+                    if (!is_string($rawReference)) {
+                        throw new \InvalidArgumentException(
+                            $this->t('products.error.invalid_reference', [], 'The reference field must be a string.')
+                        );
+                    }
+                    $reference = trim($rawReference);
+                    if (Tools::strlen($reference) > 64 || !Validate::isReference($reference)) {
+                        throw new \InvalidArgumentException(
+                            $this->t('products.error.invalid_reference', [], 'The reference field is invalid.')
+                        );
+                    }
+                    $payload['reference'] = $reference;
+                }
+
                 if (!$this->getProductsService()->updateProduct($productId, $payload)) {
                     $this->jsonError(
                         'invalid_payload',
@@ -249,6 +305,18 @@ class RebuildconnectorProductsModuleFrontController extends RebuildconnectorBase
                 }
                 if (array_key_exists('ean13', $payload)) {
                     $changes['ean13'] = (string) $payload['ean13'];
+                }
+                if (array_key_exists('name', $payload)) {
+                    $changes['name'] = (string) $payload['name'];
+                }
+                if (array_key_exists('description', $payload)) {
+                    $changes['description'] = (string) $payload['description'];
+                }
+                if (array_key_exists('description_short', $payload)) {
+                    $changes['description_short'] = (string) $payload['description_short'];
+                }
+                if (array_key_exists('reference', $payload)) {
+                    $changes['reference'] = (string) $payload['reference'];
                 }
                 $product = $this->getProductsService()->getProductById($productId);
                 $this->recordAuditEvent('products.attributes.updated', [

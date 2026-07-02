@@ -282,11 +282,91 @@ class ProductsService
             $updated = true;
         }
 
+        if (array_key_exists('name', $payload)) {
+            $rawName = $payload['name'];
+            if (!is_string($rawName)) {
+                return false;
+            }
+
+            $name = trim($rawName);
+            if ($name === '' || !Validate::isCatalogName($name)) {
+                return false;
+            }
+
+            $product->name = $this->applyToAllLanguages($name);
+            $updated = true;
+        }
+
+        if (array_key_exists('description', $payload)) {
+            $rawDescription = $payload['description'];
+            if (!is_string($rawDescription) || !Validate::isCleanHtml($rawDescription)) {
+                return false;
+            }
+
+            $product->description = $this->applyToAllLanguages($rawDescription);
+            $updated = true;
+        }
+
+        if (array_key_exists('description_short', $payload)) {
+            $rawDescriptionShort = $payload['description_short'];
+            if (!is_string($rawDescriptionShort) || !Validate::isCleanHtml($rawDescriptionShort)) {
+                return false;
+            }
+
+            $product->description_short = $this->applyToAllLanguages($rawDescriptionShort);
+            $updated = true;
+        }
+
+        if (array_key_exists('reference', $payload)) {
+            $rawReference = $payload['reference'];
+            if (!is_string($rawReference)) {
+                return false;
+            }
+
+            $reference = trim($rawReference);
+            // Chaîne vide autorisée pour effacer la référence existante (même logique que ean13).
+            if (Tools::strlen($reference) > 64 || !Validate::isReference($reference)) {
+                return false;
+            }
+
+            $product->reference = pSQL($reference);
+            $updated = true;
+        }
+
         if (!$updated) {
             return false;
         }
 
         return (bool) $product->update();
+    }
+
+    /**
+     * Applique la même valeur à toutes les langues installées de la boutique.
+     * Utilisé pour les champs multilang PrestaShop (name, description, description_short)
+     * : l'app envoie une seule valeur, on la duplique sur chaque langue active.
+     *
+     * @return array<int, string>
+     */
+    private function applyToAllLanguages(string $value): array
+    {
+        $values = [];
+
+        if (class_exists('Language')) {
+            /** @var array<int, array<string, mixed>> $languages */
+            $languages = Language::getLanguages(false);
+            foreach ($languages as $language) {
+                $idLang = isset($language['id_lang']) ? (int) $language['id_lang'] : 0;
+                if ($idLang > 0) {
+                    $values[$idLang] = $value;
+                }
+            }
+        }
+
+        if ($values === []) {
+            $values[$this->getLanguageId()] = $value;
+        }
+
+        return $values;
     }
 
     /**
