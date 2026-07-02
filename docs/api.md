@@ -458,7 +458,8 @@ Liste paginée de produits.
 | `limit`   | int    | Nombre max de résultats (défaut 20, min 1)              |
 | `offset`  | int    | Décalage de pagination (défaut 0)                       |
 | `active`  | int    | `1` = actifs uniquement, `0` = inactifs uniquement. **Si absent : aucun filtre, tous les produits sont retournés.** |
-| `search`  | string | Recherche sur nom ou référence                          |
+| `search`  | string | Recherche partielle (LIKE) sur nom ou référence          |
+| `barcode` | string | Correspondance **exacte** sur `ean13` OU `reference` (scan code-barres). Distinct de `search`. |
 | `ids`     | string | Liste d'IDs séparés par virgule (`ids=88,89,90`)        |
 | `stock`   | string | Filtre par état de stock : `in_stock`, `out_of_stock`, `low_stock` |
 
@@ -479,6 +480,7 @@ Liste paginée de produits.
       "id": 88,
       "name": "T-shirt noir",
       "reference": "TSHIRT-BLACK",
+      "ean13": "3760123456789",
       "price": 19.08,
       "active": true,
       "stock": {
@@ -517,6 +519,7 @@ Liste paginée de produits.
 > `price` est le prix TTC (`Product::getPriceStatic($id, true)`). Le prix HT brut est disponible sur le détail produit (`price_tax_excl` PATCH uniquement).
 > Toute valeur du filtre `stock` autre que les trois valeurs listées retourne `400 invalid_payload`.
 > **v1.4.3** — Corrige un bug où l'absence du paramètre `active` appliquait un filtre `p.active = 0` non désiré, causant le retour de produits inactifs uniquement et une liste tronquée.
+> **v1.10.0** — Ajoute le champ `ean13` (liste + détail) et le filtre `barcode` pour la mise en stock par scan de code-barres. `barcode` fait une correspondance exacte sur `ean13` OU `reference` ; `search` reste un LIKE partiel sur `name`/`reference`. Si `ean13` n'est pas renseigné en base, la valeur retournée est `""`.
 
 ---
 
@@ -534,6 +537,7 @@ Fiche produit détaillée. La réponse est identique à un élément de la liste
     "id": 88,
     "name": "T-shirt noir",
     "reference": "TSHIRT-BLACK",
+    "ean13": "3760123456789",
     "price": 19.08,
     "active": true,
     "stock": {

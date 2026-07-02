@@ -27,7 +27,7 @@ class ProductsService
         $defaultThreshold = self::DEFAULT_LOW_STOCK_THRESHOLD;
 
         $query = new DbQuery();
-        $query->select('p.id_product, pl.name, pl.link_rewrite, p.reference, p.active, p.date_upd');
+        $query->select('p.id_product, pl.name, pl.link_rewrite, p.reference, p.ean13, p.active, p.date_upd');
         $query->select('IFNULL(ps.price, p.price) AS base_price');
         $query->select('sa.quantity, sa.id_stock_available');
         $query->select(
@@ -63,6 +63,12 @@ class ProductsService
             $term = pSQL((string) $filters['search'], true);
             $like = '"%' . $term . '%"';
             $query->where('(pl.name LIKE ' . $like . ' OR p.reference LIKE ' . $like . ')');
+        }
+
+        if (!empty($filters['barcode'])) {
+            // Correspondance EXACTE (scan EAN13/référence) : distinct du filtre "search" (LIKE partiel).
+            $code = pSQL((string) $filters['barcode']);
+            $query->where('(p.ean13 = "' . $code . '" OR p.reference = "' . $code . '")');
         }
 
         if (!empty($filters['ids']) && is_array($filters['ids'])) {
@@ -143,6 +149,11 @@ class ProductsService
             $term = pSQL((string) $filters['search'], true);
             $like = '"%' . $term . '%"';
             $query->where('(pl.name LIKE ' . $like . ' OR p.reference LIKE ' . $like . ')');
+        }
+
+        if (!empty($filters['barcode'])) {
+            $code = pSQL((string) $filters['barcode']);
+            $query->where('(p.ean13 = "' . $code . '" OR p.reference = "' . $code . '")');
         }
 
         if (!empty($filters['ids']) && is_array($filters['ids'])) {
@@ -294,6 +305,7 @@ class ProductsService
             'id' => $idProduct,
             'name' => isset($row['name']) ? (string) $row['name'] : '',
             'reference' => isset($row['reference']) ? (string) $row['reference'] : '',
+            'ean13' => isset($row['ean13']) ? (string) $row['ean13'] : '',
             'price' => $priceTaxIncl,
             'active' => isset($row['active']) ? (bool) $row['active'] : false,
             'stock' => [

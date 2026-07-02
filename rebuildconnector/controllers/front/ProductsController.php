@@ -104,6 +104,11 @@ class RebuildconnectorProductsModuleFrontController extends RebuildconnectorBase
             $filters['search'] = $searchRaw;
         }
 
+        $barcodeRaw = Tools::getValue('barcode');
+        if ($barcodeRaw !== false && $barcodeRaw !== '') {
+            $filters['barcode'] = $barcodeRaw;
+        }
+
         $stockRaw = Tools::getValue('stock');
         if ($stockRaw !== false && $stockRaw !== '') {
             $filters['stock'] = $stockRaw;
