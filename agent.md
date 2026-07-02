@@ -64,7 +64,7 @@ Base URL : `https://<boutique>/module/rebuildconnector/api` — module **1.1.2**
 | GET | `/reports?resource=bestsellers` | Top ventes | `{ "products": [ { "product_id", "quantity", "total_tax_incl", ... } ] }`. |
 | GET | `/reports?resource=bestcustomers` | Top clients | `{ "customers": [ { "id", "firstname", "lastname", "total_spent", "last_order_at" } ] }`. |
 | GET | `/dashboard/metrics` | KPI | `{ "turnover", "orders_count", "customers_count", "products_count", "currency", "chart": [{ "label", "turnover", "orders", "customers" }] }`. |
-| GET | `/baskets` | Paniers (lecture) | `{ "baskets": [...] }` – endpoints prêts, vue app à implémenter. |
+| GET | `/baskets` | Paniers (lecture) | `{ "baskets": [...] }` – **implémenté** (écran Paniers + détail panier dans l'app). |
 
 Exemple `curl` :
 ```bash
