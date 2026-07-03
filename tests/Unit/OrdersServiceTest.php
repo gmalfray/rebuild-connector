@@ -158,6 +158,48 @@ final class OrdersServiceTest extends TestCase
     }
 
     // =========================================================================
+    // resolveOrderStateId — résolution nom → id (FIX : plus d'appel à la méthode
+    // fantôme OrderState::getIdByName qui provoquait un fatal 500 sur PATCH /orders/{id})
+    // =========================================================================
+
+    public function testResolveOrderStateIdResolvesStatusByName(): void
+    {
+        // Le stub Db::getValue renvoie l'id simulé de order_state_lang pour « Expédié ».
+        Db::$testGetValueResult = 4;
+
+        $result = $this->invokeResolveOrderStateId('Expédié');
+
+        $this->assertSame(4, $result);
+
+        Db::$testGetValueResult = 0;
+    }
+
+    public function testResolveOrderStateIdReturnsZeroForUnknownName(): void
+    {
+        Db::$testGetValueResult = 0;
+
+        $result = $this->invokeResolveOrderStateId('Statut qui n’existe pas');
+
+        $this->assertSame(0, $result);
+    }
+
+    public function testResolveOrderStateIdReturnsZeroForEmptyReference(): void
+    {
+        $this->assertSame(0, $this->invokeResolveOrderStateId(''));
+    }
+
+    public function testStatusExistsByNameDoesNotFatal(): void
+    {
+        // Reproduit le flux PATCH /orders/{id} avec un statut passé par nom : ne doit plus lever
+        // de fatal (Error) sur une méthode PrestaShop inexistante.
+        Db::$testGetValueResult = 4;
+
+        $this->assertTrue($this->service->statusExists('Expédié'));
+
+        Db::$testGetValueResult = 0;
+    }
+
+    // =========================================================================
     // Helpers
     // =========================================================================
 
@@ -187,5 +229,13 @@ final class OrdersServiceTest extends TestCase
         $result = $method->invoke($this->service, $row);
 
         return $result;
+    }
+
+    private function invokeResolveOrderStateId(string $reference): int
+    {
+        $method = new \ReflectionMethod(OrdersService::class, 'resolveOrderStateId');
+        $method->setAccessible(true);
+
+        return (int) $method->invoke($this->service, $reference);
     }
 }

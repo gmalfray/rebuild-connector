@@ -483,12 +483,10 @@ class OrdersService
             return $exists > 0 ? $id : 0;
         }
 
+        // Résolution nom → id via order_state_lang uniquement.
+        // NB : pas d'appel à OrderState::getIdByName() — cette méthode n'existe pas dans l'API
+        // PrestaShop (ni 1.7.8 ni 8.x) et provoquerait un fatal Error (500) sur PATCH /orders/{id}.
         $langId = $this->getLanguageId();
-        $idState = (int) OrderState::getIdByName($reference, $langId);
-
-        if ($idState > 0) {
-            return $idState;
-        }
 
         $query = new DbQuery();
         $query->select('id_order_state');

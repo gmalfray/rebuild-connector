@@ -782,11 +782,6 @@ class OrderState
     public function __construct(int $id_order_state, ?int $id_lang = null)
     {
     }
-
-    public static function getIdByName(string $name, int $id_lang): int
-    {
-        return 0;
-    }
 }
 
 class OrderHistory
