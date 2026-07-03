@@ -499,6 +499,14 @@ class Db
      */
     public static $testGetValueResult = 0;
 
+    /**
+     * Bascule de test : lignes retournées par executeS() (par défaut [], comportement historique du
+     * stub). Permet de simuler par ex. les déclinaisons d'un produit (product_attribute) sans base réelle.
+     *
+     * @var array<int, array<string, mixed>>
+     */
+    public static array $testExecuteSResult = [];
+
     public static function getInstance(): self
     {
         return new self();
@@ -510,7 +518,7 @@ class Db
      */
     public function executeS($query): array
     {
-        return [];
+        return self::$testExecuteSResult;
     }
 
     /**
@@ -802,6 +810,38 @@ class Product
 
     public function update(): bool
     {
+        return true;
+    }
+}
+
+class Combination
+{
+    /**
+     * Bascule de test : enregistre les appels reçus par update() (id_product_attribute, ean13) pour
+     * permettre aux tests d'asserter qu'une association EAN13 cible bien la combinaison, pas le produit.
+     *
+     * @var array<int, array{id_product_attribute: int, ean13: string}>
+     */
+    public static array $updateCalls = [];
+
+    /** @var int */
+    public $id = 0;
+    /** @var int */
+    public $id_product = 0;
+    /** @var string */
+    public $ean13 = '';
+    /** @var string */
+    public $reference = '';
+
+    public function __construct(int $id_product_attribute = 0)
+    {
+        $this->id = $id_product_attribute;
+    }
+
+    public function update(): bool
+    {
+        self::$updateCalls[] = ['id_product_attribute' => $this->id, 'ean13' => $this->ean13];
+
         return true;
     }
 }

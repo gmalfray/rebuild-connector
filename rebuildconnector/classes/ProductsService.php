@@ -112,10 +112,16 @@ class ProductsService
 
         $rows = (array) Db::getInstance()->executeS($query);
 
+        // Le champ `combinations` (liste complète des déclinaisons) n'est exposé que sur les résultats
+        // d'une recherche "barcode" (scan) : c'est le seul cas où l'app en a besoin (faire choisir la
+        // bonne déclinaison), et ça évite d'alourdir la liste paginée générale.
+        $includeCombinations = !empty($filters['barcode']);
+        $barcodeCode = $includeCombinations ? trim((string) $filters['barcode']) : null;
+
         $products = [];
         foreach ($rows as $row) {
             /** @var array<string, mixed> $row */
-            $products[] = $this->formatProductRow($row, $langId, $shopId);
+            $products[] = $this->formatProductRow($row, $langId, $shopId, $includeCombinations, $barcodeCode);
         }
 
         return $products;
@@ -348,6 +354,26 @@ class ProductsService
     }
 
     /**
+     * Écrit l'EAN13 sur une déclinaison (product_attribute) plutôt que sur le produit. Appelant
+     * responsable d'avoir déjà vérifié combinationBelongsToProduct() en amont.
+     */
+    private function updateCombinationEan13(int $combinationId, string $ean13): bool
+    {
+        if ($combinationId <= 0 || !class_exists('Combination')) {
+            return false;
+        }
+
+        $combination = new Combination($combinationId);
+        if (!Validate::isLoadedObject($combination)) {
+            return false;
+        }
+
+        $combination->ean13 = pSQL($ean13);
+
+        return (bool) $combination->update();
+    }
+
+    /**
      * Ajoute une image à un produit à partir d'une entrée $_FILES déjà validée (type/taille) par le
      * controller, puis renvoie la fiche produit à jour (même format que getProductById).
      * Suit le flux standard du core PrestaShop (cf. AdminProductsController::ajaxProcessAddProductImage /
@@ -484,6 +510,21 @@ class ProductsService
             return false;
         }
 
+        // combination_id (v1.10.7) : cible la déclinaison sur laquelle écrire l'ean13, plutôt que le
+        // produit. Validé ici (appartenance au produit) même si aucun autre champ n'est fourni, pour que
+        // le controller renvoie systématiquement 400 sur un id étranger plutôt que d'ignorer l'erreur.
+        $combinationId = 0;
+        if (array_key_exists('combination_id', $payload) && $payload['combination_id'] !== null) {
+            if (!is_numeric($payload['combination_id'])) {
+                return false;
+            }
+
+            $combinationId = (int) $payload['combination_id'];
+            if ($combinationId <= 0 || !$this->combinationBelongsToProduct($combinationId, $productId)) {
+                return false;
+            }
+        }
+
         $updated = false;
 
         if (array_key_exists('active', $payload)) {
@@ -519,7 +560,15 @@ class ProductsService
                 return false;
             }
 
-            $product->ean13 = pSQL($ean13);
+            // combination_id fourni (déjà validé plus haut) : l'EAN13 va sur la déclinaison, pas sur le
+            // produit (cas pensebonheur : pelotes, code-barres posé sur la combinaison "Coloris").
+            if ($combinationId > 0) {
+                if (!$this->updateCombinationEan13($combinationId, $ean13)) {
+                    return false;
+                }
+            } else {
+                $product->ean13 = pSQL($ean13);
+            }
             $updated = true;
         }
 
@@ -614,8 +663,13 @@ class ProductsService
      * @param array<string, mixed> $row
      * @return array<string, mixed>
      */
-    private function formatProductRow(array $row, int $langId, int $shopId): array
-    {
+    private function formatProductRow(
+        array $row,
+        int $langId,
+        int $shopId,
+        bool $includeCombinations = false,
+        ?string $barcodeCode = null
+    ): array {
         $idProduct = isset($row['id_product']) ? (int) $row['id_product'] : 0;
         $priceTaxExcl = isset($row['base_price']) ? (float) $row['base_price'] : 0.0;
         $priceTaxIncl = $idProduct > 0 ? (float) Product::getPriceStatic($idProduct, true) : $priceTaxExcl;
@@ -639,7 +693,11 @@ class ProductsService
             : self::DEFAULT_LOW_STOCK_THRESHOLD;
         $isLow = $quantity > 0 && $quantity <= $lowStockThreshold;
 
-        return [
+        // Chargée une seule fois ici (si applicable) puis réutilisée par buildMatchedCombination() pour
+        // ne pas dupliquer la requête product_attribute.
+        $combinations = $includeCombinations ? $this->getProductCombinations($idProduct, $langId, $shopId) : [];
+
+        $product = [
             'id' => $idProduct,
             'name' => isset($row['name']) ? (string) $row['name'] : '',
             'reference' => isset($row['reference']) ? (string) $row['reference'] : '',
@@ -654,42 +712,118 @@ class ProductsService
                 'warehouse_id' => null,
                 'updated_at' => $updatedAt,
             ],
-            'matched_combination' => $this->buildMatchedCombination($row, $idProduct, $langId),
+            'matched_combination' => $this->buildMatchedCombination($row, $langId, $barcodeCode, $combinations),
             'images' => $imagePayload,
             'updated_at' => $updatedAt,
         ];
+
+        if ($includeCombinations) {
+            $product['combinations'] = $combinations;
+        }
+
+        return $product;
     }
 
     /**
      * Construit l'objet `matched_combination` exposé sur GET /products?barcode=... quand le code scanné
-     * matche une déclinaison (product_attribute) plutôt que le produit lui-même. Null si la ligne ne
-     * provient pas d'une recherche "barcode", ou si le match porte sur le produit / un produit sans
-     * déclinaison (cf. ProductsService::joinProductAttributeForBarcode).
+     * cible SANS AMBIGUÏTÉ une déclinaison précise (product_attribute) :
+     * - le code matche directement l'EAN13/référence d'UNE combinaison (cf.
+     *   ProductsService::joinProductAttributeForBarcode) ;
+     * - OU (v1.10.7) le code matche l'EAN13/référence du PRODUIT lui-même ET ce produit n'a
+     *   qu'UNE SEULE déclinaison (cas pensebonheur : l'auto-association a posé l'EAN13 sur le produit,
+     *   pas de choix à faire côté app).
+     * Null si la ligne ne provient pas d'une recherche "barcode", si le produit n'a pas de déclinaison,
+     * ou si le match sur le produit reste ambigu (≥ 2 déclinaisons) : l'app doit alors laisser choisir
+     * via le champ `combinations`.
      *
      * @param array<string, mixed> $row
+     * @param array<int, array<string, mixed>> $combinations déclinaisons du produit, déjà chargées par
+     *                                                        formatProductRow() (évite une requête en double)
      * @return array<string, mixed>|null
      */
-    private function buildMatchedCombination(array $row, int $idProduct, int $langId): ?array
+    private function buildMatchedCombination(array $row, int $langId, ?string $barcodeCode, array $combinations): ?array
     {
         $matchedCombinationId = isset($row['matched_id_product_attribute'])
             ? (int) $row['matched_id_product_attribute']
             : 0;
 
-        if ($matchedCombinationId <= 0) {
+        if ($matchedCombinationId > 0) {
+            $idProduct = isset($row['id_product']) ? (int) $row['id_product'] : 0;
+            $combinationQuantity = class_exists('StockAvailable')
+                ? (int) StockAvailable::getQuantity($idProduct, $matchedCombinationId)
+                : 0;
+
+            return [
+                'id' => $matchedCombinationId,
+                'name' => $this->getCombinationLabel($matchedCombinationId, $langId),
+                'ean13' => isset($row['matched_pa_ean13']) ? (string) $row['matched_pa_ean13'] : '',
+                'reference' => isset($row['matched_pa_reference']) ? (string) $row['matched_pa_reference'] : '',
+                'quantity' => $combinationQuantity,
+            ];
+        }
+
+        if ($barcodeCode === null || $barcodeCode === '') {
             return null;
         }
 
-        $combinationQuantity = class_exists('StockAvailable')
-            ? (int) StockAvailable::getQuantity($idProduct, $matchedCombinationId)
-            : 0;
+        $productEan13 = isset($row['ean13']) ? (string) $row['ean13'] : '';
+        $productReference = isset($row['reference']) ? (string) $row['reference'] : '';
+        $matchesProduct = ($productEan13 !== '' && $productEan13 === $barcodeCode)
+            || ($productReference !== '' && $productReference === $barcodeCode);
 
-        return [
-            'id' => $matchedCombinationId,
-            'name' => $this->getCombinationLabel($matchedCombinationId, $langId),
-            'ean13' => isset($row['matched_pa_ean13']) ? (string) $row['matched_pa_ean13'] : '',
-            'reference' => isset($row['matched_pa_reference']) ? (string) $row['matched_pa_reference'] : '',
-            'quantity' => $combinationQuantity,
-        ];
+        if (!$matchesProduct || count($combinations) !== 1) {
+            return null;
+        }
+
+        return $combinations[0];
+    }
+
+    /**
+     * Liste toutes les déclinaisons (product_attribute) d'un produit, avec leur stock propre. Utilisée
+     * pour le champ `combinations` (GET /products?barcode=...) afin de laisser l'app faire choisir la
+     * bonne déclinaison quand le match est ambigu (EAN13 posé sur le produit, plusieurs déclinaisons).
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function getProductCombinations(int $productId, int $langId, int $shopId): array
+    {
+        if ($productId <= 0) {
+            return [];
+        }
+
+        $query = new DbQuery();
+        $query->select('pa.id_product_attribute, pa.ean13, pa.reference');
+        $query->from('product_attribute', 'pa');
+        $query->innerJoin(
+            'product_attribute_shop',
+            'pas',
+            'pas.id_product_attribute = pa.id_product_attribute AND pas.id_shop = ' . (int) $shopId
+        );
+        $query->where('pa.id_product = ' . (int) $productId);
+        $query->orderBy('pa.id_product_attribute ASC');
+
+        /** @var array<int, array<string, mixed>> $rows */
+        $rows = (array) Db::getInstance()->executeS($query);
+
+        $combinations = [];
+        foreach ($rows as $row) {
+            $combinationId = isset($row['id_product_attribute']) ? (int) $row['id_product_attribute'] : 0;
+            if ($combinationId <= 0) {
+                continue;
+            }
+
+            $combinations[] = [
+                'id' => $combinationId,
+                'name' => $this->getCombinationLabel($combinationId, $langId),
+                'ean13' => isset($row['ean13']) ? (string) $row['ean13'] : '',
+                'reference' => isset($row['reference']) ? (string) $row['reference'] : '',
+                'quantity' => class_exists('StockAvailable')
+                    ? (int) StockAvailable::getQuantity($productId, $combinationId)
+                    : 0,
+            ];
+        }
+
+        return $combinations;
     }
 
     /**

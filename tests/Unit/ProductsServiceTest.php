@@ -139,6 +139,125 @@ final class ProductsServiceTest extends TestCase
         $this->assertNull($formatted['matched_combination']);
     }
 
+    public function testFormatProductRowIncludesCombinationsOnlyWhenIncludeCombinationsRequested(): void
+    {
+        // Cf. ProductsService::getProductCombinations() : simule product_attribute.ean13/.reference.
+        Db::$testExecuteSResult = [
+            ['id_product_attribute' => 7, 'ean13' => '3760123456999', 'reference' => 'RICO-035-BLEU'],
+            ['id_product_attribute' => 8, 'ean13' => '', 'reference' => 'RICO-035-ROUGE'],
+        ];
+
+        $service = new ProductsService();
+        $row = [
+            'id_product' => 52,
+            'name' => 'Fil Ricorumi réf.035',
+            'reference' => 'RICO-035',
+            'ean13' => '3760123450000',
+            'active' => 1,
+            'date_upd' => '2025-06-01 12:00:00',
+            'base_price' => 3.5,
+            'quantity' => 0,
+            'low_stock_threshold' => 5,
+        ];
+
+        $method = new ReflectionMethod(ProductsService::class, 'formatProductRow');
+        $method->setAccessible(true);
+
+        /** @var array<string, mixed> $withoutBarcode */
+        $withoutBarcode = $method->invoke($service, $row, 1, 1);
+        $this->assertArrayNotHasKey('combinations', $withoutBarcode);
+
+        /** @var array<string, mixed> $withBarcode */
+        $withBarcode = $method->invoke($service, $row, 1, 1, true, '3760123450000');
+        $this->assertArrayHasKey('combinations', $withBarcode);
+        $this->assertCount(2, $withBarcode['combinations']);
+        $this->assertSame(7, $withBarcode['combinations'][0]['id']);
+        $this->assertSame('3760123456999', $withBarcode['combinations'][0]['ean13']);
+        $this->assertSame('RICO-035-BLEU', $withBarcode['combinations'][0]['reference']);
+        $this->assertSame(8, $withBarcode['combinations'][1]['id']);
+    }
+
+    public function testGetProductCombinationsMapsAllDeclinaisonsWithQuantity(): void
+    {
+        Db::$testExecuteSResult = [
+            ['id_product_attribute' => 7, 'ean13' => '3760123456999', 'reference' => 'RICO-035-BLEU'],
+        ];
+
+        $service = new ProductsService();
+        $method = new ReflectionMethod(ProductsService::class, 'getProductCombinations');
+        $method->setAccessible(true);
+        /** @var array<int, array<string, mixed>> $combinations */
+        $combinations = $method->invoke($service, 52, 1, 1);
+
+        $this->assertCount(1, $combinations);
+        $this->assertSame(7, $combinations[0]['id']);
+        $this->assertSame('3760123456999', $combinations[0]['ean13']);
+        $this->assertSame('RICO-035-BLEU', $combinations[0]['reference']);
+        // Stub StockAvailable::getQuantity() => 0 par défaut.
+        $this->assertSame(0, $combinations[0]['quantity']);
+    }
+
+    public function testBuildMatchedCombinationTargetsSoleCombinationWhenBarcodeMatchesProductWithOneCombination(): void
+    {
+        // Cas pensebonheur fréquent : l'auto-association a posé l'EAN13 sur le PRODUIT (pas la
+        // combinaison), mais le produit n'a qu'une seule déclinaison => pas d'ambiguïté, l'app ne doit
+        // pas avoir à faire choisir l'utilisateur.
+        $service = new ProductsService();
+        $row = [
+            'id_product' => 52,
+            'ean13' => '3760123450000',
+            'reference' => 'RICO-035',
+        ];
+        $combinations = [
+            ['id' => 7, 'name' => 'Coloris - Bleu nuit', 'ean13' => '', 'reference' => 'RICO-035-BLEU', 'quantity' => 12],
+        ];
+
+        $method = new ReflectionMethod(ProductsService::class, 'buildMatchedCombination');
+        $method->setAccessible(true);
+        $result = $method->invoke($service, $row, 1, '3760123450000', $combinations);
+
+        $this->assertSame($combinations[0], $result);
+    }
+
+    public function testBuildMatchedCombinationIsNullWhenBarcodeMatchesProductWithMultipleCombinations(): void
+    {
+        // Ambigu (≥ 2 déclinaisons) : l'app doit laisser choisir via le champ `combinations`, le module
+        // ne doit pas trancher à sa place.
+        $service = new ProductsService();
+        $row = [
+            'id_product' => 52,
+            'ean13' => '3760123450000',
+            'reference' => 'RICO-035',
+        ];
+        $combinations = [
+            ['id' => 7, 'name' => 'Coloris - Bleu', 'ean13' => '', 'reference' => 'A', 'quantity' => 5],
+            ['id' => 8, 'name' => 'Coloris - Rouge', 'ean13' => '', 'reference' => 'B', 'quantity' => 3],
+        ];
+
+        $method = new ReflectionMethod(ProductsService::class, 'buildMatchedCombination');
+        $method->setAccessible(true);
+        $result = $method->invoke($service, $row, 1, '3760123450000', $combinations);
+
+        $this->assertNull($result);
+    }
+
+    public function testBuildMatchedCombinationIsNullWhenProductHasNoCombination(): void
+    {
+        // Rétrocompat : produit sans déclinaison, comportement historique inchangé.
+        $service = new ProductsService();
+        $row = [
+            'id_product' => 88,
+            'ean13' => '3760123456789',
+            'reference' => 'TSHIRT-BLACK',
+        ];
+
+        $method = new ReflectionMethod(ProductsService::class, 'buildMatchedCombination');
+        $method->setAccessible(true);
+        $result = $method->invoke($service, $row, 1, '3760123456789', []);
+
+        $this->assertNull($result);
+    }
+
     public function testUpdateStockWritesAtProductLevelByDefault(): void
     {
         $service = new ProductsService();
@@ -331,6 +450,41 @@ final class ProductsServiceTest extends TestCase
         $this->assertFalse($result);
     }
 
+    public function testUpdateProductWritesEan13OnCombinationNotProductWhenCombinationIdProvided(): void
+    {
+        // Simule product_attribute.id_product_attribute trouvé en base pour CE produit (combinationBelongsToProduct()).
+        Db::$testGetValueResult = 501;
+
+        $service = new ProductsService();
+        $result = $service->updateProduct(88, ['ean13' => '3760123456789', 'combination_id' => 501]);
+
+        $this->assertTrue($result);
+        // L'EAN13 est écrit sur la déclinaison (Combination::update()), pas sur le produit.
+        $this->assertSame([['id_product_attribute' => 501, 'ean13' => '3760123456789']], Combination::$updateCalls);
+    }
+
+    public function testUpdateProductRejectsEan13WithForeignCombinationId(): void
+    {
+        // Db::$testGetValueResult reste à son défaut (0) : simule un combination_id qui n'appartient PAS
+        // au produit ciblé.
+        $service = new ProductsService();
+        $result = $service->updateProduct(88, ['ean13' => '3760123456789', 'combination_id' => 999]);
+
+        $this->assertFalse($result);
+        $this->assertSame([], Combination::$updateCalls);
+    }
+
+    public function testUpdateProductRejectsNonNumericCombinationId(): void
+    {
+        $service = new ProductsService();
+
+        /** @phpstan-ignore-next-line argument.type (payload volontairement mal typé pour le test) */
+        $result = $service->updateProduct(88, ['ean13' => '3760123456789', 'combination_id' => 'abc']);
+
+        $this->assertFalse($result);
+        $this->assertSame([], Combination::$updateCalls);
+    }
+
     public function testUpdateProductAcceptsMultipleSimpleFieldsAtOnce(): void
     {
         $service = new ProductsService();
@@ -368,7 +522,9 @@ final class ProductsServiceTest extends TestCase
         // on les remet à leur valeur par défaut pour ne pas polluer les autres tests.
         ImageManager::$resizeSucceeds = true;
         Db::$testGetValueResult = 0;
+        Db::$testExecuteSResult = [];
         StockAvailable::$setQuantityCalls = [];
+        Combination::$updateCalls = [];
 
         parent::tearDown();
     }

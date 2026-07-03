@@ -233,6 +233,28 @@ class RebuildconnectorProductsModuleFrontController extends RebuildconnectorBase
                 ]);
                 break;
             case 'attributes':
+                if (array_key_exists('combination_id', $payload) && $payload['combination_id'] !== null) {
+                    if (!is_numeric($payload['combination_id'])) {
+                        throw new \InvalidArgumentException(
+                            $this->t(
+                                'products.error.invalid_combination_id',
+                                [],
+                                'The combination_id field must be numeric.'
+                            )
+                        );
+                    }
+                    $payload['combination_id'] = (int) $payload['combination_id'];
+                    if ($payload['combination_id'] <= 0) {
+                        throw new \InvalidArgumentException(
+                            $this->t(
+                                'products.error.invalid_combination_id',
+                                [],
+                                'The combination_id field must be numeric.'
+                            )
+                        );
+                    }
+                }
+
                 if (array_key_exists('active', $payload)) {
                     $normalizedActive = $this->normalizeBooleanValue($payload['active']);
                     if ($normalizedActive === null) {
@@ -358,6 +380,9 @@ class RebuildconnectorProductsModuleFrontController extends RebuildconnectorBase
                 }
                 if (array_key_exists('reference', $payload)) {
                     $changes['reference'] = (string) $payload['reference'];
+                }
+                if (array_key_exists('combination_id', $payload)) {
+                    $changes['combination_id'] = (int) $payload['combination_id'];
                 }
                 $product = $this->getProductsService()->getProductById($productId);
                 $this->recordAuditEvent('products.attributes.updated', [

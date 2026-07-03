@@ -32,7 +32,7 @@ class RebuildConnector extends Module
     {
         $this->name = 'rebuildconnector';
         $this->tab = 'administration';
-        $this->version = '1.10.6';
+        $this->version = '1.10.7';
         $this->author = 'Rebuild IT';
         $this->need_instance = 0;
         $this->bootstrap = true;
