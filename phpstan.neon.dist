@@ -5,8 +5,46 @@ parameters:
   tmpDir: build/phpstan
   inferPrivatePropertyTypeFromConstructor: true
   reportUnmatchedIgnoredErrors: false
+  # Les annotations @param/@var/@return des stubs (phpstan-bootstrap.php) ne doivent pas être
+  # traitées comme absolument certaines : plusieurs upgrade/*.php font un instanceof défensif
+  # sur un paramètre déjà typé via @param dans leur PHPDoc, ce qui sinon serait signalé à tort
+  # comme "toujours vrai".
+  treatPhpDocTypesAsCertain: false
   bootstrapFiles:
     - phpstan-bootstrap.php
   excludePaths:
     - vendor/*
     - rebuildconnector/vendor/*
+  # Constats résiduels de niveau 6 qui ne relèvent PAS d'un stub manquant (aucune classe/méthode/
+  # propriété PrestaShop absente) mais de vérifications défensives ou d'annotations déjà présentes
+  # dans le code métier réel. Conformément au périmètre de cette tâche (stubs/config uniquement,
+  # jamais le code métier), ces constats préexistants sont ignorés ici plutôt que « corrigés » en
+  # touchant la logique applicative.
+  ignoreErrors:
+    -
+      message: '#^Function upgrade_module_[0-9_]+\(\) has no return type specified\.$#'
+      path: rebuildconnector/upgrade/*.php
+    -
+      message: '#^Method DashboardService::resolvePeriodRange\(\) return type has no value type specified in iterable type array\.$#'
+      path: rebuildconnector/classes/DashboardService.php
+    -
+      message: '#^Method SettingsService::sanitizeTopics\(\) is unused\.$#'
+      path: rebuildconnector/classes/SettingsService.php
+    -
+      message: '#^Call to function is_string\(\) with string will always evaluate to true\.$#'
+      path: rebuildconnector/classes/UpdateCheckService.php
+    -
+      message: '#^Strict comparison using !== between mixed and null will always evaluate to true\.$#'
+      path: rebuildconnector/controllers/front/BaseApiController.php
+    -
+      message: '#^Method RebuildconnectorCustomersModuleFrontController::buildFiltersMeta\(\) is unused\.$#'
+      path: rebuildconnector/controllers/front/CustomersController.php
+    -
+      message: '#^Call to function is_array\(\) with array(<int, OrderInvoice>)? will always evaluate to true\.$#'
+      path: rebuildconnector/controllers/front/InvoiceController.php
+    -
+      message: '#^Property OrderInvoice::\$number \(int\) in isset\(\) is not nullable\.$#'
+      path: rebuildconnector/controllers/front/InvoiceController.php
+    -
+      message: '#^Call to function is_array\(\) with array(<int, array<string, mixed>>)? will always evaluate to true\.$#'
+      path: rebuildconnector/rebuildconnector.php

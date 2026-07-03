@@ -52,7 +52,8 @@ final class DashboardServiceTest extends TestCase
     public function testConversionRateIsNullWhenNoCart(): void
     {
         // Quand pas de panier, rate doit être null
-        $service = new StubDashboardService(ordersCount: 5, cartsCount: 0);
+        // PHP 7.4 minimum (pas d'arguments nommés) : positionnel = ordersCount, cartsCount
+        $service = new StubDashboardService(5, 0);
         $metrics = $service->getMetrics('month');
 
         $this->assertNull($metrics['conversion_rate']['rate']);
@@ -63,7 +64,8 @@ final class DashboardServiceTest extends TestCase
     public function testConversionRateComputedCorrectly(): void
     {
         // 10 commandes / 100 paniers = 10 %
-        $service = new StubDashboardService(ordersCount: 10, cartsCount: 100);
+        // PHP 7.4 minimum (pas d'arguments nommés) : positionnel = ordersCount, cartsCount
+        $service = new StubDashboardService(10, 100);
         $metrics = $service->getMetrics('month');
 
         $this->assertSame(10.0, $metrics['conversion_rate']['rate']);
@@ -71,7 +73,8 @@ final class DashboardServiceTest extends TestCase
 
     public function testPendingOrdersCountIsInteger(): void
     {
-        $service = new StubDashboardService(pendingCount: 7);
+        // PHP 7.4 minimum (pas d'arguments nommés) : positionnel = ordersCount, cartsCount, pendingCount
+        $service = new StubDashboardService(0, 0, 7);
         $metrics = $service->getMetrics('month');
 
         $this->assertSame(7, $metrics['pending_orders_count']);
@@ -82,7 +85,8 @@ final class DashboardServiceTest extends TestCase
         $alerts = [
             ['product_id' => 42, 'name' => 'Patron robe', 'quantity' => 2, 'image_url' => null],
         ];
-        $service = new StubDashboardService(lowStockProducts: $alerts);
+        // PHP 7.4 minimum (pas d'arguments nommés) : positionnel = ordersCount, cartsCount, pendingCount, lowStockProducts
+        $service = new StubDashboardService(0, 0, 0, $alerts);
         $metrics = $service->getMetrics('month');
 
         $this->assertIsArray($metrics['low_stock_alerts']);
@@ -96,7 +100,8 @@ final class DashboardServiceTest extends TestCase
         $alerts = [
             ['product_id' => 1, 'name' => 'Produit test', 'quantity' => 3, 'image_url' => 'https://example.com/img/1.jpg'],
         ];
-        $service = new StubDashboardService(lowStockProducts: $alerts);
+        // PHP 7.4 minimum (pas d'arguments nommés) : positionnel = ordersCount, cartsCount, pendingCount, lowStockProducts
+        $service = new StubDashboardService(0, 0, 0, $alerts);
         $metrics = $service->getMetrics('month');
 
         $entry = $metrics['low_stock_alerts'][0];

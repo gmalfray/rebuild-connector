@@ -24,6 +24,14 @@ if (!defined('_MYSQL_ENGINE_')) {
     define('_MYSQL_ENGINE_', 'InnoDB');
 }
 
+if (!defined('_PS_USE_SQL_SLAVE_')) {
+    define('_PS_USE_SQL_SLAVE_', false);
+}
+
+if (!defined('__PS_BASE_URI__')) {
+    define('__PS_BASE_URI__', '/');
+}
+
 function pSQL(string $string, bool $htmlOK = false): string
 {
     return $string;
@@ -78,6 +86,23 @@ class Link
     public function getImageLink(string $rewrite, string $idImage, string $type = 'large_default'): string
     {
         return 'https://example.com/img/' . $idImage . '.jpg';
+    }
+
+    /**
+     * @param array<string, mixed> $params
+     * @param bool|null $ssl
+     */
+    public function getModuleLink(string $module, string $controller = '', array $params = [], $ssl = null): string
+    {
+        return 'https://example.com/module/' . $module . '/' . $controller;
+    }
+
+    /**
+     * @param bool|null $ssl
+     */
+    public function getBaseLink(?int $idShop = null, $ssl = null): string
+    {
+        return 'https://example.com/';
     }
 }
 
@@ -232,10 +257,28 @@ class Employee
 {
     /** @var int */
     public $id = 1;
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    public static function getEmployees(bool $onlyActive = true): array
+    {
+        return [];
+    }
 }
 
 class Module
 {
+    public static function isEnabled(string $moduleName): bool
+    {
+        return false;
+    }
+
+    public static function isInstalled(string $moduleName): bool
+    {
+        return false;
+    }
+
     /** @var string */
     public $name;
     /** @var string */
@@ -362,7 +405,14 @@ class Tools
         return (string) $price;
     }
 
-    public static function getShopDomainSsl(bool $http = false): string
+    /**
+     * Retour typé en union (au lieu d'un `string` natif strict) pour rester fidèle aux
+     * vérifications défensives déjà présentes dans le code métier (is_string(...)) : le cœur
+     * PrestaShop ne garantit pas un type strict sur cette méthode selon les versions.
+     *
+     * @return string|false
+     */
+    public static function getShopDomainSsl(bool $http = false)
     {
         return 'https://example.com';
     }
@@ -507,18 +557,36 @@ class Db
      */
     public static array $testExecuteSResult = [];
 
-    public static function getInstance(): self
+    public static function getInstance(bool $useSlave = false): self
     {
         return new self();
     }
 
     /**
+     * Retour élargi en union `|false` (au lieu d'un `array` natif strict) pour rester fidèle
+     * au cœur PrestaShop (executeS() peut échouer et retourner false) et aux annotations
+     * défensives déjà présentes dans le code métier.
+     *
      * @param mixed $query
-     * @return array<int, array<string, mixed>>
+     * @return array<int, array<string, mixed>>|false
      */
-    public function executeS($query): array
+    public function executeS($query)
     {
         return self::$testExecuteSResult;
+    }
+
+    /**
+     * @param mixed $query
+     * @return array<string, mixed>|false
+     */
+    public function getRow($query, bool $useCache = true)
+    {
+        return false;
+    }
+
+    public function Insert_ID(): int
+    {
+        return 0;
     }
 
     /**
@@ -553,7 +621,7 @@ class Db
      * @param mixed $query
      * @return mixed
      */
-    public function getValue($query)
+    public function getValue($query, bool $useCache = true)
     {
         return self::$testGetValueResult;
     }
@@ -657,6 +725,14 @@ class Order
     public $date_add = '';
     /** @var string */
     public $date_upd = '';
+    /** @var int */
+    public $id_shop = 1;
+    /** @var int */
+    public $id_address_delivery = 0;
+    /** @var float */
+    public $total_shipping_tax_excl = 0.0;
+    /** @var int */
+    public $invoice_number = 0;
 
     public function __construct(int $id)
     {
@@ -674,6 +750,27 @@ class Order
     public function update(): bool
     {
         return true;
+    }
+
+    public function getIdOrderCarrier(): int
+    {
+        return 0;
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    public function getHistory(int $idLang, ?int $idOrderState = null, bool $withHiddenState = false): array
+    {
+        return [];
+    }
+
+    /**
+     * @return array<int, OrderInvoice>
+     */
+    public function getInvoicesCollection(): array
+    {
+        return [];
     }
 }
 
@@ -750,8 +847,64 @@ class Carrier
 {
     /** @var string */
     public $name = '';
+    /** @var int */
+    public $id_reference = 0;
 
     public function __construct(int $id_carrier, int $id_lang = 0)
+    {
+    }
+}
+
+class Address
+{
+    /** @var int */
+    public $id_country = 0;
+    /** @var int */
+    public $id_state = 0;
+    /**
+     * Champs réellement optionnels dans le cœur PrestaShop (nullable en base) : company,
+     * address2, phone_mobile. Typés nullable ici pour rester fidèles aux `?? ''` défensifs
+     * déjà présents dans le code métier.
+     *
+     * @var string|null
+     */
+    public $company = '';
+    /** @var string */
+    public $lastname = '';
+    /** @var string */
+    public $firstname = '';
+    /** @var string */
+    public $address1 = '';
+    /** @var string|null */
+    public $address2 = '';
+    /** @var string */
+    public $city = '';
+    /** @var string */
+    public $postcode = '';
+    /** @var string */
+    public $phone = '';
+    /** @var string|null */
+    public $phone_mobile = '';
+
+    public function __construct(int $id = 0)
+    {
+    }
+}
+
+class Country
+{
+    public static function getIsoById(int $idCountry): string
+    {
+        return 'FR';
+    }
+}
+
+class State
+{
+    /** @var string */
+    public $iso_code = '';
+
+    public function __construct(int $id = 0)
     {
     }
 }
@@ -898,8 +1051,112 @@ class PDF
     {
     }
 
-    public function render(bool $display = true): string
+    /**
+     * Retour typé en union (au lieu d'un `string` natif strict) pour rester fidèle aux
+     * vérifications défensives déjà présentes dans le code métier (=== false, is_string(...)).
+     *
+     * @return string|false
+     */
+    public function render(bool $display = true)
     {
         return '';
+    }
+}
+
+// =============================================================================
+// Stubs SDK externe : classes lib du module Colissimo (tiers, chargées à l'exécution via
+// require_once conditionnel — cf. ColissimoLabelService::requireColissimoLibClasses()).
+// Ces classes ne sont PAS fournies par ce module ni par PrestaShop core : elles ne sont
+// déclarées ici que pour la satisfaction de PHPStan (jamais utilisées au runtime réel).
+// =============================================================================
+
+interface ColissimoReturnedResponseInterface
+{
+}
+
+abstract class AbstractColissimoResponse
+{
+}
+
+class ColissimoResponseParser
+{
+}
+
+class ColissimoGenerateLabelResponse extends AbstractColissimoResponse
+{
+    /** @var string */
+    public $parcelNumber = '';
+    /** @var array<int, array<string, mixed>> */
+    public $messages = [];
+    /** @var string */
+    public $label = '';
+}
+
+abstract class AbstractColissimoRequest
+{
+}
+
+class ColissimoGenerateLabelRequest extends AbstractColissimoRequest
+{
+    /**
+     * @param array<string, mixed> $credentials
+     */
+    public function __construct(array $credentials)
+    {
+    }
+
+    /**
+     * @param array<string, mixed> $output
+     */
+    public function setOutput(array $output): void
+    {
+    }
+
+    /**
+     * @param array<string, mixed> $services
+     */
+    public function setShipmentServices(array $services): void
+    {
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     */
+    public function setShipmentOptions(array $options): void
+    {
+    }
+
+    /**
+     * @param array<string, mixed> $address
+     */
+    public function setSenderAddress(array $address): void
+    {
+    }
+
+    /**
+     * @param array<string, mixed> $address
+     */
+    public function setAddresseeAddress(array $address): void
+    {
+    }
+
+    public function buildRequest(): void
+    {
+    }
+}
+
+class ColissimoClient
+{
+    public function __construct(int $mode = 1)
+    {
+    }
+
+    public function setRequest(AbstractColissimoRequest $request): void
+    {
+    }
+
+    public function request(): ColissimoGenerateLabelResponse
+    {
+        return new ColissimoGenerateLabelResponse();
     }
 }

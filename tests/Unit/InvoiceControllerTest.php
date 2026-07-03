@@ -49,7 +49,8 @@ final class InvoiceControllerTest extends TestCase
     public function testFilenameWithEmptyReferenceUsesId(): void
     {
         $builder = new InvoiceFilenameHelper();
-        $filename = $builder->build('', 5, orderId: 99);
+        // PHP 7.4 minimum (pas d'arguments nommés) : positionnel = reference, invoiceNumber, orderId
+        $filename = $builder->build('', 5, 99);
 
         $this->assertSame('facture_99_5.pdf', $filename);
     }
