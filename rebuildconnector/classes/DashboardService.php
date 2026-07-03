@@ -454,7 +454,7 @@ class DashboardService
         $datePeriod = new \DatePeriod(
             $from->setTime(0, 0, 0),
             new \DateInterval('P1D'),
-            $to->setTime(23, 59, 59)->modify('+1 day')
+            $to->setTime(23, 59, 59)->modify('+1 second')
         );
 
         foreach ($datePeriod as $date) {

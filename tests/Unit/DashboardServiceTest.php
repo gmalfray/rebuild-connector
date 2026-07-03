@@ -194,21 +194,9 @@ final class DashboardServiceTest extends TestCase
 
     public function testCustomRangeMultiDayIsDaily(): void
     {
-        // BUG RUNTIME CONFIRMÉ (pas un flake de fuseau horaire) : DashboardService::buildChart()
-        // construit le DatePeriod journalier avec `$to->setTime(23, 59, 59)->modify('+1 day')`
-        // comme borne de fin. Cette borne étant EXCLUSIVE dans DatePeriod, elle inclut à tort
-        // une 8e date (celle du lendemain de $to). Reproduit de façon déterministe en UTC,
-        // Europe/Paris et America/New_York — ce n'est donc pas une histoire de TZ ambiant.
-        // Correctif suspecté (non appliqué ici, hors périmètre "tests" de cette passe qualité,
-        // à valider avant de toucher au code métier) : retirer le `->modify('+1 day')`, la
-        // borne `$to->setTime(23, 59, 59)` étant déjà suffisante pour inclure le dernier jour
-        // vu la sémantique "borne exclusive" de DatePeriod.
-        $this->markTestSkipped(
-            'Bug réel dans DashboardService::buildChart() (off-by-one sur la borne de fin du ' .
-            "DatePeriod journalier → 8 points au lieu de 7). Signalé pour confirmation avant fix " .
-            'du code métier ; ne pas relâcher ce skip sans corriger buildChart().'
-        );
-
+        // Régression : la borne de fin du DatePeriod journalier était `->modify('+1 day')`
+        // (borne exclusive → 8e point parasite le lendemain de $to). Corrigé en `->modify('+1 second')`
+        // dans DashboardService::buildChart(), comme la période horaire.
         // Plage de 7 jours → granularité journalière (7 points).
         $from = new \DateTimeImmutable('2025-06-01 00:00:00');
         $to = new \DateTimeImmutable('2025-06-07 23:59:59');
