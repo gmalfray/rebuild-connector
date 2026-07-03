@@ -56,7 +56,10 @@ class RebuildconnectorReportsModuleFrontController extends RebuildconnectorBaseA
     {
         $resource = Tools::strtolower((string) Tools::getValue('resource'));
         $filters = [
-            'limit' => Tools::getValue('limit'),
+            // On valide/caste AVANT de passer à ReportsService::sanitizeLimit(?int) : Tools::getValue()
+            // renvoie string|false et un `?limit=abc` provoquerait sinon un TypeError → 500. Ici une
+            // valeur non numérique lève InvalidArgumentException → réponse HTTP 400 propre.
+            'limit' => $this->parseLimit(Tools::getValue('limit')),
             'date_from' => Tools::getValue('date_from'),
             'date_to' => Tools::getValue('date_to'),
         ];
@@ -77,6 +80,26 @@ class RebuildconnectorReportsModuleFrontController extends RebuildconnectorBaseA
             default:
                 throw new \InvalidArgumentException($this->t('reports.error.unknown_resource', [], 'Unknown report resource.'));
         }
+    }
+
+    /**
+     * Normalise le paramètre `limit` reçu en query string.
+     *
+     * @param mixed $value valeur brute issue de Tools::getValue() (string|false)
+     * @return int|null null si absent (ReportsService appliquera sa valeur par défaut)
+     * @throws \InvalidArgumentException si la valeur est présente mais non numérique
+     */
+    private function parseLimit($value): ?int
+    {
+        if ($value === null || $value === '' || $value === false) {
+            return null;
+        }
+
+        if (!is_numeric($value)) {
+            throw new \InvalidArgumentException($this->t('reports.error.invalid_limit', [], 'Limit must be a positive integer.'));
+        }
+
+        return (int) $value;
     }
 
     private function getReportsService(): ReportsService

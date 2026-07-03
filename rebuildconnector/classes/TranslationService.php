@@ -31,10 +31,6 @@ class TranslationService
             'en' => 'API key cannot be empty.',
             'fr' => 'La clé API ne peut pas être vide.',
         ],
-        'admin.error.invalid_service_account' => [
-            'en' => 'The FCM service account must contain valid JSON.',
-            'fr' => 'Le compte de service FCM doit contenir un JSON valide.',
-        ],
         'admin.error.invalid_webhook_url' => [
             'en' => 'The webhook URL must be a valid HTTPS address.',
             'fr' => 'L’URL du webhook doit être une adresse HTTPS valide.',
@@ -42,10 +38,6 @@ class TranslationService
         'admin.error.invalid_ip_range' => [
             'en' => 'One or more IP ranges are invalid. Use plain IPs or CIDR notation.',
             'fr' => 'Une ou plusieurs adresses IP sont invalides. Utilisez des IPs simples ou en notation CIDR.',
-        ],
-        'admin.error.invalid_env_overrides' => [
-            'en' => 'Environment overrides must follow the KEY=VALUE format (uppercase keys).',
-            'fr' => 'Les overrides d’environnement doivent respecter le format KEY=VALUE (clés en majuscules).',
         ],
         'admin.error.invalid_rate_limit' => [
             'en' => 'Rate limit must be a positive integer.',
@@ -204,14 +196,6 @@ class TranslationService
         'admin.form.allowed_ips_help' => [
             'en' => 'Restrict access to specific IPs or CIDR ranges (one per line). Leave empty to allow all.',
             'fr' => 'Restreignez l’accès à certaines IP ou plages CIDR (une par ligne). Laissez vide pour tout autoriser.',
-        ],
-        'admin.form.env_overrides_label' => [
-            'en' => 'Environment overrides',
-            'fr' => 'Overrides d’environnement',
-        ],
-        'admin.form.env_overrides_help' => [
-            'en' => 'Dynamic configuration injected as KEY=VALUE pairs. Lines starting with # are ignored.',
-            'fr' => 'Configuration dynamique injectée sous forme de paires KEY=VALUE. Les lignes commençant par # sont ignorées.',
         ],
         'admin.form.save_button' => [
             'en' => 'Save settings',
@@ -500,8 +484,6 @@ class TranslationService
             'rate_limit_help' => $this->translate('admin.form.rate_limit_help', $locale),
             'allowed_ips_label' => $this->translate('admin.form.allowed_ips_label', $locale),
             'allowed_ips_help' => $this->translate('admin.form.allowed_ips_help', $locale),
-            'env_overrides_label' => $this->translate('admin.form.env_overrides_label', $locale),
-            'env_overrides_help' => $this->translate('admin.form.env_overrides_help', $locale),
             'save_button' => $this->translate('admin.form.save_button', $locale),
         ];
     }

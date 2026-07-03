@@ -372,7 +372,9 @@ class ProductsService
             return false;
         }
 
-        $combination->ean13 = pSQL($ean13);
+        // Pas de pSQL() ici : ObjectModel::update() ré-échappe déjà via son mapping de champs et ses
+        // validations. Un pSQL() supplémentaire produirait un double échappement (apostrophes doublées).
+        $combination->ean13 = $ean13;
 
         return (bool) $combination->update();
     }
@@ -571,7 +573,8 @@ class ProductsService
                     return false;
                 }
             } else {
-                $product->ean13 = pSQL($ean13);
+                // Pas de pSQL() : échappement géré nativement par ObjectModel::update().
+                $product->ean13 = $ean13;
             }
             $updated = true;
         }
@@ -623,7 +626,8 @@ class ProductsService
                 return false;
             }
 
-            $product->reference = pSQL($reference);
+            // Pas de pSQL() : échappement géré nativement par ObjectModel::update().
+            $product->reference = $reference;
             $updated = true;
         }
 

@@ -61,19 +61,7 @@ class UpdateCheckService
      *   - ignore le cache local (ps_configuration) et le remplace par la réponse fraîche.
      * À utiliser uniquement sur action explicite de l'utilisateur (bouton BO).
      *
-     * @deprecated Conservé pour compat éventuelle d'appelants externes ; ne permet PAS de
-     * distinguer « à jour » d'un échec de vérification (les deux renvoient null).
-     * Préférer checkForUpdateFresh() qui expose un statut explicite.
-     * @return array{latest: string, url: string, download_url: string}|null
-     */
-    public function getAvailableUpdateFresh(): ?array
-    {
-        return $this->checkForUpdateFresh()['update'];
-    }
-
-    /**
-     * Force une vérification fraîche (mêmes bypass de cache que getAvailableUpdateFresh())
-     * et retourne un statut explicite distinguant :
+     * Retourne un statut explicite distinguant :
      *   - STATUS_UPDATE_AVAILABLE : une version plus récente est disponible ;
      *   - STATUS_UP_TO_DATE       : la vérification a réussi et le module est à jour ;
      *   - STATUS_CHECK_FAILED     : la vérification a échoué (réseau/timeout/JSON invalide)

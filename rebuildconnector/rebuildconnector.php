@@ -32,12 +32,12 @@ class RebuildConnector extends Module
     {
         $this->name = 'rebuildconnector';
         $this->tab = 'administration';
-        $this->version = '1.10.11';
+        $this->version = '1.10.12';
         $this->author = 'Rebuild IT';
         $this->need_instance = 0;
         $this->bootstrap = true;
 
-        $this->controllers = ['api', 'orders', 'products', 'productimages', 'customers', 'dashboard', 'notifications', 'baskets', 'reports', 'invoice'];
+        $this->controllers = ['api', 'orders', 'products', 'productimages', 'customers', 'dashboard', 'notifications', 'baskets', 'reports'];
 
         parent::__construct();
 
@@ -107,9 +107,6 @@ class RebuildConnector extends Module
         $newUserQrJson = null;
         $regeneratedAdminApiKey = null;
         $regeneratedAdminQrJson = null;
-        // Empêche le repli auto-provision (fin de méthode) de tourner juste après un clear
-        // explicite ou une tentative de provisioning déjà faite dans cette même requête.
-        $skipHubAutoFallback = false;
 
         $userService = new UserService();
 
@@ -224,7 +221,6 @@ class RebuildConnector extends Module
         } elseif (Tools::isSubmit('rebuildconnector_hub_provision')) {
             // Bouton BO « Activer le push / Provisionner une licence » — n'a de sens que si le
             // hub n'est pas déjà actif (cf. condition d'affichage côté template).
-            $skipHubAutoFallback = true;
             $shopUrlForProvision = $this->getShopBaseUrl();
             if ($shopUrlForProvision === '') {
                 $errors[] = 'Impossible de déterminer l\'URL de la boutique (vérifiez la configuration du domaine SSL).';
@@ -280,9 +276,6 @@ class RebuildConnector extends Module
             if (Tools::getValue('REBUILDCONNECTOR_HUB_LICENSE_KEY') !== false || Tools::getValue('REBUILDCONNECTOR_HUB_LICENSE_KEY_CLEAR') !== false) {
                 if (Tools::getValue('REBUILDCONNECTOR_HUB_LICENSE_KEY_CLEAR') === '1') {
                     $settingsService->clearHubLicenseKey();
-                    // On vient de vider la clé volontairement : ne pas la re-provisionner
-                    // automatiquement dans la foulée, laisser l'admin décider.
-                    $skipHubAutoFallback = true;
                 } else {
                     $hubLicenseKey = trim((string) Tools::getValue('REBUILDCONNECTOR_HUB_LICENSE_KEY'));
                     if ($hubLicenseKey !== '') {
@@ -330,28 +323,16 @@ class RebuildConnector extends Module
                 }
             }
 
-            if (Tools::getValue('REBUILDCONNECTOR_ENV_OVERRIDES') !== false) {
-                try {
-                    $settingsService->setEnvOverrides(trim((string) Tools::getValue('REBUILDCONNECTOR_ENV_OVERRIDES')));
-                } catch (\InvalidArgumentException $exception) {
-                    $errors[] = $this->t('admin.error.invalid_env_overrides');
-                }
-            }
-
             if ($errors === []) {
                 $messages[] = $this->t('admin.message.settings_updated');
             }
         }
 
-        // Repli best-effort : couvre les installs où le réseau/hub était indisponible au moment
-        // de install() (auto-provision non aboutie). Ne tourne qu'une fois par chargement de page,
-        // et jamais juste après un clear explicite ou une tentative déjà faite via le bouton dédié.
-        if (!$skipHubAutoFallback && $settingsService->getHubLicenseKey() === '') {
-            $autoProvisionedKey = $this->autoProvisionHubLicense();
-            if ($autoProvisionedKey !== null) {
-                $messages[] = 'Notifications push activées automatiquement (licence hub provisionnée).';
-            }
-        }
+        // Plus de provisioning automatique passif au chargement de getContent() : il déclenchait un
+        // appel réseau bloquant (timeout ~10 s) à CHAQUE affichage de la page tant que la licence hub
+        // était vide, ralentissant le BO. Le provisioning ne se fait désormais que sur action explicite
+        // de l'admin (bouton « Activer le push / Provisionner une licence », submit
+        // rebuildconnector_hub_provision) ou une seule fois à l'installation (install()).
 
         foreach ($errors as $error) {
             $output .= $this->displayError($error);
@@ -540,8 +521,12 @@ class RebuildConnector extends Module
                 }
 
                 return Tools::displayPrice($amount);
-            } catch (\Exception $exception) {
-                // Fallback below if PrestaShop helpers are unavailable.
+            } catch (\Throwable $exception) {
+                // Robustesse du hook de commande : on attrape \Throwable (pas seulement \Exception)
+                // pour qu'une \TypeError/\Error éventuelle de Tools::displayPrice() (déprécié, retrait
+                // prévu PS9) ne fasse JAMAIS planter la notification de commande — on retombe sur le
+                // formatage manuel ci-dessous. Migration vers Locale::formatPrice non retenue ici pour
+                // ne pas risquer de régression d'affichage (locale/devise) sur un simple libellé push.
             }
         }
 
@@ -791,20 +776,10 @@ class RebuildConnector extends Module
                     'module' => $module,
                 ],
             ],
-            'module-' . $module . '-api-orders-invoice' => [
-                'controller' => 'invoice',
-                'rule' => $baseRule . '/orders/{id}/invoice',
-                'keywords' => [
-                    'id' => [
-                        'regexp' => '[0-9]+',
-                        'param' => 'id',
-                    ],
-                ],
-                'params' => [
-                    'fc' => 'module',
-                    'module' => $module,
-                ],
-            ],
+            // NB : la route /orders/{id}/invoice est servie par la route « orders-action » ci-dessus
+            // (controller `orders` → OrdersController → OrdersService::getInvoicePdf), qui applique le
+            // contrôle multistore id_shop (protection IDOR). L'ancienne route dédiée vers le controller
+            // `invoice` (InvoiceController) a été supprimée : elle dupliquait la logique SANS ce contrôle.
             'module-' . $module . '-api-products' => [
                 'controller' => 'products',
                 'rule' => $baseRule . '/products',

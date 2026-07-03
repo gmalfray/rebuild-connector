@@ -125,31 +125,9 @@ class SettingsService
             $updated = true;
         }
 
-        if (!isset($settings['env_overrides'])) {
-            $settings['env_overrides'] = '';
-            $updated = true;
-        }
-
         if ($updated) {
             $this->save($settings);
         }
-    }
-
-    /**
-     * Retourne la clé en clair UNIQUEMENT si encore présente (ancienne installation, migration lazy
-     * pas encore déclenchée). Ne doit PAS être utilisé pour exposer la clé en clair au BO ou à
-     * l'API — réservé à la migration interne dans verifyApiKey().
-     *
-     * @internal
-     */
-    public function getApiKey(): ?string
-    {
-        $settings = $this->all();
-        if (!isset($settings['api_key']) || !is_string($settings['api_key'])) {
-            return null;
-        }
-
-        return $settings['api_key'];
     }
 
     /**
@@ -437,44 +415,6 @@ class SettingsService
         $this->save($settings);
     }
 
-    public function getEnvOverridesRaw(): string
-    {
-        $settings = $this->all();
-        if (!isset($settings['env_overrides'])) {
-            return '';
-        }
-
-        return is_string($settings['env_overrides']) ? trim($settings['env_overrides']) : '';
-    }
-
-    /**
-     * @return array<string, string>
-     */
-    public function getEnvOverrides(): array
-    {
-        return $this->parseEnvOverrides($this->getEnvOverridesRaw());
-    }
-
-    /**
-     * @throws \InvalidArgumentException
-     */
-    public function setEnvOverrides(string $overrides): void
-    {
-        $normalized = $this->parseEnvOverrides($overrides, true);
-
-        $settings = $this->all();
-        $settings['env_overrides'] = $normalized === []
-            ? ''
-            : implode("\n", array_map(
-                static function ($key, $value): string {
-                    return $key . '=' . $value;
-                },
-                array_keys($normalized),
-                $normalized
-            ));
-        $this->save($settings);
-    }
-
     /**
      * @return array<string, mixed>
      */
@@ -497,7 +437,6 @@ class SettingsService
             'allowed_ips' => $this->getAllowedIpRangesRaw(),
             'rate_limit_enabled' => $this->isRateLimitEnabled(),
             'rate_limit' => $this->getRateLimit(),
-            'env_overrides' => $this->getEnvOverridesRaw(),
             'hub_url' => $this->getHubUrl(),
             'hub_license_key_preview' => $this->renderSecretPreview($this->getHubLicenseKey()),
             'hub_enabled' => $this->isHubEnabled(),
@@ -592,8 +531,11 @@ class SettingsService
         }
 
         $length = Tools::strlen($secret);
+        // Secret court : on masque INTÉGRALEMENT sa valeur. Révéler ne serait-ce que la tête et la
+        // queue (4+4) divulguerait tout le secret pour une longueur ≤ 8 → fuite dans un aperçu censé
+        // être masqué. Le masquage s'applique donc toujours, quelle que soit la longueur.
         if ($length <= 8) {
-            return $secret;
+            return str_repeat('•', $length);
         }
 
         return Tools::substr($secret, 0, 4) . str_repeat('•', max(0, $length - 8)) . Tools::substr($secret, -4);
@@ -602,29 +544,6 @@ class SettingsService
     public function clearCache(): void
     {
         $this->cache = null;
-    }
-
-    /**
-     * @param array<int, string> $topics
-     * @return array<int, string>
-     */
-    private function sanitizeTopics(array $topics): array
-    {
-        $normalized = [];
-        foreach ($topics as $topic) {
-            $topic = trim($topic);
-            if ($topic === '') {
-                continue;
-            }
-
-            if (!preg_match('/^[A-Za-z0-9-_.~%]{1,900}$/', $topic)) {
-                continue;
-            }
-
-            $normalized[] = $topic;
-        }
-
-        return array_values(array_unique($normalized));
     }
 
     private function sanitizeIpRange(string $range): ?string
@@ -666,56 +585,4 @@ class SettingsService
         return $validatedIp . '/' . $maskValue;
     }
 
-    /**
-     * @return array<string, string>
-     * @throws \InvalidArgumentException
-     */
-    private function parseEnvOverrides(string $raw, bool $validate = false): array
-    {
-        $raw = trim($raw);
-        if ($raw === '') {
-            return [];
-        }
-
-        $lines = preg_split('/\r\n|\r|\n/', $raw) ?: [];
-        $result = [];
-
-        foreach ($lines as $line) {
-            $line = trim($line);
-            if ($line === '' || strpos($line, '#') === 0) {
-                continue;
-            }
-
-            $position = strpos($line, '=');
-            if ($position === false) {
-                if ($validate) {
-                    throw new \InvalidArgumentException('Invalid env override line: ' . $line);
-                }
-                continue;
-            }
-
-            $key = trim(substr($line, 0, $position));
-            $value = trim(substr($line, $position + 1));
-
-            if ($key === '') {
-                if ($validate) {
-                    throw new \InvalidArgumentException('Invalid env override line: ' . $line);
-                }
-
-                continue;
-            }
-
-            if (!preg_match('/^[A-Z0-9_]+$/', $key)) {
-                if ($validate) {
-                    throw new \InvalidArgumentException('Invalid env key: ' . $key);
-                }
-
-                continue;
-            }
-
-            $result[$key] = $value;
-        }
-
-        return $result;
-    }
 }

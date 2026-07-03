@@ -128,8 +128,6 @@ service tiers donnerait `SENDER_ID_MISMATCH`).
   le module appelle l'endpoint public du hub `POST /v1/licenses/provision` (`shop_url` + nom de la
   boutique, sans authentification) pour obtenir automatiquement une licence d'essai. Déclenché :
   - à l'**installation** du module (best-effort — ne fait jamais échouer l'installation) ;
-  - au **chargement de la page de configuration** tant qu'aucune clé n'est configurée (couvre le cas où
-    le réseau/hub était indisponible au moment de l'installation) ;
   - via le bouton **« Activer le push / Provisionner une licence »** de la carte Hub push, pour relancer
     la tentative manuellement — message explicite si le domaine a déjà une licence (HTTP 409, la clé
     n'est alors pas renvoyée par le hub : à ressaisir manuellement ou à demander à l'administrateur du
@@ -145,7 +143,7 @@ L’onglet *Rebuild Connector* du back-office expose les réglages suivants :
 - **Accès & utilisateurs** : clé Admin (accès complet) traitée comme un **secret one-time** — affichée/QR une seule fois à la (re)génération puis masquée et stockée hachée — et **utilisateurs nommés** multiples avec scopes dédiés (chacun son QR et sa clé révocable).
 - **Configuration mobile** : QR code prêt à scanner dans PrestaFlow (payload JSON `{"version":1,"shopUrl":"https://…","apiKey":"…"}`) pour injecter automatiquement l’URL API et la clé.
 - **Firebase Cloud Messaging** : compte de service HTTP v1, topics par défaut et jetons fallback pour tester les notifications.
-- **Hub push centralisé** *(v1.5.0, auto-provisionnement depuis v1.10.6)* : clé de licence pour relayer l'envoi à `push.rebuild-it.fr` — obtenue automatiquement (installation / chargement de page / bouton dédié) ou saisie manuellement.
+- **Hub push centralisé** *(v1.5.0, auto-provisionnement depuis v1.10.6)* : clé de licence pour relayer l'envoi à `push.rebuild-it.fr` — obtenue automatiquement (à l'installation ou via le bouton dédié) ou saisie manuellement.
 - **Webhooks** : URL de callback HTTPS, secret HMAC (aperçu + régénération) et reset possible.
 - **Protection d’accès** : liste blanche d’IP/CIDR, limitation de débit configurable (requêtes/minute), activation/désactivation rapide.
 - **Overrides d’environnement** : paires `KEY=VALUE` injectées dans le module pour piloter des comportements dynamiques sans redéploiement.

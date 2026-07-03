@@ -23,6 +23,54 @@ final class ReportsControllerTest extends TestCase
         $this->assertSame(405, $controller->response['status']);
         $this->assertSame('method_not_allowed', $controller->response['payload']['error']);
     }
+
+    // =========================================================================
+    // m2 — un limit non numérique doit renvoyer 400 (pas de TypeError → 500).
+    // =========================================================================
+
+    public function testNonNumericLimitReturnsBadRequest(): void
+    {
+        $_SERVER = ['REQUEST_METHOD' => 'GET'];
+        $_GET = ['resource' => 'bestsellers', 'limit' => 'abc'];
+
+        $controller = new TestReportsController();
+        $controller->initContent();
+
+        $this->assertSame(400, $controller->response['status']);
+        $this->assertSame('invalid_payload', $controller->response['payload']['error']);
+    }
+
+    public function testParseLimitThrowsForNonNumericValue(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->invokeParseLimit('abc');
+    }
+
+    public function testParseLimitReturnsNullWhenAbsent(): void
+    {
+        $this->assertNull($this->invokeParseLimit(false));
+        $this->assertNull($this->invokeParseLimit(''));
+        $this->assertNull($this->invokeParseLimit(null));
+    }
+
+    public function testParseLimitCastsNumericValue(): void
+    {
+        $this->assertSame(25, $this->invokeParseLimit('25'));
+    }
+
+    /**
+     * @param mixed $value
+     */
+    private function invokeParseLimit($value): ?int
+    {
+        $method = new \ReflectionMethod(RebuildconnectorReportsModuleFrontController::class, 'parseLimit');
+        $method->setAccessible(true);
+
+        /** @var int|null $result */
+        $result = $method->invoke(new TestReportsController(), $value);
+
+        return $result;
+    }
 }
 
 final class TestReportsController extends RebuildconnectorReportsModuleFrontController

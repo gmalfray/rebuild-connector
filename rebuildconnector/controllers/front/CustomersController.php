@@ -362,30 +362,4 @@ class RebuildconnectorCustomersModuleFrontController extends RebuildconnectorBas
         })));
     }
 
-    /**
-     * @param array<string, mixed> $filters
-     * @return array<string, mixed>
-     */
-    private function buildFiltersMeta(array $filters): array
-    {
-        $meta = [];
-        foreach ($filters as $key => $value) {
-            if (in_array($key, ['limit', 'offset'], true)) {
-                continue;
-            }
-
-            if ($value === null || $value === '' || $value === []) {
-                continue;
-            }
-
-            if (is_array($value)) {
-                $meta[$key] = array_values($value);
-                continue;
-            }
-
-            $meta[$key] = $value;
-        }
-
-        return $meta;
-    }
 }

@@ -208,7 +208,7 @@ class RebuildconnectorOrdersModuleFrontController extends RebuildconnectorBaseAp
                     'order_id' => (string) $orderId,
                     'status' => $status,
                 ]);
-                $this->renderJson([], 204);
+                $this->renderNoContent();
                 return;
             case 'shipping':
                 $trackingNumber = isset($payload['tracking_number']) ? trim((string) $payload['tracking_number']) : '';
@@ -251,7 +251,7 @@ class RebuildconnectorOrdersModuleFrontController extends RebuildconnectorBaseAp
                     $webhookPayload['carrier_id'] = $carrierId;
                 }
                 $this->dispatchWebhookEvent('order.shipping.updated', $webhookPayload);
-                $this->renderJson([], 204);
+                $this->renderNoContent();
                 return;
             default:
                 throw new \InvalidArgumentException($this->t('orders.error.invalid_action', [], 'Unsupported order action.'));

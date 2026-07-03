@@ -428,6 +428,16 @@ class Tools
      */
     public static function getValue(string $key, $default = null)
     {
+        // Fidélité aux tests : PrestaShop lit la valeur depuis la requête ($_POST prioritaire, puis
+        // $_GET). On reproduit ce comportement pour que les tests puissent piloter les paramètres via
+        // les superglobales. Absence de valeur → défaut (comme le vrai Tools::getValue).
+        if (isset($_POST[$key])) {
+            return $_POST[$key];
+        }
+        if (isset($_GET[$key])) {
+            return $_GET[$key];
+        }
+
         return $default;
     }
 
@@ -744,9 +754,22 @@ class Order
     /** @var int */
     public $invoice_number = 0;
 
+    /**
+     * Crochets de test (unitaires uniquement) : permettent de simuler une commande d'une autre
+     * boutique (id_shop) et une collection de factures non vide, sans BDD réelle.
+     *
+     * @var int|null
+     */
+    public static $testIdShop = null;
+    /** @var array<int, OrderInvoice> */
+    public static $testInvoices = [];
+
     public function __construct(int $id)
     {
         $this->id = $id;
+        if (self::$testIdShop !== null) {
+            $this->id_shop = self::$testIdShop;
+        }
     }
 
     /**
@@ -780,7 +803,7 @@ class Order
      */
     public function getInvoicesCollection(): array
     {
-        return [];
+        return self::$testInvoices;
     }
 }
 
@@ -1047,6 +1070,9 @@ class PDF
 {
     public const TEMPLATE_INVOICE = 'Invoice';
 
+    /** @var string|false Crochet de test : contenu simulé renvoyé par render(). */
+    public static $testRenderResult = '';
+
     /**
      * @param array<int, mixed> $objects
      * @param string $template
@@ -1064,7 +1090,7 @@ class PDF
      */
     public function render(bool $display = true)
     {
-        return '';
+        return self::$testRenderResult;
     }
 }
 

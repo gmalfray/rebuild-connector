@@ -30,7 +30,7 @@ final class FakeUpdateCheckService extends UpdateCheckService
 /**
  * Tests unitaires pour UpdateCheckService::checkForUpdateFresh().
  *
- * Contexte : getAvailableUpdateFresh() renvoyait `null` aussi bien quand le module
+ * Contexte : une vérification renvoyait autrefois `null` aussi bien quand le module
  * est à jour que quand la vérification réseau échoue, ce qui faisait afficher à tort
  * « vous êtes à jour » sur un échec réseau (bouton BO). checkForUpdateFresh() distingue
  * désormais explicitement les 3 cas via un statut.
@@ -89,18 +89,4 @@ final class UpdateCheckServiceTest extends TestCase
         $this->assertNull($result['update']);
     }
 
-    public function testGetAvailableUpdateFreshStaysBackwardCompatible(): void
-    {
-        $json = json_encode([
-            'latest' => '2.0.0',
-            'url' => 'https://example.test/changelog',
-            'download_url' => 'https://example.test/download.zip',
-        ]);
-        $service = new FakeUpdateCheckService('1.0.0', $json);
-
-        $update = $service->getAvailableUpdateFresh();
-
-        $this->assertNotNull($update);
-        $this->assertSame('2.0.0', $update['latest']);
-    }
 }

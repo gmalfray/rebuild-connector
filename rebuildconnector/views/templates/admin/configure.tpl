@@ -713,23 +713,6 @@
                 </div>
 
                 <div class="form-group">
-                    <label class="control-label col-lg-3" for="rebuildconnector_env_overrides">
-                        Overrides d'environnement
-                    </label>
-                    <div class="col-lg-9">
-                        <textarea
-                            id="rebuildconnector_env_overrides"
-                            name="REBUILDCONNECTOR_ENV_OVERRIDES"
-                            rows="5"
-                            class="form-control"
-                            spellcheck="false"
-                            placeholder="CLE=valeur"
-                        >{$settings.env_overrides|escape:'htmlall'}</textarea>
-                        <p class="help-block">{$i18n.env_overrides_help|escape:'htmlall'}</p>
-                    </div>
-                </div>
-
-                <div class="form-group">
                     <label class="control-label col-lg-3">URL API</label>
                     <div class="col-lg-9">
                         <p class="form-control-static">

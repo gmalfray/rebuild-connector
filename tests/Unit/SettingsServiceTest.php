@@ -27,22 +27,47 @@ final class SettingsServiceTest extends TestCase
         $service->setAllowedIpRanges('invalid-range');
     }
 
-    public function testSetEnvOverridesParsesKeyValuePairs(): void
-    {
-        $service = new SettingsService();
-        $service->setEnvOverrides("# comment\nFOO=bar\nBAR=baz qux");
+    // =========================================================================
+    // renderSecretPreview — le masquage doit TOUJOURS s'appliquer (m3).
+    // Un secret court (≤ 8 caractères) ne doit JAMAIS être renvoyé en clair.
+    // =========================================================================
 
-        $this->assertSame(
-            ['FOO' => 'bar', 'BAR' => 'baz qux'],
-            $service->getEnvOverrides()
-        );
+    public function testRenderSecretPreviewFullyMasksShortSecret(): void
+    {
+        $preview = $this->invokeRenderSecretPreview('abc');
+
+        $this->assertSame('•••', $preview);
+        $this->assertStringNotContainsString('a', $preview);
     }
 
-    public function testSetEnvOverridesRejectsInvalidKey(): void
+    public function testRenderSecretPreviewMasksEightCharSecretEntirely(): void
     {
-        $service = new SettingsService();
+        $preview = $this->invokeRenderSecretPreview('12345678');
 
-        $this->expectException(\InvalidArgumentException::class);
-        $service->setEnvOverrides('foo=bar');
+        // Longueur ≤ 8 : masquage intégral, aucune fuite tête/queue.
+        $this->assertSame('••••••••', $preview);
+    }
+
+    public function testRenderSecretPreviewKeepsHeadAndTailForLongSecret(): void
+    {
+        $preview = $this->invokeRenderSecretPreview('ABCD0000000000WXYZ');
+
+        // > 8 caractères : 4 en tête + bullets + 4 en queue.
+        $this->assertStringStartsWith('ABCD', $preview);
+        $this->assertStringEndsWith('WXYZ', $preview);
+        $this->assertStringNotContainsString('0', $preview);
+    }
+
+    public function testRenderSecretPreviewReturnsEmptyForEmptySecret(): void
+    {
+        $this->assertSame('', $this->invokeRenderSecretPreview(''));
+    }
+
+    private function invokeRenderSecretPreview(string $secret): string
+    {
+        $method = new \ReflectionMethod(SettingsService::class, 'renderSecretPreview');
+        $method->setAccessible(true);
+
+        return (string) $method->invoke(new SettingsService(), $secret);
     }
 }

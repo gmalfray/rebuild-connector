@@ -69,6 +69,25 @@ abstract class RebuildconnectorBaseApiModuleFrontController extends ModuleFrontC
     }
 
     /**
+     * Renvoie une réponse HTTP 204 No Content — SANS corps.
+     *
+     * Un statut 204 ne doit jamais transporter de corps (RFC 7231). On n'émet donc aucun JSON
+     * ici, contrairement à renderJson([], 204) qui envoyait un corps `[]` invalide.
+     */
+    protected function renderNoContent(): void
+    {
+        @header_remove('X-Powered-By');
+        header('X-Content-Type-Options: nosniff');
+        header('X-Frame-Options: DENY');
+        header('Referrer-Policy: no-referrer');
+        header('Cache-Control: no-store, no-cache, must-revalidate');
+        header('Pragma: no-cache');
+        http_response_code(204);
+        $this->ajaxRender('');
+        exit;
+    }
+
+    /**
      * Renvoie un contenu binaire PDF (au lieu du JSON habituel).
      */
     protected function renderPdf(string $content, string $filename): void

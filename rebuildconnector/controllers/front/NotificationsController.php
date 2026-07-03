@@ -82,7 +82,7 @@ class RebuildconnectorNotificationsModuleFrontController extends Rebuildconnecto
 
         $topics = $this->extractTopics($payload['topics'] ?? null);
         // topics vide = appareil non configuré → le hub lui envoie tous les événements
-        // (comportement rétrocompatible, cohérent avec FcmDeviceService::getTokensForCategory).
+        // (comportement rétrocompatible, ciblage assuré côté hub push).
 
         $deviceId = isset($payload['device_id']) ? trim((string) $payload['device_id']) : null;
         $platform = isset($payload['platform']) ? trim((string) $payload['platform']) : null;

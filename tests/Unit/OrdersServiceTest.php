@@ -21,6 +21,52 @@ final class OrdersServiceTest extends TestCase
     {
         parent::setUp();
         $this->service = new OrdersService();
+        Order::$testIdShop = null;
+        Order::$testInvoices = [];
+        PDF::$testRenderResult = '';
+    }
+
+    protected function tearDown(): void
+    {
+        Order::$testIdShop = null;
+        Order::$testInvoices = [];
+        PDF::$testRenderResult = '';
+        parent::tearDown();
+    }
+
+    // =========================================================================
+    // getInvoicePdf — contrôle multistore id_shop (protection IDOR, m4).
+    // La récupération de facture ne doit JAMAIS renvoyer le PDF d'une commande
+    // appartenant à une autre boutique que celle du contexte courant.
+    // =========================================================================
+
+    public function testGetInvoicePdfDeniesCrossShopAccess(): void
+    {
+        // Contexte boutique courante = shop id 1 (stub Shop). La commande appartient au shop 2.
+        Order::$testIdShop = 2;
+        // Même avec une facture disponible et un PDF rendable, l'accès doit être refusé.
+        Order::$testInvoices = [new OrderInvoice()];
+        PDF::$testRenderResult = 'PDFBYTES';
+
+        $this->assertNull($this->service->getInvoicePdf(42));
+    }
+
+    public function testGetInvoicePdfReturnsPdfForSameShop(): void
+    {
+        Order::$testIdShop = 1;
+        Order::$testInvoices = [new OrderInvoice()];
+        PDF::$testRenderResult = 'PDFBYTES';
+
+        $this->assertSame('PDFBYTES', $this->service->getInvoicePdf(42));
+    }
+
+    public function testGetInvoicePdfReturnsNullWhenNoInvoice(): void
+    {
+        Order::$testIdShop = 1;
+        Order::$testInvoices = [];
+        PDF::$testRenderResult = 'PDFBYTES';
+
+        $this->assertNull($this->service->getInvoicePdf(42));
     }
 
     // =========================================================================
