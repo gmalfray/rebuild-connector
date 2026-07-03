@@ -115,8 +115,12 @@ class ProductsService
         // Le champ `combinations` (liste complète des déclinaisons) n'est exposé que sur les résultats
         // d'une recherche "barcode" (scan) : c'est le seul cas où l'app en a besoin (faire choisir la
         // bonne déclinaison), et ça évite d'alourdir la liste paginée générale.
-        $includeCombinations = !empty($filters['barcode']);
-        $barcodeCode = $includeCombinations ? trim((string) $filters['barcode']) : null;
+        // combinations exposées pour les recherches CIBLÉES (barcode OU search) : l'app en a besoin
+        // pour l'association (choisir/cibler la bonne déclinaison à laquelle poser l'EAN). Reste exclu
+        // de la liste paginée générale (non filtrée) pour ne pas l'alourdir.
+        $includeCombinations = !empty($filters['barcode']) || !empty($filters['search']);
+        // matched_combination (déclinaison ciblée sans ambiguïté) : uniquement pour un scan barcode.
+        $barcodeCode = !empty($filters['barcode']) ? trim((string) $filters['barcode']) : null;
 
         $products = [];
         foreach ($rows as $row) {
