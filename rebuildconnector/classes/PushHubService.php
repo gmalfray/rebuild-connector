@@ -18,7 +18,10 @@ defined('_PS_VERSION_') || exit;
  */
 class PushHubService
 {
-    private const TIMEOUT = 10;
+    // Appels best-effort (relais devices / notify FCM) potentiellement sur le chemin du checkout
+    // client : timeouts serrés pour ne jamais ajouter de latence perçue au paiement.
+    private const TIMEOUT = 3;
+    private const CONNECT_TIMEOUT = 2;
 
     private SettingsService $settingsService;
 
@@ -258,6 +261,7 @@ class PushHubService
         curl_setopt($handle, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($handle, CURLOPT_CUSTOMREQUEST, $method);
         curl_setopt($handle, CURLOPT_TIMEOUT, self::TIMEOUT);
+        curl_setopt($handle, CURLOPT_CONNECTTIMEOUT, self::CONNECT_TIMEOUT);
 
         if ($body !== null) {
             $encoded = json_encode($body);

@@ -32,7 +32,7 @@ class RebuildConnector extends Module
     {
         $this->name = 'rebuildconnector';
         $this->tab = 'administration';
-        $this->version = '1.10.10';
+        $this->version = '1.10.11';
         $this->author = 'Rebuild IT';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -449,8 +449,38 @@ class RebuildConnector extends Module
             'reference' => $reference,
         ]);
 
-        $this->notifyDevices($notification, $data);
-        $this->dispatchWebhook('order.created', $data);
+        // Push + webhook = best-effort et potentiellement lents (hub push / endpoint client qui rame).
+        // On les sort du chemin bloquant du checkout : le client ne doit jamais payer cette latence
+        // au moment de valider son paiement, et un échec ne doit jamais faire échouer la commande.
+        $this->runAfterResponse(function () use ($notification, $data): void {
+            $this->notifyDevices($notification, $data);
+            $this->dispatchWebhook('order.created', $data);
+        });
+    }
+
+    /**
+     * Exécute une tâche best-effort après l'envoi de la réponse au client (hors chemin bloquant).
+     *
+     * En contexte FPM, fastcgi_finish_request() ferme la connexion client avant d'exécuter la
+     * tâche → aucune latence perçue. Sinon (CLI, mod_php), la tâche s'exécute au shutdown, après
+     * le rendu de la page. Tout est encadré par un try/catch large : un push/webhook qui échoue
+     * ne doit jamais interrompre ni ralentir la validation de commande.
+     */
+    private function runAfterResponse(callable $task): void
+    {
+        register_shutdown_function(function () use ($task): void {
+            if (function_exists('fastcgi_finish_request')) {
+                @fastcgi_finish_request();
+            }
+
+            try {
+                $task();
+            } catch (\Throwable $exception) {
+                if ($this->isDevMode()) {
+                    error_log('[RebuildConnector] Deferred order notification failed: ' . $exception->getMessage());
+                }
+            }
+        });
     }
 
     /**

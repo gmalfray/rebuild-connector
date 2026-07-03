@@ -55,8 +55,10 @@ class WebhookService
         curl_setopt($handle, CURLOPT_POST, true);
         curl_setopt($handle, CURLOPT_POSTFIELDS, $body);
         curl_setopt($handle, CURLOPT_HTTPHEADER, $headers);
-        curl_setopt($handle, CURLOPT_TIMEOUT, 5);
-        curl_setopt($handle, CURLOPT_CONNECTTIMEOUT, 3);
+        // Webhooks best-effort susceptibles d'être déclenchés pendant la validation de commande :
+        // timeouts serrés pour ne pas rallonger le checkout si l'endpoint client rame.
+        curl_setopt($handle, CURLOPT_TIMEOUT, 3);
+        curl_setopt($handle, CURLOPT_CONNECTTIMEOUT, 2);
         curl_setopt($handle, CURLOPT_SSL_VERIFYPEER, true);
         curl_setopt($handle, CURLOPT_SSL_VERIFYHOST, 2);
 
