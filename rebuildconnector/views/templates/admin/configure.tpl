@@ -504,8 +504,25 @@
             </div>
         {else}
             <p class="text-muted" style="margin-bottom:12px;">
-                Saisissez votre clé de licence pour activer les notifications.
+                Saisissez votre clé de licence pour activer les notifications, ou laissez le module
+                l'obtenir automatiquement.
             </p>
+
+            {* ─── Auto-provisionnement : n'a de sens que tant que le hub n'est pas déjà actif ─── *}
+            <div class="well" style="margin-bottom:15px;">
+                <h4><i class="icon-magic"></i> Activation en un clic</h4>
+                <p>
+                    Le module peut demander automatiquement une licence d'essai au hub push pour ce
+                    domaine (aucune saisie requise). Si une licence existe déjà pour ce domaine, elle ne
+                    peut pas être renvoyée par le hub (secret one-time) — il faudra alors la saisir
+                    manuellement ci-dessous ou contacter l'administrateur du hub.
+                </p>
+                <form method="post">
+                    <button type="submit" name="rebuildconnector_hub_provision" value="1" class="btn btn-primary">
+                        <i class="icon-cloud-upload"></i> Activer le push / Provisionner une licence
+                    </button>
+                </form>
+            </div>
         {/if}
 
         <form method="post" class="form-horizontal">

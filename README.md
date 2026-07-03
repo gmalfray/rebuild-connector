@@ -114,19 +114,27 @@ l’app PrestaFlow). Le ciblage se fait côté module via le champ `topics` de l
 
 Un appareil sans préférence (`topics` vide) reçoit **toutes** les catégories (rétrocompatibilité).
 
-### Mode hub centralisé (depuis v1.5.0)
+### Mode hub centralisé (depuis v1.5.0, hub-only depuis v1.7.1)
 
-Au lieu d'embarquer le compte de service FCM, le module peut **relayer l'envoi à un hub centralisé**
+Le module ne porte aucun compte de service FCM : il **relaie systématiquement l'envoi à un hub centralisé**
 (`push.rebuild-it.fr`) qui détient l'unique compte de service Rebuild IT, gère les licences/devices et
 envoie réellement à FCM. Indispensable en multi-boutiques (une app = un projet Firebase → un compte de
 service tiers donnerait `SENDER_ID_MISMATCH`).
 
-- Activation dans le BO (carte **Hub push centralisé**) : renseigner l'**URL du hub** + la **clé de licence**.
-- Une fois actif, le module relaie au hub : l'**enregistrement des devices** (`POST /v1/devices`),
-  leur **suppression** (`DELETE /v1/devices/{token}`) et l'**envoi** (`POST /v1/notify`).
-- **Fallback** : si le hub est injoignable (réseau / HTTP non 2xx), le module retombe automatiquement
-  sur l'envoi **FCM direct** local — aucune notification perdue pendant la transition.
-- Champ vide = mode hub désactivé → comportement FCM direct historique inchangé.
+- Le module relaie au hub : l'**enregistrement des devices** (`POST /v1/devices`), leur **suppression**
+  (`DELETE /v1/devices/{token}`) et l'**envoi** (`POST /v1/notify`), authentifiés par la **clé de licence**
+  (header `Authorization: Bearer <clé>`). L'URL du hub est hardcodée — pas de fallback FCM direct.
+- **Auto-provisionnement « zéro config »** *(depuis v1.10.6)* : si aucune clé de licence n'est configurée,
+  le module appelle l'endpoint public du hub `POST /v1/licenses/provision` (`shop_url` + nom de la
+  boutique, sans authentification) pour obtenir automatiquement une licence d'essai. Déclenché :
+  - à l'**installation** du module (best-effort — ne fait jamais échouer l'installation) ;
+  - au **chargement de la page de configuration** tant qu'aucune clé n'est configurée (couvre le cas où
+    le réseau/hub était indisponible au moment de l'installation) ;
+  - via le bouton **« Activer le push / Provisionner une licence »** de la carte Hub push, pour relancer
+    la tentative manuellement — message explicite si le domaine a déjà une licence (HTTP 409, la clé
+    n'est alors pas renvoyée par le hub : à ressaisir manuellement ou à demander à l'administrateur du
+    hub) ou si le hub est injoignable.
+- Champ vide = mode hub désactivé (aucune notification envoyée) jusqu'à obtention d'une clé, auto ou manuelle.
 
 ---
 
@@ -137,7 +145,7 @@ L’onglet *Rebuild Connector* du back-office expose les réglages suivants :
 - **Accès & utilisateurs** : clé Admin (accès complet) traitée comme un **secret one-time** — affichée/QR une seule fois à la (re)génération puis masquée et stockée hachée — et **utilisateurs nommés** multiples avec scopes dédiés (chacun son QR et sa clé révocable).
 - **Configuration mobile** : QR code prêt à scanner dans PrestaFlow (payload JSON `{"version":1,"shopUrl":"https://…","apiKey":"…"}`) pour injecter automatiquement l’URL API et la clé.
 - **Firebase Cloud Messaging** : compte de service HTTP v1, topics par défaut et jetons fallback pour tester les notifications.
-- **Hub push centralisé** *(v1.5.0)* : URL du hub + clé de licence pour relayer l'envoi à `push.rebuild-it.fr` (fallback FCM direct automatique si le hub est injoignable).
+- **Hub push centralisé** *(v1.5.0, auto-provisionnement depuis v1.10.6)* : clé de licence pour relayer l'envoi à `push.rebuild-it.fr` — obtenue automatiquement (installation / chargement de page / bouton dédié) ou saisie manuellement.
 - **Webhooks** : URL de callback HTTPS, secret HMAC (aperçu + régénération) et reset possible.
 - **Protection d’accès** : liste blanche d’IP/CIDR, limitation de débit configurable (requêtes/minute), activation/désactivation rapide.
 - **Overrides d’environnement** : paires `KEY=VALUE` injectées dans le module pour piloter des comportements dynamiques sans redéploiement.

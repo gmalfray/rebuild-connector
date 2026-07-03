@@ -32,7 +32,7 @@ class RebuildConnector extends Module
     {
         $this->name = 'rebuildconnector';
         $this->tab = 'administration';
-        $this->version = '1.10.5';
+        $this->version = '1.10.6';
         $this->author = 'Rebuild IT';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -53,6 +53,11 @@ class RebuildConnector extends Module
         }
 
         $this->getSettingsService()->ensureDefaults();
+
+        // Auto-provisionnement « zéro config » d'une licence hub d'essai. Best-effort : géré
+        // intégralement à l'intérieur de autoProvisionHubLicense() (try/catch), ne doit JAMAIS
+        // faire échouer l'installation (réseau/hub indisponible, boutique pas encore joignable…).
+        $this->autoProvisionHubLicense();
 
         if (!UserService::install()) {
             return false;
@@ -102,6 +107,9 @@ class RebuildConnector extends Module
         $newUserQrJson = null;
         $regeneratedAdminApiKey = null;
         $regeneratedAdminQrJson = null;
+        // Empêche le repli auto-provision (fin de méthode) de tourner juste après un clear
+        // explicite ou une tentative de provisioning déjà faite dans cette même requête.
+        $skipHubAutoFallback = false;
 
         $userService = new UserService();
 
@@ -213,6 +221,28 @@ class RebuildConnector extends Module
                     )
                 );
             }
+        } elseif (Tools::isSubmit('rebuildconnector_hub_provision')) {
+            // Bouton BO « Activer le push / Provisionner une licence » — n'a de sens que si le
+            // hub n'est pas déjà actif (cf. condition d'affichage côté template).
+            $skipHubAutoFallback = true;
+            $shopUrlForProvision = $this->getShopBaseUrl();
+            if ($shopUrlForProvision === '') {
+                $errors[] = 'Impossible de déterminer l\'URL de la boutique (vérifiez la configuration du domaine SSL).';
+            } else {
+                $provisionResult = $this->getPushHubService()->provisionLicenseDetailed(
+                    $shopUrlForProvision,
+                    $this->getShopDisplayName()
+                );
+
+                if ($provisionResult['provisioned'] && $provisionResult['license_key'] !== null) {
+                    $settingsService->setHubLicenseKey($provisionResult['license_key']);
+                    $messages[] = 'Notifications push activées : licence hub provisionnée automatiquement.';
+                } elseif ($provisionResult['reason'] === 'already_exists') {
+                    $warnings[] = 'Ce domaine possède déjà une licence auprès du hub push. Saisissez la clé manuellement si vous la connaissez, sinon contactez l\'administrateur du hub.';
+                } else {
+                    $warnings[] = 'Impossible de provisionner automatiquement une licence pour le moment (hub injoignable). Réessayez plus tard ou saisissez la clé manuellement.';
+                }
+            }
         } elseif (Tools::isSubmit('rebuildconnector_check_update')) {
             // Vérification manuelle forcée : bypass du cache edge (?nocache=1) ET du cache local.
             // checkForUpdateFresh() distingue explicitement 3 cas (un simple `null` masquait
@@ -250,6 +280,9 @@ class RebuildConnector extends Module
             if (Tools::getValue('REBUILDCONNECTOR_HUB_LICENSE_KEY') !== false || Tools::getValue('REBUILDCONNECTOR_HUB_LICENSE_KEY_CLEAR') !== false) {
                 if (Tools::getValue('REBUILDCONNECTOR_HUB_LICENSE_KEY_CLEAR') === '1') {
                     $settingsService->clearHubLicenseKey();
+                    // On vient de vider la clé volontairement : ne pas la re-provisionner
+                    // automatiquement dans la foulée, laisser l'admin décider.
+                    $skipHubAutoFallback = true;
                 } else {
                     $hubLicenseKey = trim((string) Tools::getValue('REBUILDCONNECTOR_HUB_LICENSE_KEY'));
                     if ($hubLicenseKey !== '') {
@@ -307,6 +340,16 @@ class RebuildConnector extends Module
 
             if ($errors === []) {
                 $messages[] = $this->t('admin.message.settings_updated');
+            }
+        }
+
+        // Repli best-effort : couvre les installs où le réseau/hub était indisponible au moment
+        // de install() (auto-provision non aboutie). Ne tourne qu'une fois par chargement de page,
+        // et jamais juste après un clear explicite ou une tentative déjà faite via le bouton dédié.
+        if (!$skipHubAutoFallback && $settingsService->getHubLicenseKey() === '') {
+            $autoProvisionedKey = $this->autoProvisionHubLicense();
+            if ($autoProvisionedKey !== null) {
+                $messages[] = 'Notifications push activées automatiquement (licence hub provisionnée).';
             }
         }
 
@@ -975,6 +1018,50 @@ class RebuildConnector extends Module
         }
 
         return $baseDomain;
+    }
+
+    /**
+     * Auto-provisionnement « zéro config » de la licence hub push. Best-effort : n'importe
+     * quelle erreur (réseau, hub indisponible, licence déjà existante pour ce domaine…) est
+     * absorbée silencieusement — l'appelant (install() en particulier) ne doit jamais échouer
+     * à cause du hub. Ne logge jamais la clé obtenue.
+     *
+     * @return string|null La clé de licence si provisionnée, null sinon (déjà configurée,
+     *                      URL boutique indisponible, hub injoignable/déjà provisionné…).
+     */
+    private function autoProvisionHubLicense(): ?string
+    {
+        try {
+            $settingsService = $this->getSettingsService();
+            if ($settingsService->getHubLicenseKey() !== '') {
+                return null;
+            }
+
+            $shopUrl = $this->getShopBaseUrl();
+            if ($shopUrl === '') {
+                return null;
+            }
+
+            $licenseKey = $this->getPushHubService()->provisionLicense($shopUrl, $this->getShopDisplayName());
+            if ($licenseKey !== null) {
+                $settingsService->setHubLicenseKey($licenseKey);
+            }
+
+            return $licenseKey;
+        } catch (\Throwable $exception) {
+            if ($this->isDevMode()) {
+                error_log('[RebuildConnector] Auto-provision hub échouée: ' . $exception->getMessage());
+            }
+
+            return null;
+        }
+    }
+
+    private function getShopDisplayName(): string
+    {
+        $name = Configuration::get('PS_SHOP_NAME');
+
+        return is_string($name) && trim($name) !== '' ? trim($name) : $this->name;
     }
 
     private function getCurrentLocale(): string

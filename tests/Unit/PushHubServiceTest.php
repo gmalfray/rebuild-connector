@@ -92,6 +92,102 @@ final class PushHubServiceTest extends TestCase
         $this->assertSame('DELETE', $method);
         $this->assertSame('/v1/devices/tok%2Fwith%20space', $path);
     }
+
+    // ──────────────────────────────────────────────────────────────────
+    // Auto-provisionnement de licence (endpoint public /v1/licenses/provision)
+    // ──────────────────────────────────────────────────────────────────
+
+    public function testProvisionLicenseReturnsKeyOn201(): void
+    {
+        $service = new ProvisionTestPushHubService(
+            new HubSettingsStub(''), // aucune clé configurée : c'est justement le cas d'usage
+            ['status' => 201, 'body' => [
+                'provisioned' => true,
+                'id' => 'lic_1',
+                'license_key' => 'rbk_freshly_provisioned',
+                'status' => 'trial',
+            ]]
+        );
+
+        $key = $service->provisionLicense('https://shop.example.com', 'Ma Boutique');
+
+        $this->assertSame('rbk_freshly_provisioned', $key);
+        $this->assertCount(1, $service->calls);
+        [$method, $path, $body, $authenticated] = $service->calls[0];
+        $this->assertSame('POST', $method);
+        $this->assertSame('/v1/licenses/provision', $path);
+        $this->assertSame('https://shop.example.com', $body['shop_url']);
+        $this->assertSame('Ma Boutique', $body['label']);
+        // Endpoint public du hub : aucune authentification, même si la clé était configurée.
+        $this->assertFalse($authenticated);
+    }
+
+    public function testProvisionLicenseWorksEvenWhenHubDisabled(): void
+    {
+        // Contrairement à notify()/registerDevice(), provisionLicense() ne doit PAS exiger
+        // isEnabled() : c'est précisément l'outil pour sortir de l'état "hub désactivé".
+        $service = new ProvisionTestPushHubService(
+            new HubSettingsStub(''),
+            ['status' => 201, 'body' => ['license_key' => 'rbk_zero_config']]
+        );
+
+        $this->assertFalse($service->isEnabled());
+        $this->assertSame('rbk_zero_config', $service->provisionLicense('https://shop.example.com'));
+    }
+
+    public function testProvisionLicenseReturnsNullOn409AlreadyExists(): void
+    {
+        $service = new ProvisionTestPushHubService(
+            new HubSettingsStub(''),
+            ['status' => 409, 'body' => [
+                'provisioned' => false,
+                'reason' => 'already_exists',
+                'id' => 'lic_1',
+                'status' => 'active',
+            ]]
+        );
+
+        $result = $service->provisionLicenseDetailed('https://shop.example.com');
+
+        $this->assertFalse($result['provisioned']);
+        $this->assertSame('already_exists', $result['reason']);
+        $this->assertNull($result['license_key']);
+        // Le hub ne renvoie jamais la clé sur 409 (secret one-time) : provisionLicense() reste null.
+        $this->assertNull($service->provisionLicense('https://shop.example.com'));
+    }
+
+    public function testProvisionLicenseReturnsNullOnNetworkError(): void
+    {
+        // performRequest() renvoie status = 0 en cas d'échec cURL/timeout (cf. PushHubService::performRequest).
+        $service = new ProvisionTestPushHubService(
+            new HubSettingsStub(''),
+            ['status' => 0, 'body' => []]
+        );
+
+        $this->assertNull($service->provisionLicense('https://shop.example.com'));
+    }
+
+    public function testProvisionLicenseReturnsNullOnUnexpectedHttpError(): void
+    {
+        $service = new ProvisionTestPushHubService(
+            new HubSettingsStub(''),
+            ['status' => 500, 'body' => []]
+        );
+
+        $this->assertNull($service->provisionLicense('https://shop.example.com'));
+    }
+
+    public function testProvisionLicenseReturnsNullWithoutCallWhenShopUrlEmpty(): void
+    {
+        $service = new ProvisionTestPushHubService(
+            new HubSettingsStub(''),
+            ['status' => 201, 'body' => ['license_key' => 'should_not_be_used']]
+        );
+
+        $this->assertNull($service->provisionLicense(''));
+        // Aucun appel réseau émis : validation faite avant tout curl_init().
+        $this->assertSame([], $service->calls);
+    }
 }
 
 /**
@@ -148,5 +244,34 @@ final class TestPushHubService extends PushHubService
         $this->calls[] = [$method, $path, $body];
 
         return $this->response;
+    }
+}
+
+/**
+ * Double de test pour provisionLicense()/provisionLicenseDetailed() : surcharge performRequest()
+ * (bas niveau, pas de dépendance à isEnabled()) pour simuler 201 / 409 / erreur réseau sans curl réel.
+ */
+final class ProvisionTestPushHubService extends PushHubService
+{
+    /** @var array<int, array{0: string, 1: string, 2: array<string, mixed>|null, 3: bool}> */
+    public array $calls = [];
+
+    /** @var array{status: int, body: array<string, mixed>} */
+    private array $forcedResult;
+
+    /**
+     * @param array{status: int, body: array<string, mixed>} $forcedResult
+     */
+    public function __construct(SettingsService $settings, array $forcedResult)
+    {
+        parent::__construct($settings);
+        $this->forcedResult = $forcedResult;
+    }
+
+    protected function performRequest(string $method, string $path, ?array $body, bool $authenticated): array
+    {
+        $this->calls[] = [$method, $path, $body, $authenticated];
+
+        return $this->forcedResult;
     }
 }

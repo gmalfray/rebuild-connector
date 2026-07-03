@@ -12,6 +12,13 @@ if (!defined('_PS_MODULE_DIR_')) {
     define('_PS_MODULE_DIR_', __DIR__ . '/../rebuildconnector/');
 }
 
+if (!defined('__PS_BASE_URI__')) {
+    // Constante PrestaShop toujours définie en runtime réel (chemin de l'install sous le domaine).
+    // Absente de phpstan-bootstrap.php : nécessaire dès qu'un test instancie RebuildConnector
+    // directement (getShopBaseUrl()/getApiEndpoints() la lisent sans garde `defined()`).
+    define('__PS_BASE_URI__', '/');
+}
+
 // Simple autoloader for module classes.
 spl_autoload_register(static function (string $class): void {
     $map = [
