@@ -180,15 +180,56 @@ class RebuildconnectorProductsModuleFrontController extends RebuildconnectorBase
                     throw new \InvalidArgumentException($this->t('api.error.invalid_payload', [], 'The provided data is invalid.'));
                 }
                 $quantity = (int) $payload['quantity'];
-                $this->getProductsService()->updateStock($productId, $quantity);
+
+                $combinationId = 0;
+                if (array_key_exists('combination_id', $payload) && $payload['combination_id'] !== null) {
+                    if (!is_numeric($payload['combination_id'])) {
+                        throw new \InvalidArgumentException(
+                            $this->t(
+                                'products.error.invalid_combination_id',
+                                [],
+                                'The combination_id field must be numeric.'
+                            )
+                        );
+                    }
+                    $combinationId = (int) $payload['combination_id'];
+                    if ($combinationId < 0) {
+                        throw new \InvalidArgumentException(
+                            $this->t(
+                                'products.error.invalid_combination_id',
+                                [],
+                                'The combination_id field must be numeric.'
+                            )
+                        );
+                    }
+                }
+
+                // updateStock() ne renvoie false ici que si combination_id est fourni (> 0) mais
+                // n'appartient pas au produit visé (le produit lui-même a déjà été validé plus haut) :
+                // il ne faut pas écraser le stock d'une déclinaison étrangère à cette commande PATCH.
+                if (!$this->getProductsService()->updateStock($productId, $quantity, $combinationId)) {
+                    $this->jsonError(
+                        'invalid_payload',
+                        $this->t(
+                            'products.error.invalid_combination',
+                            [],
+                            'The combination_id field does not belong to this product.'
+                        ),
+                        400
+                    );
+                    return;
+                }
+
                 $this->recordAuditEvent('products.stock.updated', [
                     'product_id' => $productId,
                     'quantity' => $quantity,
+                    'combination_id' => $combinationId > 0 ? $combinationId : null,
                     'token_subject' => $authPayload['sub'] ?? null,
                 ]);
                 $this->dispatchWebhookEvent('product.stock.updated', [
                     'product_id' => (string) $productId,
                     'quantity' => $quantity,
+                    'combination_id' => $combinationId > 0 ? $combinationId : null,
                 ]);
                 break;
             case 'attributes':

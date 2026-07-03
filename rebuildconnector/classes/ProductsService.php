@@ -67,8 +67,18 @@ class ProductsService
 
         if (!empty($filters['barcode'])) {
             // Correspondance EXACTE (scan EAN13/référence) : distinct du filtre "search" (LIKE partiel).
+            // Combinaison-aware (v1.10.5) : matche aussi product_attribute.ean13/.reference (ex. pelotes
+            // de laine dont le code-barres est posé sur la déclinaison "Coloris", pas sur le produit).
             $code = pSQL((string) $filters['barcode']);
-            $query->where('(p.ean13 = "' . $code . '" OR p.reference = "' . $code . '")');
+            $this->joinProductAttributeForBarcode($query, $code, $shopId);
+            $query->select(
+                'pa.id_product_attribute AS matched_id_product_attribute,'
+                . ' pa.ean13 AS matched_pa_ean13, pa.reference AS matched_pa_reference'
+            );
+            $query->where(
+                '(p.ean13 = "' . $code . '" OR p.reference = "' . $code . '"'
+                . ' OR pas.id_product_attribute IS NOT NULL)'
+            );
         }
 
         if (!empty($filters['ids']) && is_array($filters['ids'])) {
@@ -152,8 +162,13 @@ class ProductsService
         }
 
         if (!empty($filters['barcode'])) {
+            // Cf. getProducts() : même jointure combinaison-aware pour un total cohérent avec la liste.
             $code = pSQL((string) $filters['barcode']);
-            $query->where('(p.ean13 = "' . $code . '" OR p.reference = "' . $code . '")');
+            $this->joinProductAttributeForBarcode($query, $code, $shopId);
+            $query->where(
+                '(p.ean13 = "' . $code . '" OR p.reference = "' . $code . '"'
+                . ' OR pas.id_product_attribute IS NOT NULL)'
+            );
         }
 
         if (!empty($filters['ids']) && is_array($filters['ids'])) {
@@ -183,6 +198,70 @@ class ProductsService
         }
 
         return (int) Db::getInstance()->getValue($query);
+    }
+
+    /**
+     * Ajoute les LEFT JOIN nécessaires pour matcher le filtre "barcode" sur une COMBINAISON
+     * (product_attribute.ean13/.reference) en plus du produit. La jointure `pa` ne cible QUE les
+     * lignes dont le code correspond déjà (ean13/reference étant en pratique uniques), donc elle ne
+     * duplique pas les lignes produit ; `pas` restreint le match à la boutique courante.
+     */
+    private function joinProductAttributeForBarcode(DbQuery $query, string $code, int $shopId): void
+    {
+        $query->leftJoin(
+            'product_attribute',
+            'pa',
+            'pa.id_product = p.id_product AND (pa.ean13 = "' . $code . '" OR pa.reference = "' . $code . '")'
+        );
+        $query->leftJoin(
+            'product_attribute_shop',
+            'pas',
+            'pas.id_product_attribute = pa.id_product_attribute AND pas.id_shop = ' . (int) $shopId
+        );
+    }
+
+    /**
+     * Libellé de combinaison façon core PrestaShop, ex. "Coloris - Bleu" (ou "Coloris - Bleu, Taille - M"
+     * si plusieurs groupes d'attributs). Construit à partir de product_attribute_combination → attribute
+     * → attribute_lang / attribute_group_lang, dans la langue courante.
+     */
+    private function getCombinationLabel(int $idProductAttribute, int $langId): string
+    {
+        if ($idProductAttribute <= 0) {
+            return '';
+        }
+
+        $query = new DbQuery();
+        $query->select('agl.name AS group_name, al.name AS attribute_name');
+        $query->from('product_attribute_combination', 'pac');
+        $query->innerJoin('attribute', 'a', 'a.id_attribute = pac.id_attribute');
+        $query->innerJoin(
+            'attribute_lang',
+            'al',
+            'al.id_attribute = a.id_attribute AND al.id_lang = ' . (int) $langId
+        );
+        $query->innerJoin(
+            'attribute_group_lang',
+            'agl',
+            'agl.id_attribute_group = a.id_attribute_group AND agl.id_lang = ' . (int) $langId
+        );
+        $query->where('pac.id_product_attribute = ' . (int) $idProductAttribute);
+        $query->orderBy('a.position ASC');
+
+        /** @var array<int, array<string, mixed>> $rows */
+        $rows = (array) Db::getInstance()->executeS($query);
+
+        $parts = [];
+        foreach ($rows as $row) {
+            $groupName = isset($row['group_name']) ? (string) $row['group_name'] : '';
+            $attributeName = isset($row['attribute_name']) ? (string) $row['attribute_name'] : '';
+            if ($groupName === '' || $attributeName === '') {
+                continue;
+            }
+            $parts[] = $groupName . ' - ' . $attributeName;
+        }
+
+        return implode(', ', $parts);
     }
 
     /**
@@ -232,16 +311,40 @@ class ProductsService
         return $product;
     }
 
-    public function updateStock(int $productId, int $quantity): bool
+    /**
+     * @param int $combinationId id_product_attribute ciblé (0 ou absent = niveau produit, comportement
+     *                           historique). Doit appartenir au produit sinon la mise à jour est rejetée.
+     */
+    public function updateStock(int $productId, int $quantity, int $combinationId = 0): bool
     {
         $product = new Product($productId);
         if (!Validate::isLoadedObject($product)) {
             return false;
         }
 
-        StockAvailable::setQuantity($productId, 0, $quantity);
+        if ($combinationId > 0 && !$this->combinationBelongsToProduct($combinationId, $productId)) {
+            return false;
+        }
+
+        StockAvailable::setQuantity($productId, $combinationId > 0 ? $combinationId : 0, $quantity);
 
         return true;
+    }
+
+    /**
+     * Vérifie qu'une combinaison (id_product_attribute) appartient bien au produit visé, pour éviter
+     * qu'un combination_id "étranger" (issu d'un autre produit) n'écrase le stock d'une déclinaison qui
+     * n'a rien à voir avec l'appel PATCH en cours.
+     */
+    private function combinationBelongsToProduct(int $combinationId, int $productId): bool
+    {
+        $query = new DbQuery();
+        $query->select('pa.id_product_attribute');
+        $query->from('product_attribute', 'pa');
+        $query->where('pa.id_product_attribute = ' . (int) $combinationId);
+        $query->where('pa.id_product = ' . (int) $productId);
+
+        return (int) Db::getInstance()->getValue($query) > 0;
     }
 
     /**
@@ -551,8 +654,41 @@ class ProductsService
                 'warehouse_id' => null,
                 'updated_at' => $updatedAt,
             ],
+            'matched_combination' => $this->buildMatchedCombination($row, $idProduct, $langId),
             'images' => $imagePayload,
             'updated_at' => $updatedAt,
+        ];
+    }
+
+    /**
+     * Construit l'objet `matched_combination` exposé sur GET /products?barcode=... quand le code scanné
+     * matche une déclinaison (product_attribute) plutôt que le produit lui-même. Null si la ligne ne
+     * provient pas d'une recherche "barcode", ou si le match porte sur le produit / un produit sans
+     * déclinaison (cf. ProductsService::joinProductAttributeForBarcode).
+     *
+     * @param array<string, mixed> $row
+     * @return array<string, mixed>|null
+     */
+    private function buildMatchedCombination(array $row, int $idProduct, int $langId): ?array
+    {
+        $matchedCombinationId = isset($row['matched_id_product_attribute'])
+            ? (int) $row['matched_id_product_attribute']
+            : 0;
+
+        if ($matchedCombinationId <= 0) {
+            return null;
+        }
+
+        $combinationQuantity = class_exists('StockAvailable')
+            ? (int) StockAvailable::getQuantity($idProduct, $matchedCombinationId)
+            : 0;
+
+        return [
+            'id' => $matchedCombinationId,
+            'name' => $this->getCombinationLabel($matchedCombinationId, $langId),
+            'ean13' => isset($row['matched_pa_ean13']) ? (string) $row['matched_pa_ean13'] : '',
+            'reference' => isset($row['matched_pa_reference']) ? (string) $row['matched_pa_reference'] : '',
+            'quantity' => $combinationQuantity,
         ];
     }
 

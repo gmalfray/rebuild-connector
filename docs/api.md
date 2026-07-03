@@ -459,7 +459,7 @@ Liste paginée de produits.
 | `offset`  | int    | Décalage de pagination (défaut 0)                       |
 | `active`  | int    | `1` = actifs uniquement, `0` = inactifs uniquement. **Si absent : aucun filtre, tous les produits sont retournés.** |
 | `search`  | string | Recherche partielle (LIKE) sur nom ou référence          |
-| `barcode` | string | Correspondance **exacte** sur `ean13` OU `reference` (scan code-barres). Distinct de `search`. |
+| `barcode` | string | Correspondance **exacte** sur `ean13` OU `reference`, **produit OU combinaison** (scan code-barres). Distinct de `search`. |
 | `ids`     | string | Liste d'IDs séparés par virgule (`ids=88,89,90`)        |
 | `stock`   | string | Filtre par état de stock : `in_stock`, `out_of_stock`, `low_stock` |
 
@@ -490,6 +490,7 @@ Liste paginée de produits.
         "warehouse_id": null,
         "updated_at": "2025-06-01 12:00:00"
       },
+      "matched_combination": null,
       "images": [
         {
           "id": 101,
@@ -516,10 +517,39 @@ Liste paginée de produits.
 |---------|------|------------------------------------------------------------------------------------|
 | `total` | int  | Nombre total de produits correspondant aux filtres actifs, indépendamment de la pagination (`limit`/`offset` ignorés). Permet à l'app d'afficher un compteur global et de calculer le nombre de pages. |
 
+**Champ `matched_combination` ajouté (v1.10.5)**
+
+Certaines boutiques (ex. pensebonheur, pelotes de laine) portent le stock vendable et l'EAN13 sur une
+**combinaison/déclinaison** (`product_attribute`, ex. « Coloris - Bleu ») plutôt que sur le produit. Quand
+le filtre `barcode` matche une combinaison plutôt que le produit lui-même, l'item retourné porte un objet
+`matched_combination` :
+
+```json
+{
+  "matched_combination": {
+    "id": 7,
+    "name": "Coloris - Bleu nuit",
+    "ean13": "3760123456999",
+    "reference": "RICO-035-BLEU",
+    "quantity": 12
+  }
+}
+```
+
+| Champ                            | Type        | Description                                                                 |
+|-----------------------------------|-------------|-------------------------------------------------------------------------------|
+| `matched_combination`             | object/null | `null` si le match porte sur le produit lui-même (ou produit sans déclinaison). |
+| `matched_combination.id`          | int         | `id_product_attribute` de la combinaison matchée.                            |
+| `matched_combination.name`        | string      | Libellé façon core PrestaShop, ex. `"Coloris - Bleu"` (`attribute_group_lang` + `attribute_lang`, langue courante). |
+| `matched_combination.ean13`       | string      | EAN13 propre à la combinaison (`product_attribute.ean13`).                   |
+| `matched_combination.reference`   | string      | Référence propre à la combinaison (`product_attribute.reference`).           |
+| `matched_combination.quantity`    | int         | Stock actuel de **cette combinaison** (`StockAvailable::getQuantity($id_product, $id_product_attribute)`), distinct de `stock.quantity` qui reste le stock niveau produit (`id_product_attribute = 0`). |
+
 > `price` est le prix TTC (`Product::getPriceStatic($id, true)`). `price_tax_excl` (prix HT brut) est exposé en lecture depuis **v1.10.3** (liste + détail).
 > Toute valeur du filtre `stock` autre que les trois valeurs listées retourne `400 invalid_payload`.
 > **v1.4.3** — Corrige un bug où l'absence du paramètre `active` appliquait un filtre `p.active = 0` non désiré, causant le retour de produits inactifs uniquement et une liste tronquée.
 > **v1.10.0** — Ajoute le champ `ean13` (liste + détail) et le filtre `barcode` pour la mise en stock par scan de code-barres. `barcode` fait une correspondance exacte sur `ean13` OU `reference` ; `search` reste un LIKE partiel sur `name`/`reference`. Si `ean13` n'est pas renseigné en base, la valeur retournée est `""`.
+> **v1.10.5** — Le filtre `barcode` matche désormais aussi `product_attribute.ean13`/`.reference` (combinaisons), via un `LEFT JOIN product_attribute` restreint aux lignes qui matchent déjà le code (donc pas de duplication de lignes produit) et `product_attribute_shop` pour restreindre à la boutique courante. Ajoute le champ `matched_combination` (liste + détail) quand le match porte sur une déclinaison.
 
 ---
 
@@ -552,6 +582,7 @@ liste, car potentiellement volumineuses ; nécessaires au préremplissage de l'�
       "warehouse_id": null,
       "updated_at": "2025-06-01 12:00:00"
     },
+    "matched_combination": null,
     "images": [
       {
         "id": 101,
@@ -572,6 +603,10 @@ liste, car potentiellement volumineuses ; nécessaires au préremplissage de l'�
 
 **Erreurs** : `404 not_found` si le produit n'existe pas.
 
+> `matched_combination` est toujours `null` sur ce endpoint : le détail est résolu par `id_product` (pas
+> par `barcode`), donc jamais issu d'un match sur une combinaison. Ce champ n'a de sens que sur
+> `GET /products?barcode=...`.
+
 ---
 
 ### GET `.../api/products/{id}/stock`
@@ -590,22 +625,31 @@ Paramètre URL `action=stock` (ou auto-détecté si `payload.quantity` présent)
 
 Corps JSON :
 
-| Champ      | Type | Description                              |
-|------------|------|------------------------------------------|
-| `quantity` | int  | Nouvelle quantité absolue en stock       |
+| Champ            | Type | Description                              |
+|-------------------|------|------------------------------------------|
+| `quantity`        | int  | Nouvelle quantité absolue en stock       |
+| `combination_id`  | int  | **Optionnel (v1.10.5)**. `id_product_attribute` de la déclinaison ciblée. Doit appartenir au produit `{id}` de l'URL. Absent ou `0` = niveau produit (comportement historique, `id_product_attribute = 0`). |
+| `warehouse_id`    | int  | Réservé (non traité actuellement — accepté et ignoré sans erreur). |
+| `reason`          | string | Réservé (non traité actuellement — accepté et ignoré sans erreur). |
 
 ```json
 { "quantity": 15 }
+```
+
+```json
+{ "quantity": 12, "combination_id": 7 }
 ```
 
 **Réponse 200** — retourne la fiche produit mise à jour (même format que `GET /products/{id}`).
 
 **Erreurs** :
 
-| Code | `error`           | Raison                   |
-|------|-------------------|--------------------------|
-| 400  | `invalid_payload` | `quantity` absent        |
-| 404  | `not_found`       | Produit introuvable      |
+| Code | `error`           | Raison                                                                 |
+|------|-------------------|-------------------------------------------------------------------------|
+| 400  | `invalid_payload` | `quantity` absent                                                       |
+| 400  | `invalid_payload` | `combination_id` n'est pas numérique                                    |
+| 400  | `invalid_payload` | `combination_id` fourni mais n'appartient pas au produit `{id}` (déclinaison d'un autre produit, ou id inexistant) |
+| 404  | `not_found`       | Produit introuvable                                                     |
 
 ---
 

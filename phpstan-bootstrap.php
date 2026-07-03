@@ -490,6 +490,15 @@ class Validate
 
 class Db
 {
+    /**
+     * Bascule de test : valeur retournée par getValue() (par défaut 0, comportement historique du stub).
+     * Permet de simuler par ex. une vérification d'appartenance en base (ex. combination_id d'un produit)
+     * sans base de données réelle.
+     *
+     * @var mixed
+     */
+    public static $testGetValueResult = 0;
+
     public static function getInstance(): self
     {
         return new self();
@@ -538,7 +547,7 @@ class Db
      */
     public function getValue($query)
     {
-        return 0;
+        return self::$testGetValueResult;
     }
 }
 
@@ -799,8 +808,22 @@ class Product
 
 class StockAvailable
 {
+    /**
+     * Bascule de test : enregistre les appels reçus par setQuantity() (id_product, id_product_attribute,
+     * quantity) pour permettre aux tests d'asserter le ciblage produit vs combinaison sans base réelle.
+     *
+     * @var array<int, array{0: int, 1: int, 2: int}>
+     */
+    public static array $setQuantityCalls = [];
+
     public static function setQuantity(int $idProduct, int $idProductAttribute, int $quantity): void
     {
+        self::$setQuantityCalls[] = [$idProduct, $idProductAttribute, $quantity];
+    }
+
+    public static function getQuantity(int $idProduct, ?int $idProductAttribute = null): int
+    {
+        return 0;
     }
 }
 

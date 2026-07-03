@@ -59,10 +59,120 @@ final class ProductsServiceTest extends TestCase
         $service = new ProductsService();
 
         // Le mock Db::executeS() renvoie toujours [] ; on vérifie ici que le filtre
-        // "barcode" est accepté sans lever d'exception (construction de requête valide).
+        // "barcode" est accepté sans lever d'exception (construction de requête valide, jointures
+        // product_attribute/product_attribute_shop combinaison-aware comprises).
         $products = $service->getProducts(['barcode' => '3760123456789']);
 
         $this->assertSame([], $products);
+    }
+
+    public function testCountProductsAcceptsBarcodeFilterWithoutError(): void
+    {
+        $service = new ProductsService();
+
+        // Même jointure combinaison-aware que getProducts() : ne doit pas lever d'exception non plus.
+        $total = $service->countProducts(['barcode' => '3760123456789']);
+
+        $this->assertSame(0, $total);
+    }
+
+    public function testFormatProductRowExposesMatchedCombinationWhenBarcodeMatchesCombination(): void
+    {
+        // Cas pensebonheur : pelote de laine = combinaison "Coloris" du produit 52, l'EAN13 est posé
+        // sur product_attribute (pa), pas sur product. La ligne SQL simulée ici reproduit ce que
+        // ProductsService::joinProductAttributeForBarcode() ajoute au SELECT quand le filtre "barcode"
+        // matche une déclinaison plutôt que le produit lui-même.
+        $service = new ProductsService();
+        $row = [
+            'id_product' => 52,
+            'name' => 'Fil Ricorumi réf.035 Bleu nuit',
+            'reference' => 'RICO-035',
+            'ean13' => '',
+            'active' => 1,
+            'date_upd' => '2025-06-01 12:00:00',
+            'base_price' => 3.5,
+            'quantity' => 0,
+            'low_stock_threshold' => 5,
+            'matched_id_product_attribute' => 7,
+            'matched_pa_ean13' => '3760123456999',
+            'matched_pa_reference' => 'RICO-035-BLEU',
+        ];
+
+        $method = new ReflectionMethod(ProductsService::class, 'formatProductRow');
+        $method->setAccessible(true);
+        /** @var array<string, mixed> $formatted */
+        $formatted = $method->invoke($service, $row, 1, 1);
+
+        $this->assertIsArray($formatted['matched_combination']);
+        $this->assertSame(7, $formatted['matched_combination']['id']);
+        $this->assertSame('3760123456999', $formatted['matched_combination']['ean13']);
+        $this->assertSame('RICO-035-BLEU', $formatted['matched_combination']['reference']);
+        // Stub Db::executeS() (phpstan-bootstrap.php) => pas de ligne attribute_lang/attribute_group_lang
+        // résolvable hors base réelle : libellé vide, mais la clé est bien présente et bien construite.
+        $this->assertSame('', $formatted['matched_combination']['name']);
+        // Stub StockAvailable::getQuantity() => 0 par défaut.
+        $this->assertSame(0, $formatted['matched_combination']['quantity']);
+    }
+
+    public function testFormatProductRowMatchedCombinationIsNullWithoutBarcodeSearch(): void
+    {
+        // Produit sans déclinaison (ou lecture hors filtre barcode, ex. GET /products/{id}) : la ligne
+        // SQL ne contient pas les colonnes matched_id_product_attribute/matched_pa_* -> null attendu.
+        $service = new ProductsService();
+        $row = [
+            'id_product' => 88,
+            'name' => 'T-shirt noir',
+            'reference' => 'TSHIRT-BLACK',
+            'ean13' => '3760123456789',
+            'active' => 1,
+            'date_upd' => '2025-06-01 12:00:00',
+            'base_price' => 19.08,
+            'quantity' => 3,
+            'low_stock_threshold' => 5,
+        ];
+
+        $method = new ReflectionMethod(ProductsService::class, 'formatProductRow');
+        $method->setAccessible(true);
+        /** @var array<string, mixed> $formatted */
+        $formatted = $method->invoke($service, $row, 1, 1);
+
+        $this->assertNull($formatted['matched_combination']);
+    }
+
+    public function testUpdateStockWritesAtProductLevelByDefault(): void
+    {
+        $service = new ProductsService();
+
+        $result = $service->updateStock(88, 10);
+
+        $this->assertTrue($result);
+        // id_product_attribute = 0 : comportement historique inchangé pour un produit sans déclinaison.
+        $this->assertSame([[88, 0, 10]], StockAvailable::$setQuantityCalls);
+    }
+
+    public function testUpdateStockWritesAtCombinationLevelWhenCombinationBelongsToProduct(): void
+    {
+        // Simule product_attribute.id_product_attribute trouvé en base pour CE produit
+        // (cf. ProductsService::combinationBelongsToProduct(), qui passe par Db::getValue()).
+        Db::$testGetValueResult = 501;
+
+        $service = new ProductsService();
+        $result = $service->updateStock(88, 10, 501);
+
+        $this->assertTrue($result);
+        $this->assertSame([[88, 501, 10]], StockAvailable::$setQuantityCalls);
+    }
+
+    public function testUpdateStockRejectsCombinationIdForeignToProduct(): void
+    {
+        // Db::$testGetValueResult reste à son défaut (0) : simule un combination_id qui n'appartient PAS
+        // au produit ciblé (product_attribute.id_product != productId côté base réelle).
+        $service = new ProductsService();
+        $result = $service->updateStock(88, 10, 999);
+
+        $this->assertFalse($result);
+        // Rejeté AVANT tout appel StockAvailable::setQuantity() : le stock existant n'est pas touché.
+        $this->assertSame([], StockAvailable::$setQuantityCalls);
     }
 
     public function testUpdateProductAcceptsValidEan13(): void
@@ -254,9 +364,11 @@ final class ProductsServiceTest extends TestCase
 
     protected function tearDown(): void
     {
-        // Les bascules de test du stub ImageManager (phpstan-bootstrap.php) sont globales (static) :
+        // Les bascules de test des stubs (phpstan-bootstrap.php) sont globales (static) :
         // on les remet à leur valeur par défaut pour ne pas polluer les autres tests.
         ImageManager::$resizeSucceeds = true;
+        Db::$testGetValueResult = 0;
+        StockAvailable::$setQuantityCalls = [];
 
         parent::tearDown();
     }
