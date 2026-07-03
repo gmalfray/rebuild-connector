@@ -861,7 +861,7 @@ class StockAvailable
         self::$setQuantityCalls[] = [$idProduct, $idProductAttribute, $quantity];
     }
 
-    public static function getQuantity(int $idProduct, ?int $idProductAttribute = null): int
+    public static function getQuantityAvailableByProduct(int $idProduct, ?int $idProductAttribute = null, ?int $idShop = null): int
     {
         return 0;
     }

@@ -110,7 +110,7 @@ final class ProductsServiceTest extends TestCase
         // Stub Db::executeS() (phpstan-bootstrap.php) => pas de ligne attribute_lang/attribute_group_lang
         // résolvable hors base réelle : libellé vide, mais la clé est bien présente et bien construite.
         $this->assertSame('', $formatted['matched_combination']['name']);
-        // Stub StockAvailable::getQuantity() => 0 par défaut.
+        // Stub StockAvailable::getQuantityAvailableByProduct() => 0 par défaut.
         $this->assertSame(0, $formatted['matched_combination']['quantity']);
     }
 
@@ -193,7 +193,7 @@ final class ProductsServiceTest extends TestCase
         $this->assertSame(7, $combinations[0]['id']);
         $this->assertSame('3760123456999', $combinations[0]['ean13']);
         $this->assertSame('RICO-035-BLEU', $combinations[0]['reference']);
-        // Stub StockAvailable::getQuantity() => 0 par défaut.
+        // Stub StockAvailable::getQuantityAvailableByProduct() => 0 par défaut.
         $this->assertSame(0, $combinations[0]['quantity']);
     }
 

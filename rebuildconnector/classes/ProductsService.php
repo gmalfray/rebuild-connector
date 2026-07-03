@@ -750,7 +750,7 @@ class ProductsService
         if ($matchedCombinationId > 0) {
             $idProduct = isset($row['id_product']) ? (int) $row['id_product'] : 0;
             $combinationQuantity = class_exists('StockAvailable')
-                ? (int) StockAvailable::getQuantity($idProduct, $matchedCombinationId)
+                ? (int) StockAvailable::getQuantityAvailableByProduct($idProduct, $matchedCombinationId)
                 : 0;
 
             return [
@@ -818,7 +818,7 @@ class ProductsService
                 'ean13' => isset($row['ean13']) ? (string) $row['ean13'] : '',
                 'reference' => isset($row['reference']) ? (string) $row['reference'] : '',
                 'quantity' => class_exists('StockAvailable')
-                    ? (int) StockAvailable::getQuantity($productId, $combinationId)
+                    ? (int) StockAvailable::getQuantityAvailableByProduct($productId, $combinationId)
                     : 0,
             ];
         }
