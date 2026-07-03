@@ -8,6 +8,87 @@ require_once __DIR__ . '/../bootstrap.php';
 
 final class DashboardServiceTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+        Db::$testLoggedSelectQueries = [];
+    }
+
+    protected function tearDown(): void
+    {
+        Db::$testLoggedSelectQueries = [];
+        Db::$testGetValueResult = 0;
+        parent::tearDown();
+    }
+
+    // -----------------------------------------------------------------------
+    // Protection IDOR multiboutique (m1) : les requêtes brutes (concaténées, pas DbQuery) lisant
+    // `orders`/`cart`/`product` ne doivent porter QUE sur la boutique courante (shop id 1, stub
+    // Shop) — sinon un client authentifié sur une boutique verrait le CA/les commandes d'une autre.
+    // Utilise le vrai DashboardService (pas StubDashboardService) pour exercer le SQL réel, capturé
+    // par le journal de test Db::$testLoggedSelectQueries (cf. phpstan-bootstrap.php).
+    // -----------------------------------------------------------------------
+
+    public function testGetMetricsOrdersAggregateQueriesFilterByCurrentShopId(): void
+    {
+        $service = new DashboardService();
+        $service->getMetrics('today');
+
+        // ordersCount / revenueTaxIncl / revenueTaxExcl / customersCount / previousTurnover :
+        // toutes lisent `orders` par concaténation directe (pas de DbQuery ici).
+        $ordersQueries = array_values(array_filter(
+            Db::$testLoggedSelectQueries,
+            static function (string $sql): bool {
+                return strpos($sql, _DB_PREFIX_ . 'orders') !== false;
+            }
+        ));
+
+        $this->assertNotEmpty($ordersQueries, 'Aucune requête `orders` capturée par getMetrics().');
+        foreach ($ordersQueries as $sql) {
+            $this->assertStringContainsString('id_shop = 1', $sql, 'Requête orders sans filtre id_shop : ' . $sql);
+        }
+    }
+
+    public function testCountPendingOrdersFiltersByCurrentShopId(): void
+    {
+        $service = new DashboardService();
+        $method = new \ReflectionMethod(DashboardService::class, 'countPendingOrders');
+        $method->setAccessible(true);
+        $method->invoke($service);
+
+        $this->assertNotEmpty(Db::$testLoggedSelectQueries);
+        $this->assertStringContainsString('o.id_shop = 1', Db::$testLoggedSelectQueries[0]);
+    }
+
+    public function testComputeConversionRateCartQueryFiltersByCurrentShopId(): void
+    {
+        $service = new DashboardService();
+        $method = new \ReflectionMethod(DashboardService::class, 'computeConversionRate');
+        $method->setAccessible(true);
+        $method->invoke($service, 5, '2025-01-01 00:00:00', '2025-01-31 23:59:59');
+
+        $cartQueries = array_values(array_filter(
+            Db::$testLoggedSelectQueries,
+            static function (string $sql): bool {
+                return strpos($sql, _DB_PREFIX_ . 'cart') !== false;
+            }
+        ));
+
+        $this->assertNotEmpty($cartQueries, 'Aucune requête `cart` capturée par computeConversionRate().');
+        $this->assertStringContainsString('id_shop = 1', $cartQueries[0]);
+    }
+
+    public function testCountActiveProductsFiltersByCurrentShopId(): void
+    {
+        $service = new DashboardService();
+        $method = new \ReflectionMethod(DashboardService::class, 'countActiveProducts');
+        $method->setAccessible(true);
+        $method->invoke($service);
+
+        $this->assertNotEmpty(Db::$testLoggedSelectQueries);
+        $this->assertStringContainsString('ps.id_shop = 1', Db::$testLoggedSelectQueries[0]);
+    }
+
     // -----------------------------------------------------------------------
     // Métriques de base (données retournées par le service)
     // -----------------------------------------------------------------------

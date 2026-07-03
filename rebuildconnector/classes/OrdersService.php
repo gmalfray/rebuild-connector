@@ -51,6 +51,12 @@ class OrdersService
         $query->leftJoin('currency', 'cur', 'cur.id_currency = o.id_currency');
         $query->leftJoin('order_state', 'os', 'os.id_order_state = o.current_state');
 
+        // Protection IDOR : ne jamais lister les commandes d'une autre boutique (multiboutique).
+        $currentShopId = (int) Context::getContext()->shop->id;
+        if ($currentShopId > 0) {
+            $query->where('o.id_shop = ' . $currentShopId);
+        }
+
         if (!empty($filters['customer_id'])) {
             $query->where('o.id_customer = ' . (int) $filters['customer_id']);
         }
@@ -299,6 +305,12 @@ class OrdersService
             return false;
         }
 
+        // Protection IDOR : la commande doit appartenir à la boutique courante
+        $currentShopId = (int) Context::getContext()->shop->id;
+        if ($currentShopId > 0 && (int) $order->id_shop !== $currentShopId) {
+            return false;
+        }
+
         $stateId = $this->resolveOrderStateId($statusReference);
         if ($stateId <= 0) {
             return false;
@@ -329,6 +341,12 @@ class OrdersService
     {
         $order = new Order($orderId);
         if (!Validate::isLoadedObject($order)) {
+            return false;
+        }
+
+        // Protection IDOR : la commande doit appartenir à la boutique courante
+        $currentShopId = (int) Context::getContext()->shop->id;
+        if ($currentShopId > 0 && (int) $order->id_shop !== $currentShopId) {
             return false;
         }
 

@@ -575,6 +575,17 @@ class Db
      */
     public static array $executedSql = [];
 
+    /**
+     * Bascule de test : journal des requêtes SELECT passées à getValue()/executeS() SOUS FORME DE
+     * CHAÎNE (les appels via DbQuery ne sont pas capturés ici, le stub DbQuery ne conservant pas
+     * son SQL). Permet de vérifier, sans base réelle, qu'une requête bâtie par concaténation directe
+     * (ex. DashboardService, qui n'utilise pas toujours DbQuery) contient bien la clause id_shop
+     * attendue (protection IDOR multiboutique, m1).
+     *
+     * @var array<int, string>
+     */
+    public static array $testLoggedSelectQueries = [];
+
     public static function getInstance(bool $useSlave = false): self
     {
         return new self();
@@ -590,6 +601,10 @@ class Db
      */
     public function executeS($query)
     {
+        if (is_string($query)) {
+            self::$testLoggedSelectQueries[] = $query;
+        }
+
         return self::$testExecuteSResult;
     }
 
@@ -643,6 +658,10 @@ class Db
      */
     public function getValue($query, bool $useCache = true)
     {
+        if (is_string($query)) {
+            self::$testLoggedSelectQueries[] = $query;
+        }
+
         return self::$testGetValueResult;
     }
 }

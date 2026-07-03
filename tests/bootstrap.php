@@ -38,6 +38,7 @@ spl_autoload_register(static function (string $class): void {
         'BasketsService' => __DIR__ . '/../rebuildconnector/classes/BasketsService.php',
         'ReportsService' => __DIR__ . '/../rebuildconnector/classes/ReportsService.php',
         'ProductsService' => __DIR__ . '/../rebuildconnector/classes/ProductsService.php',
+        'ClientIpResolver' => __DIR__ . '/../rebuildconnector/classes/ClientIpResolver.php',
         'AuthenticationException' => __DIR__ . '/../rebuildconnector/classes/Exceptions/AuthenticationException.php',
         'AuthorizationException' => __DIR__ . '/../rebuildconnector/classes/Exceptions/AuthorizationException.php',
         'RebuildconnectorBaseApiModuleFrontController' => __DIR__ . '/../rebuildconnector/controllers/front/BaseApiController.php',

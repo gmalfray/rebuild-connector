@@ -32,30 +32,40 @@ class DashboardService
         $toSql = pSQL($to->format('Y-m-d H:i:s'));
 
         $db = Db::getInstance();
+        $shopId = $this->getShopId();
+        // Protection IDOR/multiboutique : `orders` n'a pas d'alias dans ces requêtes brutes,
+        // d'où une clause id_shop concaténée directement plutôt qu'un DbQuery::where('o.id_shop = ...').
+        $shopFilterSql = $shopId > 0 ? ' AND id_shop = ' . $shopId : '';
 
         $ordersCount = (int) $db->getValue(
             'SELECT COUNT(*) FROM ' . _DB_PREFIX_ . 'orders WHERE date_add BETWEEN "' . $fromSql . '" AND "' . $toSql . '"'
+            . $shopFilterSql
         );
 
         $revenueTaxIncl = (float) $db->getValue(
             'SELECT SUM(total_paid_tax_incl) FROM ' . _DB_PREFIX_ . 'orders WHERE date_add BETWEEN "'
-            . $fromSql . '" AND "' . $toSql . '"'
+            . $fromSql . '" AND "' . $toSql . '"' . $shopFilterSql
         );
 
         $revenueTaxExcl = (float) $db->getValue(
             'SELECT SUM(total_paid_tax_excl) FROM ' . _DB_PREFIX_ . 'orders WHERE date_add BETWEEN "'
-            . $fromSql . '" AND "' . $toSql . '"'
+            . $fromSql . '" AND "' . $toSql . '"' . $shopFilterSql
         );
 
         $taxCollected = max(0.0, $revenueTaxIncl - $revenueTaxExcl);
 
         $customersCount = (int) $db->getValue(
             'SELECT COUNT(DISTINCT id_customer) FROM ' . _DB_PREFIX_ . 'orders WHERE date_add BETWEEN "'
-            . $fromSql . '" AND "' . $toSql . '"'
+            . $fromSql . '" AND "' . $toSql . '"' . $shopFilterSql
         );
 
+        // order_return n'a pas de colonne id_shop : on filtre via une jointure sur orders.
+        $returnsShopJoin = $shopId > 0
+            ? ' INNER JOIN ' . _DB_PREFIX_ . 'orders o ON o.id_order = order_return.id_order AND o.id_shop = ' . $shopId
+            : '';
         $returns = (int) $db->getValue(
-            'SELECT COUNT(*) FROM ' . _DB_PREFIX_ . 'order_return WHERE date_add BETWEEN "' . $fromSql . '" AND "' . $toSql . '"'
+            'SELECT COUNT(*) FROM ' . _DB_PREFIX_ . 'order_return' . $returnsShopJoin
+            . ' WHERE order_return.date_add BETWEEN "' . $fromSql . '" AND "' . $toSql . '"'
         );
 
         // Période précédente de même durée (décalée en arrière pour comparatif CA).
@@ -67,7 +77,7 @@ class DashboardService
         $prevToSql = pSQL($prevTo->format('Y-m-d H:i:s'));
         $previousTurnover = (float) $db->getValue(
             'SELECT SUM(total_paid_tax_incl) FROM ' . _DB_PREFIX_ . 'orders WHERE date_add BETWEEN "'
-            . $prevFromSql . '" AND "' . $prevToSql . '"'
+            . $prevFromSql . '" AND "' . $prevToSql . '"' . $shopFilterSql
         );
 
         $currency = $this->resolveCurrencyIso();
@@ -119,10 +129,13 @@ class DashboardService
      */
     protected function countPendingOrders(): int
     {
+        $shopId = $this->getShopId();
+        $shopFilterSql = $shopId > 0 ? ' AND o.id_shop = ' . $shopId : '';
+
         $result = Db::getInstance()->getValue(
             'SELECT COUNT(*) FROM ' . _DB_PREFIX_ . 'orders o'
             . ' INNER JOIN ' . _DB_PREFIX_ . 'order_state os ON os.id_order_state = o.current_state'
-            . ' WHERE os.paid = 0 AND os.logable = 0'
+            . ' WHERE os.paid = 0 AND os.logable = 0' . $shopFilterSql
         );
 
         return $result !== false ? (int) $result : 0;
@@ -146,9 +159,11 @@ class DashboardService
     protected function computeConversionRate(int $ordersCount, string $fromSql, string $toSql): array
     {
         // Proxy : paniers créés sur la période (même intervalle que les commandes).
+        $shopId = $this->getShopId();
+        $shopFilterSql = $shopId > 0 ? ' AND id_shop = ' . $shopId : '';
         $cartsCount = (int) Db::getInstance()->getValue(
             'SELECT COUNT(*) FROM ' . _DB_PREFIX_ . 'cart'
-            . ' WHERE date_add BETWEEN "' . $fromSql . '" AND "' . $toSql . '"'
+            . ' WHERE date_add BETWEEN "' . $fromSql . '" AND "' . $toSql . '"' . $shopFilterSql
         );
 
         $rate = null;
@@ -179,7 +194,11 @@ class DashboardService
         $query->select('p.id_product, pl.name, sa.quantity');
         $query->select('i.id_image');
         $query->from('product', 'p');
-        $query->innerJoin('stock_available', 'sa', 'sa.id_product = p.id_product AND sa.id_product_attribute = 0');
+        $query->innerJoin(
+            'stock_available',
+            'sa',
+            'sa.id_product = p.id_product AND sa.id_product_attribute = 0 AND sa.id_shop = ' . (int) $shopId
+        );
         $query->leftJoin(
             'product_lang',
             'pl',
@@ -364,6 +383,7 @@ class DashboardService
     ): array {
         $fromSql = pSQL($from->format('Y-m-d H:i:s'));
         $toSql = pSQL($to->format('Y-m-d H:i:s'));
+        $shopId = $this->getShopId();
 
         $granularity = $this->resolveGranularity($from, $to, $period, $isCustomRange);
         $isHourly = $granularity === 'hour';
@@ -381,6 +401,9 @@ class DashboardService
             $query->select('COUNT(DISTINCT o.id_customer) AS customers');
             $query->from('orders', 'o');
             $query->where('o.date_add BETWEEN "' . $fromSql . '" AND "' . $toSql . '"');
+            if ($shopId > 0) {
+                $query->where('o.id_shop = ' . $shopId);
+            }
             $query->groupBy('hour');
             $query->orderBy('hour ASC');
 
@@ -431,6 +454,9 @@ class DashboardService
         $query->select('COUNT(DISTINCT o.id_customer) AS customers');
         $query->from('orders', 'o');
         $query->where('o.date_add BETWEEN "' . $fromSql . '" AND "' . $toSql . '"');
+        if ($shopId > 0) {
+            $query->where('o.id_shop = ' . $shopId);
+        }
         $query->groupBy('day');
         $query->orderBy('day ASC');
 
@@ -474,8 +500,14 @@ class DashboardService
 
     private function countActiveProducts(): int
     {
+        $shopId = $this->getShopId();
+        // Protection multiboutique : ne compter que les produits associés à la boutique courante
+        // (product_shop), pas le catalogue entier partagé entre boutiques.
+        $shopJoin = $shopId > 0
+            ? ' INNER JOIN ' . _DB_PREFIX_ . 'product_shop ps ON ps.id_product = p.id_product AND ps.id_shop = ' . $shopId
+            : '';
         $result = Db::getInstance()->getValue(
-            'SELECT COUNT(*) FROM ' . _DB_PREFIX_ . 'product WHERE active = 1'
+            'SELECT COUNT(*) FROM ' . _DB_PREFIX_ . 'product p' . $shopJoin . ' WHERE p.active = 1'
         );
 
         return $result !== false ? (int) $result : 0;

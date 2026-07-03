@@ -16,6 +16,7 @@ require_once __DIR__ . '/classes/JwtService.php';
 require_once __DIR__ . '/classes/AuthService.php';
 require_once __DIR__ . '/classes/TranslationService.php';
 require_once __DIR__ . '/classes/UpdateCheckService.php';
+require_once __DIR__ . '/classes/ClientIpResolver.php';
 
 class RebuildConnector extends Module
 {
@@ -32,7 +33,7 @@ class RebuildConnector extends Module
     {
         $this->name = 'rebuildconnector';
         $this->tab = 'administration';
-        $this->version = '1.10.13';
+        $this->version = '1.10.14';
         $this->author = 'Rebuild IT';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -683,8 +684,10 @@ class RebuildConnector extends Module
      */
     private function recordAudit(string $event, array $context = []): void
     {
+        // M3 : ne PAS utiliser Tools::getRemoteAddr() (se fie au 1er élément de X-Forwarded-For,
+        // falsifiable par le client) pour une décision/trace de sécurité — cf. ClientIpResolver.
         $this->getAuditLogService()->record($event, array_merge($context, [
-            'ip' => Tools::getRemoteAddr(),
+            'ip' => ClientIpResolver::resolve(),
         ]));
     }
 

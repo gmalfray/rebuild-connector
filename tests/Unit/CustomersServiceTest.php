@@ -40,6 +40,42 @@ final class CustomersServiceTest extends TestCase
 
         $this->assertSame(CustomersService::MAX_LIMIT, $result['pagination']['limit']);
     }
+
+    // =========================================================================
+    // Sous-requêtes orders (orders_count/total_spent/last_order_date) — protection IDOR
+    // multiboutique (m1) : un client peut être partagé entre boutiques (groupe de boutiques), ces
+    // agrégats ne doivent refléter que l'activité de la boutique courante (shop id 1, stub Shop).
+    // =========================================================================
+
+    public function testOrdersCountExpressionFiltersByCurrentShopId(): void
+    {
+        $sql = $this->invokePrivateSqlBuilder('ordersCountExpression');
+
+        $this->assertStringContainsString('oc.id_shop = 1', $sql);
+    }
+
+    public function testTotalSpentExpressionFiltersByCurrentShopId(): void
+    {
+        $sql = $this->invokePrivateSqlBuilder('totalSpentExpression');
+
+        $this->assertStringContainsString('o2.id_shop = 1', $sql);
+    }
+
+    public function testLastOrderDateExpressionFiltersByCurrentShopId(): void
+    {
+        $sql = $this->invokePrivateSqlBuilder('lastOrderDateExpression');
+
+        $this->assertStringContainsString('o3.id_shop = 1', $sql);
+    }
+
+    private function invokePrivateSqlBuilder(string $methodName): string
+    {
+        $service = new CustomersService(new OrdersService());
+        $method = new \ReflectionMethod(CustomersService::class, $methodName);
+        $method->setAccessible(true);
+
+        return (string) $method->invoke($service);
+    }
 }
 
 final class TestCustomersService extends CustomersService

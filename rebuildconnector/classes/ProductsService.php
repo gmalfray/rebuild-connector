@@ -122,13 +122,214 @@ class ProductsService
         // matched_combination (déclinaison ciblée sans ambiguïté) : uniquement pour un scan barcode.
         $barcodeCode = !empty($filters['barcode']) ? trim((string) $filters['barcode']) : null;
 
+        // Pré-chargement en amont de la boucle (m8) : évite le N+1 Image::getImages()/requête de
+        // libellé de combinaison PAR PRODUIT — une seule requête batchée pour toute la page au lieu
+        // d'une par ligne (des centaines de requêtes sur une liste de 100 produits sinon).
+        $productIds = [];
+        foreach ($rows as $row) {
+            /** @var array<string, mixed> $row */
+            if (isset($row['id_product'])) {
+                $productIds[] = (int) $row['id_product'];
+            }
+        }
+        $preloadedImages = $this->preloadProductImages($productIds, $langId);
+        $preloadedCombinations = $includeCombinations
+            ? $this->preloadProductCombinations($productIds, $langId, $shopId)
+            : [];
+
         $products = [];
         foreach ($rows as $row) {
             /** @var array<string, mixed> $row */
-            $products[] = $this->formatProductRow($row, $langId, $shopId, $includeCombinations, $barcodeCode);
+            $productId = isset($row['id_product']) ? (int) $row['id_product'] : 0;
+            $products[] = $this->formatProductRow(
+                $row,
+                $langId,
+                $shopId,
+                $includeCombinations,
+                $barcodeCode,
+                $preloadedImages[$productId] ?? [],
+                $includeCombinations ? ($preloadedCombinations[$productId] ?? []) : null
+            );
         }
 
         return $products;
+    }
+
+    /**
+     * Pré-charge en une seule requête les images de plusieurs produits (reproduit les colonnes/le
+     * périmètre d'Image::getImages() — cf. classes/Image.php du core — juste groupées par id_product
+     * au lieu d'une requête par produit). Utilisé par getProducts() pour éviter le N+1 (m8).
+     *
+     * @param int[] $productIds
+     * @return array<int, array<int, array<string, mixed>>> lignes brutes (mêmes clés qu'Image::getImages()),
+     *                                                        indexées par id_product
+     */
+    private function preloadProductImages(array $productIds, int $langId): array
+    {
+        $productIds = $this->sanitizeIdList($productIds);
+        if ($productIds === [] || !class_exists('Image')) {
+            return [];
+        }
+
+        $query = new DbQuery();
+        $query->select('i.id_product, i.id_image, i.position, i.cover, il.legend');
+        $query->from('image', 'i');
+        $query->leftJoin('image_lang', 'il', 'il.id_image = i.id_image');
+        $query->where('i.id_product IN (' . implode(',', $productIds) . ')');
+        // Même sémantique qu'Image::getImages() : le filtre id_lang est appliqué après la jointure
+        // (LEFT JOIN + WHERE), donc une image sans ligne image_lang pour cette langue est exclue.
+        $query->where('il.id_lang = ' . (int) $langId);
+        $query->orderBy('i.position ASC');
+
+        /** @var array<int, array<string, mixed>> $rows */
+        $rows = (array) Db::getInstance()->executeS($query);
+
+        $byProduct = [];
+        foreach ($rows as $row) {
+            $productId = isset($row['id_product']) ? (int) $row['id_product'] : 0;
+            $imageId = isset($row['id_image']) ? (int) $row['id_image'] : 0;
+            if ($productId <= 0 || $imageId <= 0) {
+                continue;
+            }
+
+            $byProduct[$productId][] = [
+                'id_image' => $imageId,
+                'position' => $row['position'] ?? null,
+                'cover' => $row['cover'] ?? null,
+                'legend' => $row['legend'] ?? null,
+            ];
+        }
+
+        return $byProduct;
+    }
+
+    /**
+     * Pré-charge en 2 requêtes les déclinaisons (avec leur libellé) de plusieurs produits, pour éviter
+     * le N+1 de getProductCombinations()/getCombinationLabel() (une requête ATTRIBUTE PAR déclinaison)
+     * quand `combinations` est exposé (recherche barcode/search). Utilisé par getProducts() (m8).
+     *
+     * @param int[] $productIds
+     * @return array<int, array<int, array<string, mixed>>> déclinaisons formatées, indexées par id_product
+     */
+    private function preloadProductCombinations(array $productIds, int $langId, int $shopId): array
+    {
+        $productIds = $this->sanitizeIdList($productIds);
+        if ($productIds === []) {
+            return [];
+        }
+
+        $query = new DbQuery();
+        $query->select('pa.id_product, pa.id_product_attribute, pa.ean13, pa.reference');
+        $query->from('product_attribute', 'pa');
+        $query->innerJoin(
+            'product_attribute_shop',
+            'pas',
+            'pas.id_product_attribute = pa.id_product_attribute AND pas.id_shop = ' . (int) $shopId
+        );
+        $query->where('pa.id_product IN (' . implode(',', $productIds) . ')');
+        $query->orderBy('pa.id_product_attribute ASC');
+
+        /** @var array<int, array<string, mixed>> $rows */
+        $rows = (array) Db::getInstance()->executeS($query);
+
+        $combinationIds = [];
+        foreach ($rows as $row) {
+            $combinationId = isset($row['id_product_attribute']) ? (int) $row['id_product_attribute'] : 0;
+            if ($combinationId > 0) {
+                $combinationIds[] = $combinationId;
+            }
+        }
+
+        $labels = $this->getCombinationLabelsBatch($combinationIds, $langId);
+
+        $byProduct = [];
+        foreach ($rows as $row) {
+            $productId = isset($row['id_product']) ? (int) $row['id_product'] : 0;
+            $combinationId = isset($row['id_product_attribute']) ? (int) $row['id_product_attribute'] : 0;
+            if ($productId <= 0 || $combinationId <= 0) {
+                continue;
+            }
+
+            $byProduct[$productId][] = [
+                'id' => $combinationId,
+                'name' => $labels[$combinationId] ?? '',
+                'ean13' => isset($row['ean13']) ? (string) $row['ean13'] : '',
+                'reference' => isset($row['reference']) ? (string) $row['reference'] : '',
+                'quantity' => class_exists('StockAvailable')
+                    ? (int) StockAvailable::getQuantityAvailableByProduct($productId, $combinationId)
+                    : 0,
+            ];
+        }
+
+        return $byProduct;
+    }
+
+    /**
+     * Libellés de combinaisons (cf. getCombinationLabel()) pour un lot d'id_product_attribute,
+     * en une seule requête au lieu d'une par déclinaison.
+     *
+     * @param int[] $combinationIds
+     * @return array<int, string> libellé indexé par id_product_attribute
+     */
+    private function getCombinationLabelsBatch(array $combinationIds, int $langId): array
+    {
+        $combinationIds = $this->sanitizeIdList($combinationIds);
+        if ($combinationIds === []) {
+            return [];
+        }
+
+        $query = new DbQuery();
+        $query->select('pac.id_product_attribute, agl.name AS group_name, al.name AS attribute_name');
+        $query->from('product_attribute_combination', 'pac');
+        $query->innerJoin('attribute', 'a', 'a.id_attribute = pac.id_attribute');
+        $query->innerJoin(
+            'attribute_lang',
+            'al',
+            'al.id_attribute = a.id_attribute AND al.id_lang = ' . (int) $langId
+        );
+        $query->innerJoin(
+            'attribute_group_lang',
+            'agl',
+            'agl.id_attribute_group = a.id_attribute_group AND agl.id_lang = ' . (int) $langId
+        );
+        $query->where('pac.id_product_attribute IN (' . implode(',', $combinationIds) . ')');
+        $query->orderBy('pac.id_product_attribute ASC, a.position ASC');
+
+        /** @var array<int, array<string, mixed>> $rows */
+        $rows = (array) Db::getInstance()->executeS($query);
+
+        $partsByCombination = [];
+        foreach ($rows as $row) {
+            $combinationId = isset($row['id_product_attribute']) ? (int) $row['id_product_attribute'] : 0;
+            $groupName = isset($row['group_name']) ? (string) $row['group_name'] : '';
+            $attributeName = isset($row['attribute_name']) ? (string) $row['attribute_name'] : '';
+            if ($combinationId <= 0 || $groupName === '' || $attributeName === '') {
+                continue;
+            }
+
+            $partsByCombination[$combinationId][] = $groupName . ' - ' . $attributeName;
+        }
+
+        $labels = [];
+        foreach ($partsByCombination as $combinationId => $parts) {
+            $labels[$combinationId] = implode(', ', $parts);
+        }
+
+        return $labels;
+    }
+
+    /**
+     * @param array<int, mixed> $ids
+     * @return int[]
+     */
+    private function sanitizeIdList(array $ids): array
+    {
+        $ids = array_map('intval', $ids);
+        $ids = array_filter($ids, static function (int $id): bool {
+            return $id > 0;
+        });
+
+        return array_values(array_unique($ids));
     }
 
     /**
@@ -332,6 +533,12 @@ class ProductsService
             return false;
         }
 
+        // Protection IDOR : le produit doit être associé à la boutique courante (multiboutique).
+        $shopId = $this->getShopId();
+        if ($shopId > 0 && !$this->productBelongsToShop($productId, $shopId)) {
+            return false;
+        }
+
         if ($combinationId > 0 && !$this->combinationBelongsToProduct($combinationId, $productId)) {
             return false;
         }
@@ -355,6 +562,28 @@ class ProductsService
         $query->where('pa.id_product = ' . (int) $productId);
 
         return (int) Db::getInstance()->getValue($query) > 0;
+    }
+
+    /**
+     * Vérifie qu'un produit est bien associé à la boutique donnée (table product_shop), pour éviter
+     * qu'un id_product "étranger" (issu d'une autre boutique en contexte multiboutique) ne soit modifié
+     * via PATCH /products/{id}. `new Product($id)` charge l'objet par clé primaire sur la table `product`
+     * (partagée entre boutiques) sans à lui seul garantir l'appartenance au contexte boutique courant.
+     */
+    private function productBelongsToShop(int $productId, int $shopId): bool
+    {
+        $query = new DbQuery();
+        $query->select('ps.id_product');
+        $query->from('product_shop', 'ps');
+        $query->where('ps.id_product = ' . (int) $productId);
+        $query->where('ps.id_shop = ' . (int) $shopId);
+
+        // executeS() (et non getValue()) : garde ce contrôle d'appartenance boutique indépendant, côté
+        // tests, de combinationBelongsToProduct() qui pilote Db::getValue() (les deux vérifications sont
+        // sémantiquement distinctes malgré leur ressemblance).
+        $rows = Db::getInstance()->executeS($query);
+
+        return is_array($rows) && $rows !== [];
     }
 
     /**
@@ -516,6 +745,12 @@ class ProductsService
             return false;
         }
 
+        // Protection IDOR : le produit doit être associé à la boutique courante (multiboutique).
+        $shopId = $this->getShopId();
+        if ($shopId > 0 && !$this->productBelongsToShop($productId, $shopId)) {
+            return false;
+        }
+
         // combination_id (v1.10.7) : cible la déclinaison sur laquelle écrire l'ean13, plutôt que le
         // produit. Validé ici (appartenance au produit) même si aucun autre champ n'est fourni, pour que
         // le controller renvoie systématiquement 400 sur un id étranger plutôt que d'ignorer l'erreur.
@@ -669,6 +904,11 @@ class ProductsService
 
     /**
      * @param array<string, mixed> $row
+     * @param array<int, array<string, mixed>>|null $preloadedImages images déjà chargées en amont
+     *                                                                 (batch getProducts(), m8) ; null =
+     *                                                                 non préchargées, requête à la volée
+     *                                                                 (cas getProductById(), un seul produit)
+     * @param array<int, array<string, mixed>>|null $preloadedCombinations idem pour les combinaisons
      * @return array<string, mixed>
      */
     private function formatProductRow(
@@ -676,14 +916,16 @@ class ProductsService
         int $langId,
         int $shopId,
         bool $includeCombinations = false,
-        ?string $barcodeCode = null
+        ?string $barcodeCode = null,
+        ?array $preloadedImages = null,
+        ?array $preloadedCombinations = null
     ): array {
         $idProduct = isset($row['id_product']) ? (int) $row['id_product'] : 0;
         $priceTaxExcl = isset($row['base_price']) ? (float) $row['base_price'] : 0.0;
         $priceTaxIncl = $idProduct > 0 ? (float) Product::getPriceStatic($idProduct, true) : $priceTaxExcl;
         $linkRewrite = isset($row['link_rewrite']) ? (string) $row['link_rewrite'] : '';
 
-        $images = $this->getProductImages($idProduct, $langId, $shopId, $linkRewrite);
+        $images = $this->getProductImages($idProduct, $langId, $shopId, $linkRewrite, $preloadedImages);
         $imagePayload = array_map(static function (array $image): array {
             return [
                 'id' => $image['id'],
@@ -702,8 +944,11 @@ class ProductsService
         $isLow = $quantity > 0 && $quantity <= $lowStockThreshold;
 
         // Chargée une seule fois ici (si applicable) puis réutilisée par buildMatchedCombination() pour
-        // ne pas dupliquer la requête product_attribute.
-        $combinations = $includeCombinations ? $this->getProductCombinations($idProduct, $langId, $shopId) : [];
+        // ne pas dupliquer la requête product_attribute. Utilise le lot préchargé par getProducts()
+        // (m8) quand disponible, sinon retombe sur une requête par produit (cas getProductById()).
+        $combinations = $includeCombinations
+            ? ($preloadedCombinations ?? $this->getProductCombinations($idProduct, $langId, $shopId))
+            : [];
 
         $product = [
             'id' => $idProduct,
@@ -859,18 +1104,25 @@ class ProductsService
     }
 
     /**
+     * @param array<int, array<string, mixed>>|null $preloadedImages lignes déjà chargées en amont
+     *                                                                 (batch getProducts(), m8) ; null =
+     *                                                                 requête Image::getImages() à la volée
      * @return array<int, array<string, mixed>>
      */
-    private function getProductImages(int $productId, int $langId, int $shopId, ?string $linkRewrite = null): array
+    private function getProductImages(int $productId, int $langId, int $shopId, ?string $linkRewrite = null, ?array $preloadedImages = null): array
     {
         if ($productId <= 0 || !class_exists('Image')) {
             return [];
         }
 
-        /** @var array<int, array<string, mixed>>|false $images */
-        $images = Image::getImages($langId, $productId);
-        if ($images === false) {
-            return [];
+        if ($preloadedImages !== null) {
+            $images = $preloadedImages;
+        } else {
+            /** @var array<int, array<string, mixed>>|false $images */
+            $images = Image::getImages($langId, $productId);
+            if ($images === false) {
+                return [];
+            }
         }
 
         if ($linkRewrite === null || $linkRewrite === '') {

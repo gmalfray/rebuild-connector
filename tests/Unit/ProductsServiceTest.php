@@ -258,8 +258,20 @@ final class ProductsServiceTest extends TestCase
         $this->assertNull($result);
     }
 
+    /**
+     * Simule product_shop.id_product trouvé pour CE produit + CETTE boutique (m1, protection IDOR
+     * multiboutique : ProductsService::productBelongsToShop(), qui passe par Db::executeS() —
+     * délibérément DISTINCT de Db::$testGetValueResult utilisé par combinationBelongsToProduct(),
+     * pour pouvoir simuler indépendamment « boutique OK / combinaison KO » et inversement.
+     */
+    private function simulateProductBelongsToShop(): void
+    {
+        Db::$testExecuteSResult = [['id_product' => 88]];
+    }
+
     public function testUpdateStockWritesAtProductLevelByDefault(): void
     {
+        $this->simulateProductBelongsToShop();
         $service = new ProductsService();
 
         $result = $service->updateStock(88, 10);
@@ -269,8 +281,21 @@ final class ProductsServiceTest extends TestCase
         $this->assertSame([[88, 0, 10]], StockAvailable::$setQuantityCalls);
     }
 
+    public function testUpdateStockRejectsProductForeignToShop(): void
+    {
+        // m1 : Db::$testExecuteSResult reste à son défaut ([]) : simule un produit qui n'est pas
+        // associé à la boutique courante (product_shop sans ligne pour ce couple produit/boutique) —
+        // protection IDOR multiboutique, l'écriture doit être refusée.
+        $service = new ProductsService();
+        $result = $service->updateStock(88, 10);
+
+        $this->assertFalse($result);
+        $this->assertSame([], StockAvailable::$setQuantityCalls);
+    }
+
     public function testUpdateStockWritesAtCombinationLevelWhenCombinationBelongsToProduct(): void
     {
+        $this->simulateProductBelongsToShop();
         // Simule product_attribute.id_product_attribute trouvé en base pour CE produit
         // (cf. ProductsService::combinationBelongsToProduct(), qui passe par Db::getValue()).
         Db::$testGetValueResult = 501;
@@ -284,6 +309,7 @@ final class ProductsServiceTest extends TestCase
 
     public function testUpdateStockRejectsCombinationIdForeignToProduct(): void
     {
+        $this->simulateProductBelongsToShop();
         // Db::$testGetValueResult reste à son défaut (0) : simule un combination_id qui n'appartient PAS
         // au produit ciblé (product_attribute.id_product != productId côté base réelle).
         $service = new ProductsService();
@@ -296,6 +322,7 @@ final class ProductsServiceTest extends TestCase
 
     public function testUpdateProductAcceptsValidEan13(): void
     {
+        $this->simulateProductBelongsToShop();
         $service = new ProductsService();
 
         $result = $service->updateProduct(88, ['ean13' => '3760123456789']);
@@ -303,8 +330,20 @@ final class ProductsServiceTest extends TestCase
         $this->assertTrue($result);
     }
 
+    public function testUpdateProductRejectsProductForeignToShop(): void
+    {
+        // m1 : Db::$testExecuteSResult reste à son défaut ([]) : produit non associé à la boutique
+        // courante → refus, même avec un payload par ailleurs valide.
+        $service = new ProductsService();
+
+        $result = $service->updateProduct(88, ['ean13' => '3760123456789']);
+
+        $this->assertFalse($result);
+    }
+
     public function testUpdateProductAcceptsEmptyEan13ToClearIt(): void
     {
+        $this->simulateProductBelongsToShop();
         $service = new ProductsService();
 
         $result = $service->updateProduct(88, ['ean13' => '']);
@@ -314,6 +353,7 @@ final class ProductsServiceTest extends TestCase
 
     public function testUpdateProductRejectsNonNumericEan13(): void
     {
+        $this->simulateProductBelongsToShop();
         $service = new ProductsService();
 
         $result = $service->updateProduct(88, ['ean13' => 'ABC123']);
@@ -323,6 +363,7 @@ final class ProductsServiceTest extends TestCase
 
     public function testUpdateProductRejectsTooLongEan13(): void
     {
+        $this->simulateProductBelongsToShop();
         $service = new ProductsService();
 
         $result = $service->updateProduct(88, ['ean13' => '12345678901234']);
@@ -332,6 +373,7 @@ final class ProductsServiceTest extends TestCase
 
     public function testUpdateProductRejectsNonStringEan13(): void
     {
+        $this->simulateProductBelongsToShop();
         $service = new ProductsService();
 
         /** @phpstan-ignore-next-line argument.type (payload volontairement mal typé pour le test) */
@@ -342,6 +384,7 @@ final class ProductsServiceTest extends TestCase
 
     public function testUpdateProductAcceptsValidName(): void
     {
+        $this->simulateProductBelongsToShop();
         $service = new ProductsService();
 
         $result = $service->updateProduct(88, ['name' => 'T-shirt noir']);
@@ -351,6 +394,7 @@ final class ProductsServiceTest extends TestCase
 
     public function testUpdateProductRejectsEmptyName(): void
     {
+        $this->simulateProductBelongsToShop();
         $service = new ProductsService();
 
         $result = $service->updateProduct(88, ['name' => '   ']);
@@ -360,6 +404,7 @@ final class ProductsServiceTest extends TestCase
 
     public function testUpdateProductRejectsNonStringName(): void
     {
+        $this->simulateProductBelongsToShop();
         $service = new ProductsService();
 
         /** @phpstan-ignore-next-line argument.type (payload volontairement mal typé pour le test) */
@@ -370,6 +415,7 @@ final class ProductsServiceTest extends TestCase
 
     public function testUpdateProductAcceptsValidDescription(): void
     {
+        $this->simulateProductBelongsToShop();
         $service = new ProductsService();
 
         $result = $service->updateProduct(88, ['description' => '<p>Un joli t-shirt en coton bio.</p>']);
@@ -379,6 +425,7 @@ final class ProductsServiceTest extends TestCase
 
     public function testUpdateProductAcceptsEmptyDescriptionToClearIt(): void
     {
+        $this->simulateProductBelongsToShop();
         $service = new ProductsService();
 
         $result = $service->updateProduct(88, ['description' => '']);
@@ -388,6 +435,7 @@ final class ProductsServiceTest extends TestCase
 
     public function testUpdateProductRejectsUnsafeDescriptionHtml(): void
     {
+        $this->simulateProductBelongsToShop();
         $service = new ProductsService();
 
         $result = $service->updateProduct(88, ['description' => '<script>alert(1)</script>']);
@@ -397,6 +445,7 @@ final class ProductsServiceTest extends TestCase
 
     public function testUpdateProductAcceptsValidDescriptionShort(): void
     {
+        $this->simulateProductBelongsToShop();
         $service = new ProductsService();
 
         $result = $service->updateProduct(88, ['description_short' => '<p>Résumé court.</p>']);
@@ -406,6 +455,7 @@ final class ProductsServiceTest extends TestCase
 
     public function testUpdateProductRejectsUnsafeDescriptionShortHtml(): void
     {
+        $this->simulateProductBelongsToShop();
         $service = new ProductsService();
 
         $result = $service->updateProduct(88, ['description_short' => '<iframe src="evil"></iframe>']);
@@ -415,6 +465,7 @@ final class ProductsServiceTest extends TestCase
 
     public function testUpdateProductAcceptsValidReference(): void
     {
+        $this->simulateProductBelongsToShop();
         $service = new ProductsService();
 
         $result = $service->updateProduct(88, ['reference' => 'TSHIRT-BLACK-2']);
@@ -424,6 +475,7 @@ final class ProductsServiceTest extends TestCase
 
     public function testUpdateProductAcceptsEmptyReferenceToClearIt(): void
     {
+        $this->simulateProductBelongsToShop();
         $service = new ProductsService();
 
         $result = $service->updateProduct(88, ['reference' => '']);
@@ -433,6 +485,7 @@ final class ProductsServiceTest extends TestCase
 
     public function testUpdateProductRejectsTooLongReference(): void
     {
+        $this->simulateProductBelongsToShop();
         $service = new ProductsService();
 
         $result = $service->updateProduct(88, ['reference' => str_repeat('A', 65)]);
@@ -442,6 +495,7 @@ final class ProductsServiceTest extends TestCase
 
     public function testUpdateProductRejectsNonStringReference(): void
     {
+        $this->simulateProductBelongsToShop();
         $service = new ProductsService();
 
         /** @phpstan-ignore-next-line argument.type (payload volontairement mal typé pour le test) */
@@ -452,6 +506,7 @@ final class ProductsServiceTest extends TestCase
 
     public function testUpdateProductWritesEan13OnCombinationNotProductWhenCombinationIdProvided(): void
     {
+        $this->simulateProductBelongsToShop();
         // Simule product_attribute.id_product_attribute trouvé en base pour CE produit (combinationBelongsToProduct()).
         Db::$testGetValueResult = 501;
 
@@ -465,6 +520,7 @@ final class ProductsServiceTest extends TestCase
 
     public function testUpdateProductRejectsEan13WithForeignCombinationId(): void
     {
+        $this->simulateProductBelongsToShop();
         // Db::$testGetValueResult reste à son défaut (0) : simule un combination_id qui n'appartient PAS
         // au produit ciblé.
         $service = new ProductsService();
@@ -476,6 +532,7 @@ final class ProductsServiceTest extends TestCase
 
     public function testUpdateProductRejectsNonNumericCombinationId(): void
     {
+        $this->simulateProductBelongsToShop();
         $service = new ProductsService();
 
         /** @phpstan-ignore-next-line argument.type (payload volontairement mal typé pour le test) */
@@ -487,6 +544,7 @@ final class ProductsServiceTest extends TestCase
 
     public function testUpdateProductAcceptsMultipleSimpleFieldsAtOnce(): void
     {
+        $this->simulateProductBelongsToShop();
         $service = new ProductsService();
 
         $result = $service->updateProduct(88, [

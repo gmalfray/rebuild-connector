@@ -70,6 +70,49 @@ final class OrdersServiceTest extends TestCase
     }
 
     // =========================================================================
+    // updateStatus / updateShipping — contrôle multistore id_shop (protection IDOR, m1).
+    // Une écriture sur une commande d'une autre boutique doit être refusée, à l'identique
+    // de getInvoicePdf()/getOrderById() ci-dessus.
+    // =========================================================================
+
+    public function testUpdateStatusDeniesCrossShopAccess(): void
+    {
+        // Contexte boutique courante = shop id 1 (stub Shop). La commande appartient au shop 2.
+        Order::$testIdShop = 2;
+        // Statut par ailleurs valide (id existant simulé) : seul le contrôle boutique doit bloquer.
+        Db::$testGetValueResult = 4;
+
+        $this->assertFalse($this->service->updateStatus(42, '4'));
+
+        Db::$testGetValueResult = 0;
+    }
+
+    public function testUpdateStatusSucceedsForSameShop(): void
+    {
+        Order::$testIdShop = 1;
+        Db::$testGetValueResult = 4;
+
+        $this->assertTrue($this->service->updateStatus(42, '4'));
+
+        Db::$testGetValueResult = 0;
+    }
+
+    public function testUpdateShippingDeniesCrossShopAccess(): void
+    {
+        // Contexte boutique courante = shop id 1 (stub Shop). La commande appartient au shop 2.
+        Order::$testIdShop = 2;
+
+        $this->assertFalse($this->service->updateShipping(42, 'TRACK123', 1));
+    }
+
+    public function testUpdateShippingSucceedsForSameShop(): void
+    {
+        Order::$testIdShop = 1;
+
+        $this->assertTrue($this->service->updateShipping(42, 'TRACK123', 1));
+    }
+
+    // =========================================================================
     // parseStatusesFilter
     // =========================================================================
 

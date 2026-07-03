@@ -11,6 +11,7 @@ require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/TranslationService.php'
 require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/RateLimiterService.php';
 require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/AuditLogService.php';
 require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/WebhookService.php';
+require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/ClientIpResolver.php';
 
 abstract class RebuildconnectorBaseApiModuleFrontController extends ModuleFrontController
 {
@@ -453,12 +454,9 @@ abstract class RebuildconnectorBaseApiModuleFrontController extends ModuleFrontC
 
     private function resolveClientIp(): ?string
     {
-        $ip = Tools::getRemoteAddr();
-        if ($ip === '') {
-            return null;
-        }
-
-        return $ip;
+        // M3 : ne PAS utiliser Tools::getRemoteAddr() (se fie au 1er élément de X-Forwarded-For,
+        // falsifiable par le client) pour une décision de sécurité (allowlist IP, rate-limit, audit).
+        return ClientIpResolver::resolve();
     }
 
     private function ipMatchesRange(string $ip, string $range): bool

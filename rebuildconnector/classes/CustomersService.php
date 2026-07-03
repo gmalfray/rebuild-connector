@@ -242,12 +242,27 @@ class CustomersService
         return $limit;
     }
 
+    /**
+     * Clause id_shop commune aux sous-requêtes orders ci-dessous : un client peut être partagé entre
+     * boutiques (groupe de boutiques), mais orders_count/total_spent/last_order_date ne doivent refléter
+     * que l'activité de la boutique courante (cohérent avec le filtre c.id_shop de getCustomers()).
+     */
+    private function shopOrdersFilterSql(string $ordersAlias): string
+    {
+        $currentShopId = (int) Context::getContext()->shop->id;
+        if ($currentShopId <= 0) {
+            return '';
+        }
+
+        return ' AND ' . $ordersAlias . '.id_shop = ' . $currentShopId;
+    }
+
     private function ordersCountExpression(): string
     {
         return '(
             SELECT COUNT(*)
             FROM ' . _DB_PREFIX_ . 'orders oc
-            WHERE oc.id_customer = c.id_customer
+            WHERE oc.id_customer = c.id_customer' . $this->shopOrdersFilterSql('oc') . '
         )';
     }
 
@@ -256,7 +271,7 @@ class CustomersService
         return '(
             SELECT IFNULL(SUM(o2.total_paid_tax_incl), 0)
             FROM ' . _DB_PREFIX_ . 'orders o2
-            WHERE o2.id_customer = c.id_customer
+            WHERE o2.id_customer = c.id_customer' . $this->shopOrdersFilterSql('o2') . '
         )';
     }
 
@@ -265,7 +280,7 @@ class CustomersService
         return '(
             SELECT MAX(o3.date_add)
             FROM ' . _DB_PREFIX_ . 'orders o3
-            WHERE o3.id_customer = c.id_customer
+            WHERE o3.id_customer = c.id_customer' . $this->shopOrdersFilterSql('o3') . '
         )';
     }
 
