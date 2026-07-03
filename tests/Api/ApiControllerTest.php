@@ -28,8 +28,8 @@ final class ApiControllerTest extends TestCase
     public function testRejectsRequestWithoutApiKey(): void
     {
         $_SERVER['REQUEST_METHOD'] = 'POST';
-        $_POST = ['api_key' => ''];
         $controller = new TestApiController();
+        $controller->requestBody = ['api_key' => ''];
         $controller->initContent();
 
         $this->assertSame(400, $controller->response['status']);
@@ -38,9 +38,12 @@ final class ApiControllerTest extends TestCase
 
     public function testAuthenticatesAndReturnsToken(): void
     {
+        // Le contrôleur lit le corps de requête JSON via decodeRequestBody() (pas $_POST) :
+        // on stub donc directement le corps décodé plutôt que $_POST, qui n'est jamais lu
+        // en pratique par ApiController::initContent().
         $_SERVER['REQUEST_METHOD'] = 'POST';
-        $_POST = ['api_key' => 'valid'];
         $controller = new TestApiController();
+        $controller->requestBody = ['api_key' => 'valid'];
         $controller->mockToken = [
             'token_type' => 'Bearer',
             'token' => 'jwt-token',
@@ -61,6 +64,8 @@ final class TestApiController extends RebuildconnectorApiModuleFrontController
     public ?array $response = null;
     /** @var array<string, mixed>|null */
     public ?array $mockToken = null;
+    /** @var array<string, mixed> */
+    public array $requestBody = [];
 
     protected function renderJson(array $payload, int $statusCode = 200): void
     {
@@ -76,6 +81,14 @@ final class TestApiController extends RebuildconnectorApiModuleFrontController
             'error' => $error,
             'message' => $message,
         ], $statusCode);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected function decodeRequestBody(): array
+    {
+        return $this->requestBody;
     }
 
     protected function getAuthService(): AuthService

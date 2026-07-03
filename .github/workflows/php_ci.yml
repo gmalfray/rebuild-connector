@@ -29,14 +29,12 @@ jobs:
         run: |
           find rebuildconnector -type f -name "*.php" -print0 | xargs -0 -n1 -P4 php -l
 
-      - name: Install Composer deps (if present)
-        run: |
-          if [ -f composer.json ]; then composer install --no-interaction --no-progress --prefer-dist; fi
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --no-progress --prefer-dist
 
       - name: PHPStan
         run: |
           if [ -f phpstan.neon ] || [ -f phpstan.neon.dist ]; then phpstan analyse -l 6 rebuildconnector; else echo "No phpstan config"; fi
 
       - name: PHPUnit
-        run: |
-          if [ -f vendor/bin/phpunit ]; then vendor/bin/phpunit --testsuite default; else echo "No phpunit configured"; fi
+        run: vendor/bin/phpunit --stderr

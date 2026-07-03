@@ -11,17 +11,35 @@ final class OrdersControllerTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $_SERVER = ['REQUEST_METHOD' => 'POST'];
+        $_SERVER = ['REQUEST_METHOD' => 'DELETE'];
         $_GET = [];
     }
 
-    public function testMethodNotAllowedIsReturnedForPost(): void
+    public function testMethodNotAllowedIsReturnedForDelete(): void
     {
+        // DELETE reste non supporté (seuls GET/PATCH/POST le sont, POST étant désormais
+        // utilisé par la génération d'étiquette Colissimo — cf. testPostWithoutOrderIdReturnsNotFound).
         $controller = new TestOrdersController();
         $controller->initContent();
 
         $this->assertSame(405, $controller->response['status']);
         $this->assertSame('method_not_allowed', $controller->response['payload']['error']);
+    }
+
+    public function testPostWithoutOrderIdReturnsNotFound(): void
+    {
+        // POST est désormais une route valide (génération d'étiquette de transport, cf.
+        // OrdersController::handlePost()) : ce n'est plus un 405 method_not_allowed.
+        // Sans id_order, le contrôleur doit répondre 404 not_found (et non plus rejeter la
+        // méthode elle-même) — non-régression sur l'évolution de la route.
+        $_SERVER = ['REQUEST_METHOD' => 'POST'];
+        $_GET = [];
+
+        $controller = new TestOrdersController();
+        $controller->initContent();
+
+        $this->assertSame(404, $controller->response['status']);
+        $this->assertSame('not_found', $controller->response['payload']['error']);
     }
 
     // =========================================================================

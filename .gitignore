@@ -6,7 +6,6 @@ Thumbs.db
 *.log
 
 /vendor/
-composer.lock
 node_modules/
 .cache/
 coverage/
@@ -27,7 +26,5 @@ dist/
 *.p12
 
 phpunit.xml
-phpunit.xml.dist
 coverage.xml
 logs/
-composer.json

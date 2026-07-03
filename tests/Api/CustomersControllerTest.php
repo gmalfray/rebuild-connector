@@ -36,8 +36,10 @@ final class CustomersControllerTest extends TestCase
         $controller->initContent();
 
         $this->assertSame(200, $controller->response['status']);
-        $this->assertCount(1, $controller->response['payload']['data']);
-        $this->assertTrue($controller->response['payload']['meta']['pagination']['has_next']);
+        // Enveloppe réelle renvoyée par CustomersController::handleGet() :
+        // { customers: [...], pagination: {...} } — pas { data: [...], meta: { pagination } }.
+        $this->assertCount(1, $controller->response['payload']['customers']);
+        $this->assertTrue($controller->response['payload']['pagination']['has_next']);
     }
 }
 
@@ -45,8 +47,6 @@ final class TestCustomersController extends RebuildconnectorCustomersModuleFront
 {
     /** @var array<string, mixed>|null */
     public ?array $response = null;
-    /** @var array<int, array<string, mixed>> */
-    private array $dataset;
 
     /**
      * @param array<int, array<string, mixed>> $dataset
@@ -54,7 +54,18 @@ final class TestCustomersController extends RebuildconnectorCustomersModuleFront
     public function __construct(array $dataset = [])
     {
         parent::__construct();
-        $this->dataset = $dataset;
+
+        if ($dataset !== []) {
+            // CustomersController::getCustomersService() est `private` : un override de
+            // méthode dans cette sous-classe ne serait jamais appelé (liaison statique des
+            // méthodes privées en PHP), le contrôleur continuerait donc à créer un vrai
+            // CustomersService et à taper en base. On injecte le fake directement via
+            // Reflection sur la propriété privée, comme pour NoContentOrdersController
+            // dans OrdersControllerTest.
+            $property = new \ReflectionProperty(RebuildconnectorCustomersModuleFrontController::class, 'customersService');
+            $property->setAccessible(true);
+            $property->setValue($this, $this->buildFakeCustomersService($dataset));
+        }
     }
 
     protected function renderJson(array $payload, int $statusCode = 200): void
@@ -78,9 +89,12 @@ final class TestCustomersController extends RebuildconnectorCustomersModuleFront
         return ['scopes' => $requiredScopes];
     }
 
-    private function buildFakeCustomersService(): CustomersService
+    /**
+     * @param array<int, array<string, mixed>> $dataset
+     */
+    private function buildFakeCustomersService(array $dataset): CustomersService
     {
-        return new class($this->dataset) extends CustomersService {
+        return new class($dataset) extends CustomersService {
             /** @var array<int, array<string, mixed>> */
             private array $dataset;
 
@@ -95,14 +109,5 @@ final class TestCustomersController extends RebuildconnectorCustomersModuleFront
                 return $this->dataset;
             }
         };
-    }
-
-    protected function getCustomersService(): CustomersService
-    {
-        if ($this->dataset === []) {
-            return parent::getCustomersService();
-        }
-
-        return $this->buildFakeCustomersService();
     }
 }
