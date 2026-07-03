@@ -89,6 +89,13 @@ class RateLimiterService
 
         $this->cache[$key] = $allowed;
 
+        // Purge opportuniste : la table grossit à chaque fenêtre de rate-limit et rien ne l'élague
+        // (pas de cron sur ce module). On ne l'exécute qu'occasionnellement (~1 requête sur 200)
+        // pour ne pas payer un DELETE à chaque appel.
+        if (mt_rand(1, 200) === 1) {
+            $this->prune();
+        }
+
         return $allowed;
     }
 

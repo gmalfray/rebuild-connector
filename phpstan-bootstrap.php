@@ -557,6 +557,14 @@ class Db
      */
     public static array $testExecuteSResult = [];
 
+    /**
+     * Bascule de test : journal des requêtes passées à execute() (INSERT/DELETE...). Permet de
+     * vérifier, sans base réelle, qu'une purge génère bien le bon DELETE avec le bon seuil de date.
+     *
+     * @var array<int, string>
+     */
+    public static array $executedSql = [];
+
     public static function getInstance(bool $useSlave = false): self
     {
         return new self();
@@ -614,6 +622,8 @@ class Db
 
     public function execute(string $sql): bool
     {
+        self::$executedSql[] = $sql;
+
         return true;
     }
 

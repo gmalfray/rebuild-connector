@@ -6,6 +6,12 @@ class AuditLogService
 {
     public const TABLE_NAME = 'rebuildconnector_audit_log';
 
+    /**
+     * Durée de rétention par défaut des lignes d'audit (en jours).
+     * Aucune purge n'était faite jusque-là (pas de cron sur ce module) → croissance non bornée.
+     */
+    public const RETENTION_DAYS = 90;
+
     public static function install(): bool
     {
         $sql = sprintf(
@@ -88,5 +94,31 @@ class AuditLogService
         ];
 
         Db::getInstance()->insert(self::TABLE_NAME, $data);
+
+        // Purge opportuniste : sans cron, la table grossit sans fin. On n'exécute le DELETE
+        // qu'occasionnellement (~1 insert sur 200) pour ne pas le payer à chaque requête.
+        if (mt_rand(1, 200) === 1) {
+            $this->prune();
+        }
+    }
+
+    /**
+     * Supprime les lignes d'audit plus vieilles que $days jours (rétention par défaut 90 j).
+     */
+    public function prune(int $days = self::RETENTION_DAYS): void
+    {
+        $days = max(1, $days);
+        $threshold = (new \DateTimeImmutable('now'))
+            ->modify('-' . $days . ' days')
+            ->format('Y-m-d H:i:s');
+
+        $sql = sprintf(
+            'DELETE FROM `%s%s` WHERE `created_at` < "%s"',
+            _DB_PREFIX_,
+            self::TABLE_NAME,
+            pSQL($threshold)
+        );
+
+        Db::getInstance()->execute($sql);
     }
 }
