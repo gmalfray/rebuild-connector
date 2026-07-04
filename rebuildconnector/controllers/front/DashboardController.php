@@ -16,7 +16,10 @@ class RebuildconnectorDashboardModuleFrontController extends RebuildconnectorBas
         try {
             $method = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'));
             if ($method !== 'GET') {
-                header('Allow: GET');
+                // @ : header() peut émettre un warning "headers already sent" hors contexte HTTP réel
+                // (ex. exécution CLI PHPUnit où du texte a déjà été écrit sur stdout) ; sans impact
+                // en production (le header Allow est informatif sur une 405).
+                @header('Allow: GET');
                 $this->jsonError(
                     'method_not_allowed',
                     $this->t('api.error.method_not_allowed', [], 'HTTP method not allowed.'),
