@@ -76,6 +76,63 @@ final class ProductsServiceTest extends TestCase
         $this->assertSame(0, $total);
     }
 
+    /**
+     * @dataProvider stockFilterProvider
+     */
+    public function testStockFilterRestrictsToActiveProducts(string $stockFilter): void
+    {
+        DbQuery::$testWhereLog = [];
+        $service = new ProductsService();
+
+        $service->getProducts(['stock' => $stockFilter]);
+
+        $this->assertContains(
+            'p.active = 1',
+            DbQuery::$testWhereLog,
+            "Le filtre stock '$stockFilter' doit être restreint aux produits actifs (p.active = 1)."
+        );
+    }
+
+    /**
+     * @dataProvider stockFilterProvider
+     */
+    public function testCountProductsStockFilterRestrictsToActiveProducts(string $stockFilter): void
+    {
+        DbQuery::$testWhereLog = [];
+        $service = new ProductsService();
+
+        $service->countProducts(['stock' => $stockFilter]);
+
+        $this->assertContains(
+            'p.active = 1',
+            DbQuery::$testWhereLog,
+            "countProducts avec le filtre '$stockFilter' doit être restreint aux actifs."
+        );
+    }
+
+    /**
+     * @return array<int, array{0: string}>
+     */
+    public function stockFilterProvider(): array
+    {
+        return [['in_stock'], ['out_of_stock'], ['low_stock']];
+    }
+
+    public function testNoStockFilterKeepsActiveAndInactiveProducts(): void
+    {
+        DbQuery::$testWhereLog = [];
+        $service = new ProductsService();
+
+        // « Tous » = pas de clé `stock` → aucune contrainte p.active forcée (actifs + inactifs).
+        $service->getProducts([]);
+
+        $this->assertNotContains(
+            'p.active = 1',
+            DbQuery::$testWhereLog,
+            'Le filtre « Tous » ne doit PAS restreindre aux actifs (actifs + inactifs attendus).'
+        );
+    }
+
     public function testFormatProductRowExposesMatchedCombinationWhenBarcodeMatchesCombination(): void
     {
         // Cas pensebonheur : pelote de laine = combinaison "Coloris" du produit 52, l'EAN13 est posé

@@ -91,6 +91,10 @@ class ProductsService
         }
 
         if (!empty($filters['stock'])) {
+            // Les états de stock (en stock / rupture / stock faible) ne concernent que les produits
+            // ACTIFS (en vente) : un produit désactivé en rupture/stock faible n'est pas actionnable.
+            // Le filtre « Tous » (pas de clé `stock`) n'entre pas ici → il conserve actifs + inactifs.
+            $query->where('p.active = 1');
             $stockFilter = (string) $filters['stock'];
             if ($stockFilter === 'in_stock') {
                 $query->where('IFNULL(sa.quantity, 0) > 0');
@@ -392,6 +396,8 @@ class ProductsService
         }
 
         if (!empty($filters['stock'])) {
+            // Idem getProducts : les filtres d'état de stock ne comptent que les produits actifs.
+            $query->where('p.active = 1');
             $defaultThreshold = self::DEFAULT_LOW_STOCK_THRESHOLD;
             $stockFilter = (string) $filters['stock'];
             if ($stockFilter === 'in_stock') {

@@ -690,6 +690,15 @@ class DbQuery
     public static array $testSelectLog = [];
 
     /**
+     * Bascule de test : journal des conditions passées à where() (stub sans état réel sinon).
+     * Permet de verrouiller les clauses WHERE construites via DbQuery (ex. `p.active = 1` sur les
+     * filtres d'état de stock).
+     *
+     * @var array<int, string>
+     */
+    public static array $testWhereLog = [];
+
+    /**
      * @param string $fields
      */
     public function select($fields): self
@@ -716,6 +725,8 @@ class DbQuery
 
     public function where(string $condition): self
     {
+        self::$testWhereLog[] = $condition;
+
         return $this;
     }
 
