@@ -120,6 +120,44 @@ Deux formats de QR coexistent. Tous deux portent les mêmes champs de base (`mod
 
 ---
 
+## Localisation
+
+**Depuis v1.10.16.** Le connecteur localise le contenu qu'il renvoie (statuts de commande, noms
+produits/catégories, transporteurs, etc.) selon la langue demandée par l'app, via l'en-tête HTTP :
+
+```
+Accept-Language: de
+```
+
+**Contrat :**
+
+- L'app envoie, sur **chaque requête**, un header `Accept-Language` contenant le **tag de langue
+  primaire** en minuscule (`de`, `fr`, `en`, `es`…). Les formats plus complets type navigateur
+  (`de-DE,de;q=0.9`) sont également acceptés : seul le 1ᵉʳ sous-tag primaire (avant `-`, `;` ou `,`)
+  est retenu, normalisé en ISO 639-1 minuscule.
+- Le connecteur résout ce tag vers un `id_lang` **installé ET actif pour la boutique courante**.
+- **Fallback** : si la langue demandée n'est pas installée/active (ou si l'en-tête est absent), le
+  connecteur retombe sur la langue par défaut de la boutique (`PS_LANG_DEFAULT`) — le comportement
+  historique, inchangé. Une boutique n'ayant qu'une seule langue installée (ex. FR uniquement) ne
+  voit donc **aucun changement** quel que soit l'en-tête envoyé.
+
+**Endpoints concernés** (tout contenu qui dépend d'un `id_lang` en base) :
+
+- `GET .../api/orders/statuses` et le champ `status` des commandes (liste + détail) — c'était le
+  besoin remonté : les badges de statut restaient en FR même app en allemand.
+- `GET .../api/orders` / `GET .../api/orders/{id}` — libellé de statut, nom du transporteur.
+- `PATCH .../api/orders/{id}` — la résolution nom → id de statut (quand l'app envoie un nom plutôt
+  qu'un id) utilise la même langue.
+- `GET .../api/products`, `GET .../api/products/{id}` — noms/descriptions produits, libellés de
+  déclinaisons.
+- `GET .../api/dashboard` — libellés produits en stock bas.
+- `GET .../api/reports/bestsellers` — noms produits.
+
+Les endpoints sans dimension langue (`customers`, `baskets`, `notifications`…) ne sont pas concernés
+et ne changent pas de comportement.
+
+---
+
 ## Commandes
 
 ### GET `.../api/orders/statuses`

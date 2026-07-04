@@ -27,4 +27,5 @@ dist/
 
 phpunit.xml
 coverage.xml
+.phpunit.result.cache
 logs/

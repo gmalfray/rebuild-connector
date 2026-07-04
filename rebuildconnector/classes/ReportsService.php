@@ -2,6 +2,8 @@
 
 defined('_PS_VERSION_') || exit;
 
+require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/LanguageResolver.php';
+
 class ReportsService
 {
     private const DEFAULT_LIMIT = 10;
@@ -135,14 +137,13 @@ class ReportsService
         );
     }
 
+    /**
+     * Résout l'id_lang selon l'en-tête `Accept-Language` envoyé par l'app (fallback langue par
+     * défaut boutique si absent/non installée/inactive) — voir LanguageResolver.
+     */
     private function getLanguageId(): int
     {
-        $context = Context::getContext();
-        if ($context->language instanceof Language) {
-            return (int) $context->language->id;
-        }
-
-        return (int) Configuration::get('PS_LANG_DEFAULT');
+        return LanguageResolver::resolveIdLang();
     }
 
     private function getShopId(): int

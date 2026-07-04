@@ -474,9 +474,21 @@ class Tools
 
 class Configuration
 {
+    /**
+     * Bascule de test : valeurs retournées par get() pour une clé donnée (par défaut vide → null,
+     * comportement historique du stub). Permet de simuler ex. PS_LANG_DEFAULT/PS_SHOP_DEFAULT sans
+     * base de données réelle.
+     *
+     * @var array<string, mixed>
+     */
+    public static array $testValues = [];
+
+    /**
+     * @return mixed
+     */
     public static function get(string $key)
     {
-        return null;
+        return self::$testValues[$key] ?? null;
     }
 
     /**
@@ -731,10 +743,23 @@ class Language
     public $iso_code = null;
 
     /**
+     * Bascule de test : langues retournées par getLanguages() (par défaut FR seule, comportement
+     * historique du stub — équivalent à une boutique n'ayant que le FR installé/actif, ex.
+     * pensebonheur en prod). Permet de simuler une boutique multilingue sans base de données réelle.
+     *
+     * @var array<int, array<string, mixed>>|null
+     */
+    public static ?array $testLanguages = null;
+
+    /**
      * @return array<int, array<string, mixed>>
      */
     public static function getLanguages(bool $active = true, $idShop = false, bool $idsOnly = false): array
     {
+        if (self::$testLanguages !== null) {
+            return self::$testLanguages;
+        }
+
         return [
             ['id_lang' => 1, 'iso_code' => 'fr'],
         ];
