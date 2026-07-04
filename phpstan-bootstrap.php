@@ -669,10 +669,21 @@ class Db
 class DbQuery
 {
     /**
+     * Bascule de test : journal des champs passés à select() (stub sans état réel sinon).
+     * Permet de verrouiller le SQL construit via DbQuery (ex. requêtes du graphique dashboard
+     * qui n'utilisent pas la concaténation directe, donc absentes de Db::$testLoggedSelectQueries).
+     *
+     * @var array<int, string>
+     */
+    public static array $testSelectLog = [];
+
+    /**
      * @param string $fields
      */
     public function select($fields): self
     {
+        self::$testSelectLog[] = $fields;
+
         return $this;
     }
 

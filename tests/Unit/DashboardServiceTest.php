@@ -12,12 +12,14 @@ final class DashboardServiceTest extends TestCase
     {
         parent::setUp();
         Db::$testLoggedSelectQueries = [];
+        DbQuery::$testSelectLog = [];
     }
 
     protected function tearDown(): void
     {
         Db::$testLoggedSelectQueries = [];
         Db::$testGetValueResult = 0;
+        DbQuery::$testSelectLog = [];
         parent::tearDown();
     }
 
@@ -87,6 +89,128 @@ final class DashboardServiceTest extends TestCase
 
         $this->assertNotEmpty(Db::$testLoggedSelectQueries);
         $this->assertStringContainsString('ps.id_shop = 1', Db::$testLoggedSelectQueries[0]);
+    }
+
+    // -----------------------------------------------------------------------
+    // Bug client : le CA dashboard incluait les frais de port (total_paid_tax_incl).
+    // Le CA doit être le revenu produits uniquement (montant payé - frais de port).
+    //
+    // Note méthodologique : le stub Db::getValue() ne fait qu'écho d'une valeur de test fixe
+    // (il ne peut pas exécuter l'arithmétique SQL réelle SUM(a - b)). On verrouille donc le
+    // comportement au niveau du texte SQL envoyé à la base (comme le fait déjà le test IDOR
+    // multiboutique ci-dessus pour la clause id_shop) : la requête doit bien retrancher
+    // total_shipping_tax_incl / total_shipping_tax_excl, pas seulement lire total_paid_*.
+    // -----------------------------------------------------------------------
+
+    public function testTurnoverQueryExcludesShippingTaxIncl(): void
+    {
+        $service = new DashboardService();
+        $service->getMetrics('today');
+
+        $revenueQueries = array_values(array_filter(
+            Db::$testLoggedSelectQueries,
+            static function (string $sql): bool {
+                return strpos($sql, 'SUM(total_paid_tax_incl') !== false;
+            }
+        ));
+
+        $this->assertNotEmpty($revenueQueries, 'Aucune requête de CA (total_paid_tax_incl) capturée.');
+        foreach ($revenueQueries as $sql) {
+            $this->assertStringContainsString(
+                'SUM(total_paid_tax_incl - total_shipping_tax_incl)',
+                $sql,
+                'Le CA TTC doit exclure les frais de port : ' . $sql
+            );
+        }
+        // turnover ET previous_turnover doivent tous les deux être corrigés.
+        $this->assertGreaterThanOrEqual(2, count($revenueQueries), 'turnover et previous_turnover doivent tous deux exclure le port.');
+    }
+
+    public function testRevenueTaxExclQueryExcludesShippingTaxExcl(): void
+    {
+        $service = new DashboardService();
+        $service->getMetrics('today');
+
+        $revenueExclQueries = array_values(array_filter(
+            Db::$testLoggedSelectQueries,
+            static function (string $sql): bool {
+                return strpos($sql, 'SUM(total_paid_tax_excl') !== false;
+            }
+        ));
+
+        $this->assertNotEmpty($revenueExclQueries, 'Aucune requête de CA HT (total_paid_tax_excl) capturée.');
+        foreach ($revenueExclQueries as $sql) {
+            $this->assertStringContainsString(
+                'SUM(total_paid_tax_excl - total_shipping_tax_excl)',
+                $sql,
+                'Le CA HT doit exclure les frais de port : ' . $sql
+            );
+        }
+    }
+
+    public function testChartRevenueQueryExcludesShippingDailyGranularity(): void
+    {
+        $service = new DashboardService();
+        // 'month' → granularité journalière (cf. resolveGranularity()).
+        $service->getMetrics('month');
+
+        $revenueSelects = array_values(array_filter(
+            DbQuery::$testSelectLog,
+            static function (string $fields): bool {
+                return strpos($fields, 'AS revenue') !== false;
+            }
+        ));
+
+        $this->assertNotEmpty($revenueSelects, 'Aucun SELECT ... AS revenue capturé pour le chart journalier.');
+        foreach ($revenueSelects as $fields) {
+            $this->assertStringContainsString(
+                'SUM(o.total_paid_tax_incl - o.total_shipping_tax_incl) AS revenue',
+                $fields,
+                'La série CA du graphique (granularité jour) doit exclure le port : ' . $fields
+            );
+        }
+    }
+
+    public function testChartRevenueQueryExcludesShippingHourlyGranularity(): void
+    {
+        $service = new DashboardService();
+        // 'today' → granularité horaire (cf. resolveGranularity()).
+        $service->getMetrics('today');
+
+        $revenueSelects = array_values(array_filter(
+            DbQuery::$testSelectLog,
+            static function (string $fields): bool {
+                return strpos($fields, 'AS revenue') !== false;
+            }
+        ));
+
+        $this->assertNotEmpty($revenueSelects, 'Aucun SELECT ... AS revenue capturé pour le chart horaire.');
+        foreach ($revenueSelects as $fields) {
+            $this->assertStringContainsString(
+                'SUM(o.total_paid_tax_incl - o.total_shipping_tax_incl) AS revenue',
+                $fields,
+                'La série CA du graphique (granularité heure) doit exclure le port : ' . $fields
+            );
+        }
+    }
+
+    public function testAverageBasketDerivesFromShippingExcludedTurnover(): void
+    {
+        // Le panier moyen doit rester dérivé de `turnover` (déjà hors port), pas d'un total
+        // séparé qui réintroduirait le port par erreur.
+        Db::$testGetValueResult = 30;
+
+        $service = new DashboardService();
+        $metrics = $service->getMetrics('today');
+
+        $this->assertSame($metrics['turnover'], $metrics['revenue']);
+        $this->assertGreaterThan(0, $metrics['orders_count']);
+        $this->assertEqualsWithDelta(
+            $metrics['turnover'] / $metrics['orders_count'],
+            $metrics['average_basket'],
+            0.0001,
+            'average_basket doit être turnover (hors port) / orders_count.'
+        );
     }
 
     // -----------------------------------------------------------------------

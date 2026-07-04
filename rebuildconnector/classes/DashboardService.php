@@ -42,13 +42,17 @@ class DashboardService
             . $shopFilterSql
         );
 
+        // CA = revenu produits uniquement, HORS frais de port (total_paid_tax_incl inclut le
+        // port ; on retranche total_shipping_tax_incl pour obtenir le CA "marchandise").
+        // Même base fiscale conservée qu'avant (TTC pour revenueTaxIncl, HT pour revenueTaxExcl) :
+        // seul le retrait du port change, pas la conversion TTC/HT.
         $revenueTaxIncl = (float) $db->getValue(
-            'SELECT SUM(total_paid_tax_incl) FROM ' . _DB_PREFIX_ . 'orders WHERE date_add BETWEEN "'
+            'SELECT SUM(total_paid_tax_incl - total_shipping_tax_incl) FROM ' . _DB_PREFIX_ . 'orders WHERE date_add BETWEEN "'
             . $fromSql . '" AND "' . $toSql . '"' . $shopFilterSql
         );
 
         $revenueTaxExcl = (float) $db->getValue(
-            'SELECT SUM(total_paid_tax_excl) FROM ' . _DB_PREFIX_ . 'orders WHERE date_add BETWEEN "'
+            'SELECT SUM(total_paid_tax_excl - total_shipping_tax_excl) FROM ' . _DB_PREFIX_ . 'orders WHERE date_add BETWEEN "'
             . $fromSql . '" AND "' . $toSql . '"' . $shopFilterSql
         );
 
@@ -75,8 +79,10 @@ class DashboardService
         $prevFrom = $prevTo->setTimestamp($prevTo->getTimestamp() - $duration);
         $prevFromSql = pSQL($prevFrom->format('Y-m-d H:i:s'));
         $prevToSql = pSQL($prevTo->format('Y-m-d H:i:s'));
+        // Même correction hors-port sur la période comparative (previous_turnover), sinon le
+        // comparatif CA serait faussé en sens inverse (port inclus d'un côté, exclu de l'autre).
         $previousTurnover = (float) $db->getValue(
-            'SELECT SUM(total_paid_tax_incl) FROM ' . _DB_PREFIX_ . 'orders WHERE date_add BETWEEN "'
+            'SELECT SUM(total_paid_tax_incl - total_shipping_tax_incl) FROM ' . _DB_PREFIX_ . 'orders WHERE date_add BETWEEN "'
             . $prevFromSql . '" AND "' . $prevToSql . '"' . $shopFilterSql
         );
 
@@ -396,7 +402,8 @@ class DashboardService
             // journalière → la courbe est vide côté app (guard size < 2). On groupe par heure.
             $query = new DbQuery();
             $query->select('DATE_FORMAT(o.date_add, \'%Y-%m-%d %H:00:00\') AS hour');
-            $query->select('SUM(o.total_paid_tax_incl) AS revenue');
+            // CA hors frais de port (cf. getMetrics()) : même correction sur la série horaire.
+            $query->select('SUM(o.total_paid_tax_incl - o.total_shipping_tax_incl) AS revenue');
             $query->select('COUNT(*) AS orders');
             $query->select('COUNT(DISTINCT o.id_customer) AS customers');
             $query->from('orders', 'o');
@@ -449,7 +456,8 @@ class DashboardService
         // Granularité journalière (toutes les autres périodes).
         $query = new DbQuery();
         $query->select('DATE(o.date_add) AS day');
-        $query->select('SUM(o.total_paid_tax_incl) AS revenue');
+        // CA hors frais de port (cf. getMetrics()) : même correction sur la série journalière.
+        $query->select('SUM(o.total_paid_tax_incl - o.total_shipping_tax_incl) AS revenue');
         $query->select('COUNT(*) AS orders');
         $query->select('COUNT(DISTINCT o.id_customer) AS customers');
         $query->from('orders', 'o');

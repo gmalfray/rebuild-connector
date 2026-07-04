@@ -1035,6 +1035,14 @@ En mode plage libre, `period.label` vaut `"custom"`. `previous_turnover` compare
 
 > `turnover` et `revenue` sont identiques et correspondent au CA TTC. `chart` contient un point par bucket sur toute la période, y compris les buckets sans activité (toutes les valeurs à zéro).
 
+> **CA hors frais de port (depuis v1.10.15).** `turnover`, `previous_turnover`, `revenue`,
+> `revenue_tax_incl`, `revenue_tax_excl` (et donc `tax_collected`, `average_basket`,
+> `average_order_value`, ainsi que `chart[].turnover`) excluent désormais les frais de port
+> (`total_shipping_tax_incl`/`total_shipping_tax_excl` de `ps_orders`) : c'est le revenu
+> produits uniquement. Avant v1.10.15, ces valeurs incluaient le port (`total_paid_tax_incl`/
+> `total_paid_tax_excl` bruts), ce qui gonflait le CA affiché. **Aucun champ JSON ajouté/renommé**
+> — seule la valeur change, la structure de l'enveloppe est inchangée.
+
 **Exemples cURL**
 
 Preset mensuel (inchangé) :
