@@ -502,6 +502,31 @@
                 <i class="icon-check"></i>
                 <strong>Notifications push activées.</strong>
             </div>
+
+            {* ─── Alertes stock faible (événement `stock.low`) ─── *}
+            <form method="post" class="form-horizontal">
+                <div class="form-group">
+                    <label class="control-label col-lg-3">{$i18n.stock_low_alerts_label|escape:'htmlall'}</label>
+                    <div class="col-lg-9">
+                        <input type="hidden" name="REBUILDCONNECTOR_STOCK_LOW_ALERTS_ENABLED" value="0">
+                        <label class="checkbox-inline">
+                            <input
+                                type="checkbox"
+                                name="REBUILDCONNECTOR_STOCK_LOW_ALERTS_ENABLED"
+                                value="1"
+                                {if $settings.stock_low_alerts_enabled}checked{/if}
+                            >
+                            {$i18n.stock_low_alerts_toggle|escape:'htmlall'}
+                        </label>
+                        <p class="help-block">{$i18n.stock_low_alerts_help|escape:'htmlall'}</p>
+                    </div>
+                </div>
+                <div class="panel-footer">
+                    <button type="submit" name="submitRebuildconnectorModule" value="1" class="btn btn-primary">
+                        <i class="icon-save"></i> {$i18n.save_button|escape:'htmlall'}
+                    </button>
+                </div>
+            </form>
         {else}
             <p class="text-muted" style="margin-bottom:12px;">
                 Activez les notifications push en un clic : le module obtient automatiquement une licence

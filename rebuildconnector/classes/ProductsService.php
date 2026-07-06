@@ -531,6 +531,77 @@ class ProductsService
     }
 
     /**
+     * Contexte "stock bas" d'un produit pour une boutique donnée : actif ou non, et seuil effectif
+     * (`product_shop.low_stock_threshold` si renseigné et > 0, sinon `DEFAULT_LOW_STOCK_THRESHOLD`) —
+     * réplique exactement la logique déjà utilisée par getProducts()/countProducts() (filtre
+     * `stock=low_stock`). Utilisé par le hook `actionUpdateQuantity` (alertes stock faible).
+     *
+     * @return array{active: bool, threshold: int}|null null si le produit n'existe pas.
+     */
+    public function getStockAlertContext(int $productId, int $shopId): ?array
+    {
+        if ($productId <= 0) {
+            return null;
+        }
+
+        $query = new DbQuery();
+        $query->select('p.active');
+        $query->select(
+            'CASE WHEN ps.low_stock_threshold IS NOT NULL AND ps.low_stock_threshold > 0'
+            . ' THEN ps.low_stock_threshold'
+            . ' ELSE ' . (int) self::DEFAULT_LOW_STOCK_THRESHOLD
+            . ' END AS low_stock_threshold'
+        );
+        $query->from('product', 'p');
+        $query->leftJoin(
+            'product_shop',
+            'ps',
+            'ps.id_product = p.id_product AND ps.id_shop = ' . (int) $shopId
+        );
+        $query->where('p.id_product = ' . (int) $productId);
+
+        /** @var array<int, array<string, mixed>> $rows */
+        $rows = (array) Db::getInstance()->executeS($query);
+        if ($rows === []) {
+            return null;
+        }
+
+        $row = $rows[0];
+        $threshold = isset($row['low_stock_threshold']) && (int) $row['low_stock_threshold'] > 0
+            ? (int) $row['low_stock_threshold']
+            : self::DEFAULT_LOW_STOCK_THRESHOLD;
+
+        return [
+            'active' => isset($row['active']) ? (bool) $row['active'] : false,
+            'threshold' => $threshold,
+        ];
+    }
+
+    /**
+     * Nom du produit dans une langue donnée (par défaut, celle transmise). Utilisé pour construire
+     * les libellés de notification (ex. alerte stock faible) indépendamment de la résolution de
+     * langue liée à la requête HTTP courante (LanguageResolver), le hook `actionUpdateQuantity`
+     * n'étant pas systématiquement déclenché dans le contexte d'un appel API app.
+     */
+    public function getProductNameInLang(int $productId, int $langId, int $shopId): string
+    {
+        if ($productId <= 0) {
+            return '';
+        }
+
+        $query = new DbQuery();
+        $query->select('pl.name');
+        $query->from('product_lang', 'pl');
+        $query->where('pl.id_product = ' . (int) $productId);
+        $query->where('pl.id_lang = ' . (int) $langId);
+        $query->where('pl.id_shop = ' . (int) $shopId);
+
+        $name = Db::getInstance()->getValue($query);
+
+        return is_string($name) ? $name : '';
+    }
+
+    /**
      * @param int $combinationId id_product_attribute ciblé (0 ou absent = niveau produit, comportement
      *                           historique). Doit appartenir au produit sinon la mise à jour est rejetée.
      */

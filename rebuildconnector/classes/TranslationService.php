@@ -201,6 +201,18 @@ class TranslationService
             'en' => 'Save settings',
             'fr' => 'Enregistrer les paramètres',
         ],
+        'admin.form.stock_low_alerts_label' => [
+            'en' => 'Low stock alerts',
+            'fr' => 'Alertes stock faible',
+        ],
+        'admin.form.stock_low_alerts_toggle' => [
+            'en' => 'Send a push notification when a product\'s stock drops to or below its threshold',
+            'fr' => 'Envoyer une notification push quand le stock d\'un produit descend à ou sous son seuil',
+        ],
+        'admin.form.stock_low_alerts_help' => [
+            'en' => 'One notification per drop below the threshold — no repeat until stock is replenished above it.',
+            'fr' => 'Une seule notification par franchissement du seuil — pas de répétition tant que le stock ne repasse pas au-dessus.',
+        ],
 
         // API & base controller errors
         'api.error.method_not_allowed' => [
@@ -349,6 +361,14 @@ class TranslationService
             'en' => 'Tracking number %s is now available.',
             'fr' => 'Le numéro de suivi %s est disponible.',
         ],
+        'notifications.stock_low_title' => [
+            'en' => 'Low stock alert',
+            'fr' => 'Alerte stock faible',
+        ],
+        'notifications.stock_low_body' => [
+            'en' => '%s: only %s left in stock.',
+            'fr' => '%s : plus que %s en stock.',
+        ],
         'baskets.error.not_found' => [
             'en' => 'Basket not found.',
             'fr' => 'Panier introuvable.',
@@ -485,6 +505,9 @@ class TranslationService
             'allowed_ips_label' => $this->translate('admin.form.allowed_ips_label', $locale),
             'allowed_ips_help' => $this->translate('admin.form.allowed_ips_help', $locale),
             'save_button' => $this->translate('admin.form.save_button', $locale),
+            'stock_low_alerts_label' => $this->translate('admin.form.stock_low_alerts_label', $locale),
+            'stock_low_alerts_toggle' => $this->translate('admin.form.stock_low_alerts_toggle', $locale),
+            'stock_low_alerts_help' => $this->translate('admin.form.stock_low_alerts_help', $locale),
         ];
     }
 

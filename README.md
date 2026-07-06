@@ -100,6 +100,8 @@ rebuildconnector/
   - `actionValidateOrder` → nouvelle commande (`order.created`)
   - `actionOrderStatusPostUpdate` → changement d’état (`order.status.changed`)
   - mise à jour de suivi → expédition (`order.shipping.updated`)
+  - `actionUpdateQuantity` *(depuis v1.11.0)* → stock faible (`stock.low`), désactivé par défaut
+    (réglage **Alertes stock faible** dans le panneau Hub push)
 
 ### Catégories de notifications (depuis v1.4.9)
 
@@ -111,6 +113,7 @@ l’app PrestaFlow). Le ciblage se fait côté module via le champ `topics` de l
 | `order.created` | Nouvelles ventes |
 | `order.status.changed` | Changements de statut |
 | `order.shipping.updated` | Expéditions |
+| `stock.low` | Stock faible (canal Android `stock_low`) |
 
 Un appareil sans préférence (`topics` vide) reçoit **toutes** les catégories (rétrocompatibilité).
 

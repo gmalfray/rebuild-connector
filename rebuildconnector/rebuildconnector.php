@@ -17,6 +17,8 @@ require_once __DIR__ . '/classes/AuthService.php';
 require_once __DIR__ . '/classes/TranslationService.php';
 require_once __DIR__ . '/classes/UpdateCheckService.php';
 require_once __DIR__ . '/classes/ClientIpResolver.php';
+require_once __DIR__ . '/classes/ProductsService.php';
+require_once __DIR__ . '/classes/StockAlertService.php';
 
 class RebuildConnector extends Module
 {
@@ -27,13 +29,15 @@ class RebuildConnector extends Module
     private ?WebhookService $webhookService = null;
     private ?AuditLogService $auditLogService = null;
     private ?UpdateCheckService $updateCheckService = null;
+    private ?ProductsService $productsService = null;
+    private ?StockAlertService $stockAlertService = null;
     private bool $settingsBootstrapped = false;
 
     public function __construct()
     {
         $this->name = 'rebuildconnector';
         $this->tab = 'administration';
-        $this->version = '1.10.18';
+        $this->version = '1.11.0';
         $this->author = 'Rebuild IT';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -76,10 +80,15 @@ class RebuildConnector extends Module
             return false;
         }
 
+        if (!StockAlertService::install()) {
+            return false;
+        }
+
         return $this
             ->registerHook('moduleRoutes')
             && $this->registerHook('actionValidateOrder')
-            && $this->registerHook('actionOrderStatusPostUpdate');
+            && $this->registerHook('actionOrderStatusPostUpdate')
+            && $this->registerHook('actionUpdateQuantity');
     }
 
     public function uninstall(): bool
@@ -93,6 +102,7 @@ class RebuildConnector extends Module
         FcmDeviceService::uninstall();
         RateLimiterService::uninstall();
         AuditLogService::uninstall();
+        StockAlertService::uninstall();
 
         return true;
     }
@@ -324,6 +334,10 @@ class RebuildConnector extends Module
                 }
             }
 
+            if (Tools::getValue('REBUILDCONNECTOR_STOCK_LOW_ALERTS_ENABLED') !== false) {
+                $settingsService->setStockLowAlertsEnabled(Tools::getValue('REBUILDCONNECTOR_STOCK_LOW_ALERTS_ENABLED') === '1');
+            }
+
             if ($errors === []) {
                 $messages[] = $this->t('admin.message.settings_updated');
             }
@@ -505,6 +519,106 @@ class RebuildConnector extends Module
     }
 
     /**
+     * Alerte stock faible (événement `stock.low`). Se déclenche à CHAQUE écriture de quantité
+     * (StockAvailable::setQuantity()), y compris depuis ProductsService::updateStock() (app) ou
+     * plusieurs fois pendant un même checkout — d'où la garde d'état StockAlertService (une seule
+     * alerte par franchissement descendant du seuil, réarmée quand le stock repasse au-dessus).
+     *
+     * @param array<string, mixed> $params
+     */
+    public function hookActionUpdateQuantity(array $params): void
+    {
+        if (!$this->getSettingsService()->isStockLowAlertsEnabled()) {
+            return;
+        }
+
+        $idProduct = isset($params['id_product']) ? (int) $params['id_product'] : 0;
+        if ($idProduct <= 0) {
+            return;
+        }
+
+        // Absent (ou 0) pour un produit sans déclinaison — comportement normal du hook core.
+        $idProductAttribute = isset($params['id_product_attribute']) ? (int) $params['id_product_attribute'] : 0;
+        if ($idProductAttribute < 0) {
+            $idProductAttribute = 0;
+        }
+
+        if (!class_exists('StockAvailable')) {
+            return;
+        }
+
+        // $params['quantity'] n'est PAS fiable ici : selon la version de PrestaShop et l'appelant,
+        // ce champ du hook peut porter le DELTA appliqué ou la valeur ABSOLUE résultante. On relit
+        // systématiquement la quantité faisant autorité en base (le hook se déclenche APRÈS
+        // l'écriture SQL de StockAvailable::setQuantity()).
+        $quantity = (int) StockAvailable::getQuantityAvailableByProduct($idProduct, $idProductAttribute);
+
+        $shopId = $this->getCurrentShopId();
+        $context = $this->getProductsService()->getStockAlertContext($idProduct, $shopId);
+        if ($context === null || !$context['active']) {
+            // Produit introuvable ou inactif : cohérent avec ProductsService::getLowStockProducts
+            // (seuls les produits actifs sont concernés par les états de stock).
+            return;
+        }
+
+        $threshold = $context['threshold'];
+        $stockAlertService = $this->getStockAlertService();
+
+        $action = $stockAlertService->decide($idProduct, $idProductAttribute, $quantity, $threshold);
+
+        if ($action === StockAlertService::ACTION_REARM) {
+            // Réarmement : le stock est repassé au-dessus du seuil, la prochaine descente pourra
+            // redéclencher une alerte.
+            $stockAlertService->clearAlert($idProduct, $idProductAttribute);
+
+            return;
+        }
+
+        if ($action !== StockAlertService::ACTION_NOTIFY) {
+            // ACTION_NONE : rupture totale (qty <= 0) ou déjà alerté pour ce franchissement.
+            return;
+        }
+
+        $defaultLangId = (int) Configuration::get('PS_LANG_DEFAULT');
+        $productName = $this->getProductsService()->getProductNameInLang($idProduct, $defaultLangId, $shopId);
+        if ($productName === '') {
+            $productName = sprintf('#%d', $idProduct);
+        }
+
+        $notification = [
+            'title' => $this->t('notifications.stock_low_title'),
+            'body' => $this->t(
+                'notifications.stock_low_body',
+                [$productName, (string) $quantity],
+                sprintf('%s : plus que %d en stock', $productName, $quantity)
+            ),
+        ];
+
+        $data = [
+            'event' => 'stock.low',
+            'product_id' => (string) $idProduct,
+            'product_name' => $productName,
+            'quantity' => $quantity,
+            'threshold' => $threshold,
+        ];
+
+        $this->recordAudit('stock.low', [
+            'product_id' => $idProduct,
+            'id_product_attribute' => $idProductAttribute,
+            'quantity' => $quantity,
+            'threshold' => $threshold,
+        ]);
+
+        // Best-effort et potentiellement lent (hub push) : un décrément de stock peut survenir en
+        // plein checkout, on ne doit jamais faire payer cette latence au client (cf. order.created).
+        // L'entrée d'état n'est marquée qu'APRÈS l'envoi de la notification (cf. StockAlertService).
+        $this->runAfterResponse(function () use ($notification, $data, $stockAlertService, $idProduct, $idProductAttribute): void {
+            $this->notifyDevices($notification, $data);
+            $stockAlertService->markAlerted($idProduct, $idProductAttribute);
+        });
+    }
+
+    /**
      * @param object|null $order
      */
     private function formatOrderAmount($order): string
@@ -669,6 +783,38 @@ class RebuildConnector extends Module
         }
 
         return $this->updateCheckService;
+    }
+
+    private function getProductsService(): ProductsService
+    {
+        if ($this->productsService === null) {
+            $this->productsService = new ProductsService();
+        }
+
+        return $this->productsService;
+    }
+
+    private function getStockAlertService(): StockAlertService
+    {
+        if ($this->stockAlertService === null) {
+            $this->stockAlertService = new StockAlertService();
+        }
+
+        return $this->stockAlertService;
+    }
+
+    /**
+     * Id boutique courante (contexte multiboutique), avec repli sur la boutique par défaut si le
+     * contexte n'est pas disponible (ex. exécution CLI/cron) — même garde que ProductsService::getShopId().
+     */
+    private function getCurrentShopId(): int
+    {
+        $context = Context::getContext();
+        if ($context->shop instanceof Shop) {
+            return (int) $context->shop->id;
+        }
+
+        return (int) Configuration::get('PS_SHOP_DEFAULT');
     }
 
     /**

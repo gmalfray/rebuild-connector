@@ -125,6 +125,11 @@ class SettingsService
             $updated = true;
         }
 
+        if (!isset($settings['stock_low_alerts_enabled'])) {
+            $settings['stock_low_alerts_enabled'] = false;
+            $updated = true;
+        }
+
         if ($updated) {
             $this->save($settings);
         }
@@ -416,6 +421,24 @@ class SettingsService
     }
 
     /**
+     * Toggle BO des alertes push « stock faible » (événement `stock.low`). Désactivé par défaut :
+     * le hook `actionUpdateQuantity` ne notifie que si ce réglage est actif ET le hub push configuré.
+     */
+    public function isStockLowAlertsEnabled(): bool
+    {
+        $settings = $this->all();
+
+        return isset($settings['stock_low_alerts_enabled']) ? (bool) $settings['stock_low_alerts_enabled'] : false;
+    }
+
+    public function setStockLowAlertsEnabled(bool $enabled): void
+    {
+        $settings = $this->all();
+        $settings['stock_low_alerts_enabled'] = $enabled;
+        $this->save($settings);
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function exportForTemplate(): array
@@ -440,6 +463,7 @@ class SettingsService
             'hub_url' => $this->getHubUrl(),
             'hub_license_key_preview' => $this->renderSecretPreview($this->getHubLicenseKey()),
             'hub_enabled' => $this->isHubEnabled(),
+            'stock_low_alerts_enabled' => $this->isStockLowAlertsEnabled(),
         ];
     }
 
