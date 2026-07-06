@@ -37,7 +37,7 @@ class RebuildConnector extends Module
     {
         $this->name = 'rebuildconnector';
         $this->tab = 'administration';
-        $this->version = '1.12.0';
+        $this->version = '1.13.0';
         $this->author = 'Rebuild IT';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -380,6 +380,14 @@ class RebuildConnector extends Module
                 }
             }
 
+            if (Tools::getValue('REBUILDCONNECTOR_ORDER_CREATED_ALERTS_ENABLED') !== false) {
+                $settingsService->setOrderCreatedAlertsEnabled(Tools::getValue('REBUILDCONNECTOR_ORDER_CREATED_ALERTS_ENABLED') === '1');
+            }
+
+            if (Tools::getValue('REBUILDCONNECTOR_ORDER_STATUS_ALERTS_ENABLED') !== false) {
+                $settingsService->setOrderStatusAlertsEnabled(Tools::getValue('REBUILDCONNECTOR_ORDER_STATUS_ALERTS_ENABLED') === '1');
+            }
+
             if (Tools::getValue('REBUILDCONNECTOR_STOCK_LOW_ALERTS_ENABLED') !== false) {
                 $settingsService->setStockLowAlertsEnabled(Tools::getValue('REBUILDCONNECTOR_STOCK_LOW_ALERTS_ENABLED') === '1');
             }
@@ -461,6 +469,10 @@ class RebuildConnector extends Module
      */
     public function hookActionValidateOrder(array $params): void
     {
+        if (!$this->getSettingsService()->isOrderCreatedAlertsEnabled()) {
+            return;
+        }
+
         if (!isset($params['order']) || !is_object($params['order'])) {
             return;
         }
@@ -530,6 +542,10 @@ class RebuildConnector extends Module
      */
     public function hookActionOrderStatusPostUpdate(array $params): void
     {
+        if (!$this->getSettingsService()->isOrderStatusAlertsEnabled()) {
+            return;
+        }
+
         $orderId = isset($params['id_order']) ? (int) $params['id_order'] : 0;
         if (isset($params['order']) && is_object($params['order']) && isset($params['order']->id)) {
             $orderId = (int) $params['order']->id;

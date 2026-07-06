@@ -237,6 +237,22 @@ class TranslationService
             'en' => 'Save settings',
             'fr' => 'Enregistrer les paramètres',
         ],
+        'admin.form.order_created_alerts_label' => [
+            'en' => 'New order',
+            'fr' => 'Nouvelle commande',
+        ],
+        'admin.form.order_created_alerts_toggle' => [
+            'en' => 'Send a push notification for every new order',
+            'fr' => 'Envoyer une notification push à chaque nouvelle commande',
+        ],
+        'admin.form.order_status_alerts_label' => [
+            'en' => 'Order status change',
+            'fr' => 'Changement de statut',
+        ],
+        'admin.form.order_status_alerts_toggle' => [
+            'en' => 'Send a push notification for every order status change',
+            'fr' => 'Envoyer une notification push à chaque changement de statut de commande',
+        ],
         'admin.form.stock_low_alerts_label' => [
             'en' => 'Low stock alerts',
             'fr' => 'Alertes stock faible',
@@ -537,6 +553,10 @@ class TranslationService
             'allowed_ips_label' => $this->translate('admin.form.allowed_ips_label', $locale),
             'allowed_ips_help' => $this->translate('admin.form.allowed_ips_help', $locale),
             'save_button' => $this->translate('admin.form.save_button', $locale),
+            'order_created_alerts_label' => $this->translate('admin.form.order_created_alerts_label', $locale),
+            'order_created_alerts_toggle' => $this->translate('admin.form.order_created_alerts_toggle', $locale),
+            'order_status_alerts_label' => $this->translate('admin.form.order_status_alerts_label', $locale),
+            'order_status_alerts_toggle' => $this->translate('admin.form.order_status_alerts_toggle', $locale),
             'stock_low_alerts_label' => $this->translate('admin.form.stock_low_alerts_label', $locale),
             'stock_low_alerts_toggle' => $this->translate('admin.form.stock_low_alerts_toggle', $locale),
         ];

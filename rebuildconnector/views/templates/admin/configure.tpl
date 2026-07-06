@@ -503,8 +503,42 @@
                 <strong>Notifications push activées.</strong>
             </div>
 
-            {* ─── Alertes stock faible (événement `stock.low`) ─── *}
+            {* ─── Nouvelle commande (événement `order.created`) ─── *}
             <form method="post" class="form-horizontal">
+                <div class="form-group">
+                    <label class="control-label col-lg-3">{$i18n.order_created_alerts_label|escape:'htmlall'}</label>
+                    <div class="col-lg-9">
+                        <input type="hidden" name="REBUILDCONNECTOR_ORDER_CREATED_ALERTS_ENABLED" value="0">
+                        <label class="checkbox-inline">
+                            <input
+                                type="checkbox"
+                                name="REBUILDCONNECTOR_ORDER_CREATED_ALERTS_ENABLED"
+                                value="1"
+                                {if $settings.order_created_alerts_enabled}checked{/if}
+                            >
+                            {$i18n.order_created_alerts_toggle|escape:'htmlall'}
+                        </label>
+                    </div>
+                </div>
+
+                {* ─── Changement de statut (événement `order.status.changed`) ─── *}
+                <div class="form-group">
+                    <label class="control-label col-lg-3">{$i18n.order_status_alerts_label|escape:'htmlall'}</label>
+                    <div class="col-lg-9">
+                        <input type="hidden" name="REBUILDCONNECTOR_ORDER_STATUS_ALERTS_ENABLED" value="0">
+                        <label class="checkbox-inline">
+                            <input
+                                type="checkbox"
+                                name="REBUILDCONNECTOR_ORDER_STATUS_ALERTS_ENABLED"
+                                value="1"
+                                {if $settings.order_status_alerts_enabled}checked{/if}
+                            >
+                            {$i18n.order_status_alerts_toggle|escape:'htmlall'}
+                        </label>
+                    </div>
+                </div>
+
+                {* ─── Alertes stock faible (événement `stock.low`) ─── *}
                 <div class="form-group">
                     <label class="control-label col-lg-3">{$i18n.stock_low_alerts_label|escape:'htmlall'}</label>
                     <div class="col-lg-9">
