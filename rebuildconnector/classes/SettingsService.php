@@ -130,6 +130,19 @@ class SettingsService
             $updated = true;
         }
 
+        // Contrairement au stock (désactivé par défaut), ces deux réglages doivent être ACTIFS par
+        // défaut : une mise à jour en place d'une installation existante ne doit jamais couper
+        // silencieusement les notifications de commande déjà en place avant ce réglage.
+        if (!isset($settings['order_created_alerts_enabled'])) {
+            $settings['order_created_alerts_enabled'] = true;
+            $updated = true;
+        }
+
+        if (!isset($settings['order_status_alerts_enabled'])) {
+            $settings['order_status_alerts_enabled'] = true;
+            $updated = true;
+        }
+
         if ($updated) {
             $this->save($settings);
         }
@@ -439,6 +452,44 @@ class SettingsService
     }
 
     /**
+     * Toggle BO des alertes push « nouvelle commande » (événement `order.created`). Activé par
+     * défaut : une mise à jour en place ne doit jamais couper silencieusement cette notification
+     * qui existait avant l'introduction de ce réglage.
+     */
+    public function isOrderCreatedAlertsEnabled(): bool
+    {
+        $settings = $this->all();
+
+        return isset($settings['order_created_alerts_enabled']) ? (bool) $settings['order_created_alerts_enabled'] : true;
+    }
+
+    public function setOrderCreatedAlertsEnabled(bool $enabled): void
+    {
+        $settings = $this->all();
+        $settings['order_created_alerts_enabled'] = $enabled;
+        $this->save($settings);
+    }
+
+    /**
+     * Toggle BO des alertes push « changement de statut de commande » (événement
+     * `order.status.changed`). Activé par défaut, pour la même raison de rétro-compat que
+     * `order_created_alerts_enabled`.
+     */
+    public function isOrderStatusAlertsEnabled(): bool
+    {
+        $settings = $this->all();
+
+        return isset($settings['order_status_alerts_enabled']) ? (bool) $settings['order_status_alerts_enabled'] : true;
+    }
+
+    public function setOrderStatusAlertsEnabled(bool $enabled): void
+    {
+        $settings = $this->all();
+        $settings['order_status_alerts_enabled'] = $enabled;
+        $this->save($settings);
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function exportForTemplate(): array
@@ -463,6 +514,8 @@ class SettingsService
             'hub_url' => $this->getHubUrl(),
             'hub_license_key_preview' => $this->renderSecretPreview($this->getHubLicenseKey()),
             'hub_enabled' => $this->isHubEnabled(),
+            'order_created_alerts_enabled' => $this->isOrderCreatedAlertsEnabled(),
+            'order_status_alerts_enabled' => $this->isOrderStatusAlertsEnabled(),
             'stock_low_alerts_enabled' => $this->isStockLowAlertsEnabled(),
         ];
     }
