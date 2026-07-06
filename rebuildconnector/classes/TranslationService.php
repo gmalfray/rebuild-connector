@@ -245,10 +245,6 @@ class TranslationService
             'en' => 'Send a push notification when a product\'s stock drops to or below its threshold',
             'fr' => 'Envoyer une notification push quand le stock d\'un produit descend à ou sous son seuil',
         ],
-        'admin.form.stock_low_alerts_help' => [
-            'en' => 'One notification per drop below the threshold — no repeat until stock is replenished above it.',
-            'fr' => 'Une seule notification par franchissement du seuil — pas de répétition tant que le stock ne repasse pas au-dessus.',
-        ],
 
         // API & base controller errors
         'api.error.method_not_allowed' => [
@@ -543,7 +539,6 @@ class TranslationService
             'save_button' => $this->translate('admin.form.save_button', $locale),
             'stock_low_alerts_label' => $this->translate('admin.form.stock_low_alerts_label', $locale),
             'stock_low_alerts_toggle' => $this->translate('admin.form.stock_low_alerts_toggle', $locale),
-            'stock_low_alerts_help' => $this->translate('admin.form.stock_low_alerts_help', $locale),
         ];
     }
 

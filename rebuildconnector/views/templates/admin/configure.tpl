@@ -493,7 +493,7 @@
 <div class="panel" id="rbc-hub-panel">
     <div class="panel-heading">
         <i class="icon-cloud"></i>
-        Hub push centralisé (Rebuild IT)
+        Hub push
     </div>
     <div class="panel-body">
 
@@ -518,7 +518,6 @@
                             >
                             {$i18n.stock_low_alerts_toggle|escape:'htmlall'}
                         </label>
-                        <p class="help-block">{$i18n.stock_low_alerts_help|escape:'htmlall'}</p>
                     </div>
                 </div>
                 <div class="panel-footer">
@@ -781,7 +780,7 @@
             <hr>
             <h4 style="margin-top:0;"><i class="icon-cloud"></i> Hub push — réglages avancés</h4>
             <p class="text-muted" style="margin-bottom:12px;">
-                L'activation normale se fait en un clic depuis la section « Hub push centralisé ».
+                L'activation normale se fait en un clic depuis la section « Hub push ».
                 Les réglages ci-dessous ne servent qu'au dépannage : saisie manuelle d'une clé de licence
                 (si l'auto-provisionnement n'est pas possible) et backfill des devices déjà en base.
             </p>
