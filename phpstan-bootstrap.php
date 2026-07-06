@@ -644,11 +644,22 @@ class Db
     }
 
     /**
+     * Bascule de test : journal des appels reçus par insert() (table, données), pour permettre aux
+     * tests de vérifier qu'une ligne a bien été insérée (ex. AuditLogService::record()) sans base
+     * réelle — insert() (contrairement à execute()) ne loggue pas de SQL brut dans $executedSql.
+     *
+     * @var array<int, array{table: string, data: array<string, mixed>}>
+     */
+    public static array $insertedRows = [];
+
+    /**
      * @param string $table
      * @param array<string, mixed> $data
      */
     public function insert(string $table, array $data): bool
     {
+        self::$insertedRows[] = ['table' => $table, 'data' => $data];
+
         return true;
     }
 
@@ -1103,6 +1114,14 @@ class StockAvailable
      */
     public static array $setQuantityCalls = [];
 
+    /**
+     * Bascule de test : valeur retournée par getQuantityAvailableByProduct() (par défaut 0). Permet
+     * de simuler la quantité "faisant autorité" en base (ex. hook actionUpdateQuantity) sans base réelle.
+     *
+     * @var int
+     */
+    public static int $testQuantityAvailableResult = 0;
+
     public static function setQuantity(int $idProduct, int $idProductAttribute, int $quantity): void
     {
         self::$setQuantityCalls[] = [$idProduct, $idProductAttribute, $quantity];
@@ -1110,7 +1129,7 @@ class StockAvailable
 
     public static function getQuantityAvailableByProduct(int $idProduct, ?int $idProductAttribute = null, ?int $idShop = null): int
     {
-        return 0;
+        return self::$testQuantityAvailableResult;
     }
 }
 
