@@ -41,8 +41,24 @@ abstract class RebuildconnectorBaseApiModuleFrontController extends ModuleFrontC
         $this->ajax = true; // @phpstan-ignore-line
         $this->content_only = true; // @phpstan-ignore-line
         $this->clientIp = $this->resolveClientIp();
-        $this->enforceIpAllowlist();
+        if ($this->isIpAllowlistEnforced()) {
+            $this->enforceIpAllowlist();
+        }
         $this->enforceRateLimit();
+    }
+
+    /**
+     * Hook permettant à un sous-contrôleur de désactiver l'allowlist IP configurée en BO.
+     *
+     * Cette allowlist restreint l'API métier authentifiée par Bearer JWT à des IP connues
+     * (ex. VPN de la boutique). Elle n'a pas de sens pour un endpoint dont l'authenticité repose
+     * sur une autre preuve (ex. signature cryptographique d'un tiers de confiance dont les IP
+     * sortantes ne sont ni stables ni connues à l'avance) : l'appliquer bloquerait cet endpoint
+     * précisément pour les boutiques les plus prudentes (celles qui activent l'allowlist).
+     */
+    protected function isIpAllowlistEnforced(): bool
+    {
+        return true;
     }
 
     public function initContent(): void

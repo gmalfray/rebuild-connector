@@ -188,6 +188,112 @@ final class PushHubServiceTest extends TestCase
         // Aucun appel réseau émis : validation faite avant tout curl_init().
         $this->assertSame([], $service->calls);
     }
+
+    // ──────────────────────────────────────────────────────────────────
+    // Récupération self-service de licence (endpoint public /v1/licenses/recover)
+    // Le hub ne renvoie JAMAIS la clé ici (livrée par callback signé vers `hubkey`) : ces tests
+    // ne vérifient donc que l'interprétation du statut HTTP, jamais une clé en retour.
+    // ──────────────────────────────────────────────────────────────────
+
+    public function testRecoverLicenseReturnsRecoveredOn200(): void
+    {
+        $service = new ProvisionTestPushHubService(
+            new HubSettingsStub(''),
+            ['status' => 200, 'body' => ['recovered' => true]]
+        );
+
+        $result = $service->recoverLicenseDetailed('https://shop.example.com');
+
+        $this->assertSame(['status' => 'recovered'], $result);
+        $this->assertCount(1, $service->calls);
+        [$method, $path, $body, $authenticated] = $service->calls[0];
+        $this->assertSame('POST', $method);
+        $this->assertSame('/v1/licenses/recover', $path);
+        $this->assertSame('https://shop.example.com', $body['shop_url']);
+        // Endpoint public du hub : aucune authentification (le module n'a justement plus de clé).
+        $this->assertFalse($authenticated);
+    }
+
+    public function testRecoverLicenseReturnsNotFoundOn404(): void
+    {
+        $service = new ProvisionTestPushHubService(
+            new HubSettingsStub(''),
+            ['status' => 404, 'body' => ['error' => 'not_found']]
+        );
+
+        $result = $service->recoverLicenseDetailed('https://shop.example.com');
+
+        $this->assertSame(['status' => 'not_found'], $result);
+    }
+
+    public function testRecoverLicenseReturnsCallbackFailedOn502(): void
+    {
+        $service = new ProvisionTestPushHubService(
+            new HubSettingsStub(''),
+            ['status' => 502, 'body' => ['recovered' => false, 'reason' => 'callback_failed']]
+        );
+
+        $result = $service->recoverLicenseDetailed('https://shop.example.com');
+
+        $this->assertSame(['status' => 'callback_failed'], $result);
+    }
+
+    public function testRecoverLicenseReturnsRateLimitedOn429(): void
+    {
+        $service = new ProvisionTestPushHubService(
+            new HubSettingsStub(''),
+            ['status' => 429, 'body' => []]
+        );
+
+        $result = $service->recoverLicenseDetailed('https://shop.example.com');
+
+        $this->assertSame(['status' => 'rate_limited'], $result);
+    }
+
+    public function testRecoverLicenseReturnsNetworkErrorOnUnexpectedStatus(): void
+    {
+        $service = new ProvisionTestPushHubService(
+            new HubSettingsStub(''),
+            ['status' => 500, 'body' => []]
+        );
+
+        $this->assertSame(['status' => 'network_error'], $service->recoverLicenseDetailed('https://shop.example.com'));
+    }
+
+    public function testRecoverLicenseReturnsNetworkErrorOnCurlFailure(): void
+    {
+        $service = new ProvisionTestPushHubService(
+            new HubSettingsStub(''),
+            ['status' => 0, 'body' => []]
+        );
+
+        $this->assertSame(['status' => 'network_error'], $service->recoverLicenseDetailed('https://shop.example.com'));
+    }
+
+    public function testRecoverLicenseReturnsNetworkErrorWithoutCallWhenShopUrlEmpty(): void
+    {
+        $service = new ProvisionTestPushHubService(
+            new HubSettingsStub(''),
+            ['status' => 200, 'body' => ['recovered' => true]]
+        );
+
+        $this->assertSame(['status' => 'network_error'], $service->recoverLicenseDetailed(''));
+        // Aucun appel réseau émis : validation faite avant tout curl_init().
+        $this->assertSame([], $service->calls);
+    }
+
+    public function testRecoverLicenseWorksEvenWhenHubDisabled(): void
+    {
+        // Comme provisionLicense(), recoverLicenseDetailed() ne doit PAS exiger isEnabled() :
+        // c'est précisément l'outil pour sortir de l'état "hub désactivé" après réinstallation.
+        $service = new ProvisionTestPushHubService(
+            new HubSettingsStub(''),
+            ['status' => 200, 'body' => ['recovered' => true]]
+        );
+
+        $this->assertFalse($service->isEnabled());
+        $this->assertSame(['status' => 'recovered'], $service->recoverLicenseDetailed('https://shop.example.com'));
+    }
 }
 
 /**

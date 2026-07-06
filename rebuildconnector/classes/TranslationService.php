@@ -43,6 +43,42 @@ class TranslationService
             'en' => 'Rate limit must be a positive integer.',
             'fr' => 'La limite de requêtes doit être un entier positif.',
         ],
+        'admin.error.hub_recover_shop_url_missing' => [
+            'en' => 'Unable to determine the shop URL (check the SSL domain configuration).',
+            'fr' => 'Impossible de déterminer l’URL de la boutique (vérifiez la configuration du domaine SSL).',
+        ],
+        'admin.message.hub_recover_in_progress' => [
+            'en' => 'Recovery in progress: the hub delivers the new key directly to this shop via a secure '
+                . 'callback. This can take a few seconds — reload this page to check whether push is active.',
+            'fr' => 'Récupération en cours : le hub livre la nouvelle clé directement à cette boutique via un '
+                . 'callback sécurisé. Cela peut prendre quelques secondes — rechargez cette page pour vérifier '
+                . 'que le push est actif.',
+        ],
+        'admin.message.hub_recover_provisioned_fallback' => [
+            'en' => 'No existing license for this domain: a new trial license was provisioned automatically.',
+            'fr' => 'Aucune licence existante pour ce domaine : une nouvelle licence d’essai a été '
+                . 'provisionnée automatiquement.',
+        ],
+        'admin.warning.hub_recover_provision_failed' => [
+            'en' => 'No existing license for this domain, and automatic provisioning of a new one failed. '
+                . 'Please try again later.',
+            'fr' => 'Aucune licence existante pour ce domaine, et le provisioning automatique d’une nouvelle '
+                . 'licence a échoué. Réessayez plus tard.',
+        ],
+        'admin.warning.hub_recover_callback_failed' => [
+            'en' => 'The hub could not reach this shop over HTTPS to deliver the key. Check that this domain '
+                . 'is publicly reachable over HTTPS, then try again.',
+            'fr' => 'Le hub n’a pas réussi à joindre cette boutique en HTTPS pour livrer la clé. Vérifiez que '
+                . 'ce domaine est bien accessible publiquement en HTTPS, puis réessayez.',
+        ],
+        'admin.warning.hub_recover_rate_limited' => [
+            'en' => 'Too many recovery attempts for this domain. Please try again later.',
+            'fr' => 'Trop de tentatives de récupération pour ce domaine. Réessayez plus tard.',
+        ],
+        'admin.warning.hub_recover_network_error' => [
+            'en' => 'Unable to reach the push hub right now. Please try again later.',
+            'fr' => 'Impossible de contacter le hub push pour le moment. Réessayez plus tard.',
+        ],
 
         // Admin form labels & help
         'admin.form.title' => [

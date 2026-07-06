@@ -37,12 +37,12 @@ class RebuildConnector extends Module
     {
         $this->name = 'rebuildconnector';
         $this->tab = 'administration';
-        $this->version = '1.11.0';
+        $this->version = '1.12.0';
         $this->author = 'Rebuild IT';
         $this->need_instance = 0;
         $this->bootstrap = true;
 
-        $this->controllers = ['api', 'orders', 'products', 'productimages', 'customers', 'dashboard', 'notifications', 'baskets', 'reports'];
+        $this->controllers = ['api', 'orders', 'products', 'productimages', 'customers', 'dashboard', 'notifications', 'baskets', 'reports', 'hubkey'];
 
         parent::__construct();
 
@@ -248,6 +248,52 @@ class RebuildConnector extends Module
                     $warnings[] = 'Ce domaine possède déjà une licence auprès du hub push. Saisissez la clé manuellement si vous la connaissez, sinon contactez l\'administrateur du hub.';
                 } else {
                     $warnings[] = 'Impossible de provisionner automatiquement une licence pour le moment (hub injoignable). Réessayez plus tard ou saisissez la clé manuellement.';
+                }
+            }
+        } elseif (Tools::isSubmit('rebuildconnector_hub_recover')) {
+            // Bouton BO « Récupérer ma clé » — récupération self-service d'une licence hub perdue
+            // (typiquement après une réinstallation du module, qui efface la config locale). Le hub
+            // ne renvoie JAMAIS la clé dans cette réponse HTTP : preuve de contrôle du domaine, il la
+            // livre via un callback signé vers le controller `hubkey` de CE domaine (cf. HubKeyVerifier).
+            $shopUrlForRecover = $this->getShopBaseUrl();
+            if ($shopUrlForRecover === '') {
+                $errors[] = $this->t('admin.error.hub_recover_shop_url_missing');
+            } else {
+                $recoverResult = $this->getPushHubService()->recoverLicenseDetailed($shopUrlForRecover);
+
+                switch ($recoverResult['status']) {
+                    case 'recovered':
+                        $messages[] = $this->t('admin.message.hub_recover_in_progress');
+                        break;
+
+                    case 'not_found':
+                        // Aucune licence existante pour ce domaine → comportement identique à une
+                        // première installation : bascule sur le provisioning normal.
+                        $provisionResult = $this->getPushHubService()->provisionLicenseDetailed(
+                            $shopUrlForRecover,
+                            $this->getShopDisplayName()
+                        );
+
+                        if ($provisionResult['provisioned'] && $provisionResult['license_key'] !== null) {
+                            $settingsService->setHubLicenseKey($provisionResult['license_key']);
+                            $messages[] = $this->t('admin.message.hub_recover_provisioned_fallback');
+                        } else {
+                            $warnings[] = $this->t('admin.warning.hub_recover_provision_failed');
+                        }
+                        break;
+
+                    case 'callback_failed':
+                        $warnings[] = $this->t('admin.warning.hub_recover_callback_failed');
+                        break;
+
+                    case 'rate_limited':
+                        $warnings[] = $this->t('admin.warning.hub_recover_rate_limited');
+                        break;
+
+                    case 'network_error':
+                    default:
+                        $warnings[] = $this->t('admin.warning.hub_recover_network_error');
+                        break;
                 }
             }
         } elseif (Tools::isSubmit('rebuildconnector_check_update')) {

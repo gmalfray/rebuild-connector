@@ -548,6 +548,25 @@
                     </button>
                 </form>
             </div>
+
+            {* ─── Récupération self-service : boutique déjà licenciée mais clé locale perdue
+                 (ex. réinstallation du module). Le hub livre la nouvelle clé via un callback signé
+                 vers ce domaine — jamais dans cette réponse HTTP (preuve de contrôle du domaine). ─── *}
+            <div class="well" style="margin-bottom:0;">
+                <h4><i class="icon-key"></i> Récupérer ma clé</h4>
+                <p>
+                    Si cette boutique possédait déjà une licence hub avant une réinstallation du module,
+                    utilisez ce bouton pour la récupérer : le hub livre une nouvelle clé directement à ce
+                    domaine (aucune saisie, aucune clé transmise en clair dans une réponse). Si aucune
+                    licence n'existe pour ce domaine, une licence d'essai est provisionnée automatiquement,
+                    comme lors d'une première installation.
+                </p>
+                <form method="post">
+                    <button type="submit" name="rebuildconnector_hub_recover" value="1" class="btn btn-default">
+                        <i class="icon-key"></i> Récupérer ma clé
+                    </button>
+                </form>
+            </div>
         {/if}
     </div>
 </div>

@@ -1403,6 +1403,60 @@ Désenregistre un appareil. Le token peut aussi être passé dans le corps JSON 
 
 ---
 
+## Callback hub push — récupération de licence (interne, PAS consommé par l'app mobile)
+
+> Ce endpoint n'est appelé QUE par le hub push centralisé (`push.rebuild-it.fr`, repo `rebuild-it`).
+> Il ne fait pas partie du contrat consommé par l'app PrestaFlow (`prestaflow-android`) — aucun DTO
+> Android ne dépend de ce format. Documenté ici pour trace côté module uniquement.
+
+### POST `.../index.php?fc=module&module=rebuildconnector&controller=hubkey`
+
+Callback **public** (pas de JWT, pas d'allowlist IP) déclenché par le hub suite à un
+`POST {hub}/v1/licenses/recover` — récupération self-service d'une licence perdue (ex. réinstallation
+du module), basée sur la preuve de contrôle du domaine : le hub ne renvoie jamais la nouvelle clé à
+l'appelant, il la livre en HTTPS au domaine lui-même, ici.
+
+Appelé via l'URL **legacy** (pas de route friendly dédiée : le hub construit cette URL directement).
+
+Corps attendu :
+
+```json
+{
+  "payload": "{\"shop_url\":\"https://boutique.example\",\"license_key\":\"rbk_...\",\"issued_at\":\"2026-07-06T10:00:00Z\"}",
+  "signature": "base64(...)"
+}
+```
+
+`payload` est une **chaîne JSON déjà sérialisée** (pas un objet imbriqué) : la signature RSA
+(SHA-256, PKCS#1 v1.5, base64 standard) porte sur cette chaîne brute, jamais sur une ré-sérialisation.
+Vérification via `HubKeyVerifier` (clé publique du hub embarquée, `classes/HubKeyVerifier.php`).
+
+Validation, dans l'ordre : signature RSA valide → `payload.shop_url` égal au domaine réel de cette
+boutique (preuve de contrôle du domaine) → `issued_at` dans une fenêtre anti-rejeu de ± 5 minutes.
+Si tout est valide, la clé est stockée au même emplacement que la clé de licence hub actuelle
+(`SettingsService::setHubLicenseKey()`, config `REBUILDCONNECTOR_SETTINGS.hub_license_key`).
+
+**Réponse 200** `{"ok": true}`.
+
+**Erreurs** (rien n'est stocké, la clé n'est jamais logguée en clair) :
+
+| Code | `error`             | Raison                                             |
+|------|---------------------|-----------------------------------------------------|
+| 400  | `invalid_request`   | Corps JSON invalide ou champs `payload`/`signature` absents |
+| 400  | `invalid_payload`   | Payload décodé incomplet (shop_url/license_key/issued_at manquant) |
+| 400  | `domain_mismatch`   | `payload.shop_url` ≠ domaine réel de cette boutique |
+| 400  | `stale_payload`     | `issued_at` hors fenêtre anti-rejeu (± 5 min)       |
+| 401  | `invalid_signature` | Signature RSA invalide                              |
+| 405  | `method_not_allowed`| Méthode ≠ POST                                      |
+
+Déclenchement côté BO : bouton « Récupérer ma clé » (section « Hub push centralisé », visible quand
+le hub est inactif) → `PushHubService::recoverLicenseDetailed()` → `POST {hub}/v1/licenses/recover`.
+Gère les 4 cas hub : `recovered` (clé livrée par ce callback, message d'attente), `not_found` (bascule
+automatique sur le provisioning normal, comme une première installation), `callback_failed` (boutique
+injoignable en HTTPS depuis le hub), `rate_limited` (429, réessayer plus tard).
+
+---
+
 ## Codes d'erreur
 
 Toutes les erreurs retournent un corps JSON :
