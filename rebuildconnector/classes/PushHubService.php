@@ -210,6 +210,63 @@ class PushHubService
     }
 
     /**
+     * Récupération self-service d'une licence hub perdue (réinstallation du module), basée sur la
+     * preuve de contrôle du domaine : le hub ne renvoie JAMAIS la nouvelle clé dans cette réponse
+     * HTTP — il la livre via un callback signé vers le controller `hubkey` de CE domaine (cf.
+     * rebuild-it/docs/push-recover.md). Cette méthode ne fait donc que déclencher la rotation et
+     * interpréter le statut ; la clé elle-même arrive de façon asynchrone via le callback.
+     *
+     * Endpoint public du hub (aucune authentification), rate-limité côté hub (3/h/shop_url) :
+     *   - HTTP 200 → rotation acceptée, callback en cours (`recovered: true` côté hub) ;
+     *   - HTTP 404 → aucune licence existante pour ce domaine (`reason: not_found`) — l'appelant
+     *     doit basculer sur le provisioning normal (première installation) ;
+     *   - HTTP 502 → le hub n'a pas pu joindre le domaine en HTTPS pour livrer la clé
+     *     (`reason: callback_failed`), le hash n'a pas changé côté hub ;
+     *   - HTTP 429 → rate-limité (par IP ou par shop_url), réessayer plus tard ;
+     *   - toute autre situation (timeout, réseau, 4xx/5xx inattendu) → `network_error`.
+     *
+     * Ne logge JAMAIS de clé (la clé n'apparaît d'ailleurs jamais dans cette réponse).
+     *
+     * @return array{status: string} status ∈ {recovered, not_found, callback_failed, rate_limited, network_error}
+     */
+    public function recoverLicenseDetailed(string $shopUrl): array
+    {
+        $shopUrl = trim($shopUrl);
+        if ($shopUrl === '') {
+            return ['status' => 'network_error'];
+        }
+
+        $result = $this->performRequest('POST', '/v1/licenses/recover', ['shop_url' => $shopUrl], false);
+
+        switch ($result['status']) {
+            case 200:
+                return ['status' => 'recovered'];
+
+            case 404:
+                return ['status' => 'not_found'];
+
+            case 502:
+                $this->log('Hub recover: callback vers la boutique impossible (callback_failed).');
+
+                return ['status' => 'callback_failed'];
+
+            case 429:
+                $this->log('Hub recover: rate-limité.');
+
+                return ['status' => 'rate_limited'];
+
+            default:
+                if ($result['status'] > 0) {
+                    $this->log(sprintf('Hub recover HTTP error %d', $result['status']));
+                } else {
+                    $this->log('Hub recover: erreur réseau ou cURL indisponible.');
+                }
+
+                return ['status' => 'network_error'];
+        }
+    }
+
+    /**
      * @param array<string, mixed>|null $body
      *
      * @return array<string, mixed>|null Réponse décodée si HTTP 2xx, null sinon.

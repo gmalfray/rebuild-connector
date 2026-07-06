@@ -41,6 +41,7 @@ spl_autoload_register(static function (string $class): void {
         'StockAlertService' => __DIR__ . '/../rebuildconnector/classes/StockAlertService.php',
         'ClientIpResolver' => __DIR__ . '/../rebuildconnector/classes/ClientIpResolver.php',
         'LanguageResolver' => __DIR__ . '/../rebuildconnector/classes/LanguageResolver.php',
+        'HubKeyVerifier' => __DIR__ . '/../rebuildconnector/classes/HubKeyVerifier.php',
         'AuthenticationException' => __DIR__ . '/../rebuildconnector/classes/Exceptions/AuthenticationException.php',
         'AuthorizationException' => __DIR__ . '/../rebuildconnector/classes/Exceptions/AuthorizationException.php',
         'RebuildconnectorBaseApiModuleFrontController' => __DIR__ . '/../rebuildconnector/controllers/front/BaseApiController.php',
@@ -52,6 +53,7 @@ spl_autoload_register(static function (string $class): void {
         'RebuildconnectorDashboardModuleFrontController' => __DIR__ . '/../rebuildconnector/controllers/front/DashboardController.php',
         'RebuildconnectorBasketsModuleFrontController' => __DIR__ . '/../rebuildconnector/controllers/front/BasketsController.php',
         'RebuildconnectorReportsModuleFrontController' => __DIR__ . '/../rebuildconnector/controllers/front/ReportsController.php',
+        'RebuildconnectorHubkeyModuleFrontController' => __DIR__ . '/../rebuildconnector/controllers/front/HubkeyController.php',
     ];
 
     if (isset($map[$class]) && file_exists($map[$class])) {
