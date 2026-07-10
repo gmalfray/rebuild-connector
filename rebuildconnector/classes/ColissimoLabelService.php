@@ -2,6 +2,9 @@
 
 defined('_PS_VERSION_') || exit;
 
+require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/SettingsService.php';
+require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/AuditLogService.php';
+
 /**
  * Service de génération d'étiquettes Colissimo via l'API REST de La Poste.
  *
@@ -27,6 +30,25 @@ defined('_PS_VERSION_') || exit;
  */
 class ColissimoLabelService
 {
+    /**
+     * États de commande considérés comme « en aval » du passage en expédition : une commande déjà
+     * dans un de ces états ne doit JAMAIS être rétrogradée par la génération d'étiquette. IDs
+     * vérifiés sur pensebonheur.fr : 4 = Expédié, 5 = Livré, 6 = Annulée, 9 = Terminée,
+     * 21 = Remis au transporteur.
+     *
+     * @var array<int, int>
+     */
+    private const NO_REGRESS_STATE_IDS = [4, 5, 6, 9, 21];
+
+    private SettingsService $settingsService;
+    private AuditLogService $auditLogService;
+
+    public function __construct(?SettingsService $settingsService = null, ?AuditLogService $auditLogService = null)
+    {
+        $this->settingsService = $settingsService ?: new SettingsService();
+        $this->auditLogService = $auditLogService ?: new AuditLogService();
+    }
+
     /**
      * Génère une étiquette Colissimo pour la commande donnée via le webservice La Poste.
      *
@@ -86,8 +108,12 @@ class ColissimoLabelService
         // 10. Persistance : lignes BDD + PDF sur disque
         $labelId = $this->persistLabel($orderId, (int) $order->id_carrier, $apiResult['tracking_number'], $apiResult['pdf_raw']);
 
-        // 11. Synchroniser le numéro de suivi sur order_carrier
+        // 11. Synchroniser le numéro de suivi sur order_carrier ET orders.shipping_number
         $this->syncTrackingNumberToOrder($order, $apiResult['tracking_number']);
+
+        // 12. Faire passer la commande à l'état « En cours d'expédition » (configurable), sauf si
+        // elle est déjà dans un état plus avancé (garde-fou anti-rétrogradation)
+        $this->applyShippedState($order);
 
         return [
             'tracking_number' => $apiResult['tracking_number'],
@@ -461,12 +487,18 @@ class ColissimoLabelService
     }
 
     // =========================================================================
-    // Synchronisation tracking → order_carrier
+    // Synchronisation tracking → order_carrier + orders.shipping_number
     // =========================================================================
 
     /**
-     * Met à jour le champ tracking_number dans ps_order_carrier pour la commande.
-     * Opération non bloquante : une erreur ici ne fait pas échouer la génération.
+     * Met à jour le numéro de suivi sur les DEUX champs standard PrestaShop qui le consomment :
+     *   - ps_order_carrier.tracking_number (affichage BO, ligne de transport de LA commande)
+     *   - ps_orders.shipping_number (lu par le BO et par d'éventuels crons de suivi tiers,
+     *     ex. module La Poste/Colissimo côté boutique)
+     *
+     * Opération non bloquante : le PDF est déjà généré (et facturé), une erreur ici ne doit jamais
+     * faire échouer la réponse HTTP. En revanche, contrairement à l'ancien comportement, l'échec
+     * n'est plus avalé en silence : il est tracé via AuditLogService pour rester diagnosticable.
      */
     private function syncTrackingNumberToOrder(Order $order, string $trackingNumber): void
     {
@@ -477,15 +509,107 @@ class ColissimoLabelService
                 . ' ORDER BY id_order_carrier DESC LIMIT 1'
             );
 
-            if ($idOrderCarrier > 0) {
-                Db::getInstance()->update(
-                    'order_carrier',
-                    ['tracking_number' => pSQL($trackingNumber)],
-                    'id_order_carrier = ' . (int) $idOrderCarrier
-                );
+            if ($idOrderCarrier <= 0) {
+                $this->auditLogService->record('orders.shipping_label.tracking_sync_failed', [
+                    'order_id' => (int) $order->id,
+                    'tracking_number' => $trackingNumber,
+                    'reason' => 'order_carrier_row_not_found',
+                ]);
+
+                return;
+            }
+
+            $orderCarrierUpdated = Db::getInstance()->update(
+                'order_carrier',
+                ['tracking_number' => pSQL($trackingNumber)],
+                'id_order_carrier = ' . (int) $idOrderCarrier
+            );
+
+            $ordersUpdated = Db::getInstance()->update(
+                'orders',
+                ['shipping_number' => pSQL($trackingNumber)],
+                'id_order = ' . (int) $order->id
+            );
+
+            if ($orderCarrierUpdated && $ordersUpdated) {
+                $this->auditLogService->record('orders.shipping_label.tracking_synced', [
+                    'order_id' => (int) $order->id,
+                    'tracking_number' => $trackingNumber,
+                    'id_order_carrier' => $idOrderCarrier,
+                ]);
+            } else {
+                $this->auditLogService->record('orders.shipping_label.tracking_sync_failed', [
+                    'order_id' => (int) $order->id,
+                    'tracking_number' => $trackingNumber,
+                    'reason' => 'db_update_returned_false',
+                    'order_carrier_updated' => $orderCarrierUpdated,
+                    'orders_updated' => $ordersUpdated,
+                ]);
             }
         } catch (\Throwable $e) {
-            // Non bloquant : l'étiquette est générée même si ce champ ne peut pas être mis à jour
+            // Non bloquant : l'étiquette est déjà générée/persistée même si ce champ ne peut pas
+            // être mis à jour. Mais on ne l'avale plus en silence — tracé pour rester diagnosticable.
+            $this->auditLogService->record('orders.shipping_label.tracking_sync_failed', [
+                'order_id' => (int) $order->id,
+                'tracking_number' => $trackingNumber,
+                'reason' => 'exception',
+                'message' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    // =========================================================================
+    // Changement d'état de commande après génération réussie
+    // =========================================================================
+
+    /**
+     * Fait passer la commande à l'état « expédition en cours » (id configurable via
+     * REBUILDCONNECTOR_LABEL_SHIPPED_STATE_ID, fallback 20) après génération réussie d'une
+     * étiquette Colissimo.
+     *
+     * Garde-fou anti-rétrogradation : n'applique le changement QUE si l'état courant diffère de
+     * l'état visé ET n'est pas déjà un état « en aval » (cf. NO_REGRESS_STATE_IDS) — une commande
+     * déjà Expédiée/Livrée/Remise au transporteur/Terminée/Annulée n'est jamais retouchée.
+     *
+     * Opération non bloquante : le PDF est déjà généré, un échec ici (ex. envoi de l'email associé
+     * à l'état) ne doit jamais faire échouer la réponse HTTP.
+     */
+    private function applyShippedState(Order $order): void
+    {
+        $targetStateId = $this->settingsService->getLabelShippedStateId();
+        if ($targetStateId <= 0) {
+            return;
+        }
+
+        $currentStateId = (int) $order->current_state;
+
+        if ($currentStateId === $targetStateId) {
+            // Déjà au bon état (ex. étiquette régénérée) : rien à faire, pas de doublon d'historique.
+            return;
+        }
+
+        if (in_array($currentStateId, self::NO_REGRESS_STATE_IDS, true)) {
+            // Commande déjà à un état plus avancé (aval) : on ne rétrograde jamais.
+            return;
+        }
+
+        try {
+            $history = new OrderHistory();
+            $history->id_order = (int) $order->id;
+
+            $context = Context::getContext();
+            $employee = $context->employee instanceof Employee ? $context->employee : null;
+            $history->id_employee = $employee instanceof Employee ? (int) $employee->id : 0;
+
+            // changeIdOrderState() accepte l'objet Order directement (cœur PrestaShop réel :
+            // is_object($id_order) ? $order = $id_order : new Order((int) $id_order)).
+            $history->changeIdOrderState($targetStateId, $order);
+            // addWithemail() respecte la config `send_email` de l'état visé : l'email n'est envoyé
+            // que si l'état cible est configuré pour cela dans le BO.
+            $history->addWithemail();
+        } catch (\Throwable $e) {
+            // Non bloquant : l'étiquette est déjà générée/persistée même si le changement d'état
+            // (ou l'envoi de l'email associé) échoue.
         }
     }
 

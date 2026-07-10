@@ -43,6 +43,10 @@ class TranslationService
             'en' => 'Rate limit must be a positive integer.',
             'fr' => 'La limite de requêtes doit être un entier positif.',
         ],
+        'admin.error.invalid_label_shipped_state_id' => [
+            'en' => 'The order state ID must be a positive integer.',
+            'fr' => 'L’ID de l’état de commande doit être un entier positif.',
+        ],
         'admin.error.hub_recover_shop_url_missing' => [
             'en' => 'Unable to determine the shop URL (check the SSL domain configuration).',
             'fr' => 'Impossible de déterminer l’URL de la boutique (vérifiez la configuration du domaine SSL).',
@@ -232,6 +236,14 @@ class TranslationService
         'admin.form.allowed_ips_help' => [
             'en' => 'Restrict access to specific IPs or CIDR ranges (one per line). Leave empty to allow all.',
             'fr' => 'Restreignez l’accès à certaines IP ou plages CIDR (une par ligne). Laissez vide pour tout autoriser.',
+        ],
+        'admin.form.label_shipped_state_id_label' => [
+            'en' => '"Shipping in progress" order state ID',
+            'fr' => 'ID de l’état « En cours d’expédition »',
+        ],
+        'admin.form.label_shipped_state_id_help' => [
+            'en' => 'Order state applied automatically after a successful Colissimo label generation. Find the ID in Shop parameters > Order statuses. Default: 20. Never applied if the order is already in a further state (shipped, delivered, cancelled…).',
+            'fr' => 'État de commande appliqué automatiquement après génération réussie d’une étiquette Colissimo. Trouvez l’ID dans Paramètres boutique > Statuts des commandes. Valeur par défaut : 20. Jamais appliqué si la commande est déjà dans un état plus avancé (expédiée, livrée, annulée…).',
         ],
         'admin.form.save_button' => [
             'en' => 'Save settings',
@@ -552,6 +564,8 @@ class TranslationService
             'rate_limit_help' => $this->translate('admin.form.rate_limit_help', $locale),
             'allowed_ips_label' => $this->translate('admin.form.allowed_ips_label', $locale),
             'allowed_ips_help' => $this->translate('admin.form.allowed_ips_help', $locale),
+            'label_shipped_state_id_label' => $this->translate('admin.form.label_shipped_state_id_label', $locale),
+            'label_shipped_state_id_help' => $this->translate('admin.form.label_shipped_state_id_help', $locale),
             'save_button' => $this->translate('admin.form.save_button', $locale),
             'order_created_alerts_label' => $this->translate('admin.form.order_created_alerts_label', $locale),
             'order_created_alerts_toggle' => $this->translate('admin.form.order_created_alerts_toggle', $locale),
