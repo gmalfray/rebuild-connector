@@ -635,11 +635,22 @@ class Db
     }
 
     /**
+     * Bascule de test : journal des appels reçus par update() (table, données, condition WHERE).
+     * Permet de vérifier qu'une méthode écrit bien les bons champs sur la bonne ligne sans base
+     * réelle (ex. ColissimoLabelService::syncTrackingNumberToOrder, écriture double champ tracking).
+     *
+     * @var array<int, array{table: string, data: array<string, mixed>, where: string}>
+     */
+    public static array $updatedRows = [];
+
+    /**
      * @param string $table
      * @param array<string, mixed> $data
      */
     public function update(string $table, array $data, string $where = ''): bool
     {
+        self::$updatedRows[] = ['table' => $table, 'data' => $data, 'where' => $where];
+
         return true;
     }
 
@@ -901,12 +912,39 @@ class OrderHistory
     /** @var int */
     public $id_employee = 0;
 
-    public function changeIdOrderState(int $stateId, int $orderId): void
+    /**
+     * Bascule de test : journal des appels reçus par changeIdOrderState() (état visé, id de
+     * commande résolu). Permet de vérifier la règle de garde-fou du changement d'état (m5 —
+     * ColissimoLabelService::applyShippedState) sans base réelle.
+     *
+     * @var array<int, array{state_id: int, order_id: int}>
+     */
+    public static array $testChangeIdOrderStateCalls = [];
+
+    /**
+     * Bascule de test : nombre d'appels reçus par addWithemail().
+     */
+    public static int $testAddWithemailCallCount = 0;
+
+    /**
+     * Le cœur PrestaShop réel accepte, comme second paramètre, soit l'id de commande, soit
+     * l'objet Order directement (is_object($id_order) ? $order = $id_order : new Order(...)) —
+     * ce stub reflète cette souplesse plutôt que le param strictement `int` d'origine.
+     *
+     * @param int|\Order $order
+     */
+    public function changeIdOrderState(int $stateId, $order): void
     {
+        self::$testChangeIdOrderStateCalls[] = [
+            'state_id' => $stateId,
+            'order_id' => is_object($order) ? (int) $order->id : (int) $order,
+        ];
     }
 
     public function addWithemail(bool $sendEmail = false): bool
     {
+        self::$testAddWithemailCallCount++;
+
         return true;
     }
 

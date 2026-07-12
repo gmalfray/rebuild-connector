@@ -711,6 +711,26 @@
             <hr>
 
             <div class="form-group">
+                <label class="control-label col-lg-3" for="rebuildconnector_label_shipped_state_id">{$i18n.label_shipped_state_id_label|escape:'htmlall'}</label>
+                <div class="col-lg-9">
+                    <div class="input-group" style="max-width:200px;">
+                        <input
+                            type="number"
+                            min="1"
+                            step="1"
+                            id="rebuildconnector_label_shipped_state_id"
+                            name="REBUILDCONNECTOR_LABEL_SHIPPED_STATE_ID"
+                            value="{$settings.label_shipped_state_id|intval}"
+                            class="form-control"
+                        >
+                    </div>
+                    <p class="help-block">{$i18n.label_shipped_state_id_help|escape:'htmlall'}</p>
+                </div>
+            </div>
+
+            <hr>
+
+            <div class="form-group">
                 <label class="control-label col-lg-3" for="rebuildconnector_webhook_url">URL Webhook</label>
                 <div class="col-lg-9">
                     <input

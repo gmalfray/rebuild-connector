@@ -7,6 +7,13 @@ class SettingsService
     private const CONFIG_KEY = 'REBUILDCONNECTOR_SETTINGS';
 
     /**
+     * ID d'état de commande appliqué par défaut après génération réussie d'une étiquette Colissimo
+     * (« En cours d'expédition »). Valeur vérifiée en base sur pensebonheur.fr — configurable car
+     * cet ID dépend du workflow de statuts propre à chaque boutique.
+     */
+    private const DEFAULT_LABEL_SHIPPED_STATE_ID = 20;
+
+    /**
      * URL du hub push centralisé. Hardcodée — les boutiques distribuées n'ont pas accès
      * au compte de service FCM, seul le hub y a accès.
      * Override DEV uniquement : définir la constante PHP `REBUILDCONNECTOR_HUB_URL_OVERRIDE`.
@@ -434,6 +441,31 @@ class SettingsService
     }
 
     /**
+     * ID de l'état de commande appliqué automatiquement après génération réussie d'une étiquette
+     * Colissimo (ex. « En cours d'expédition »). Fallback sur DEFAULT_LABEL_SHIPPED_STATE_ID (20)
+     * si non configuré ou invalide — jamais 0/négatif (ColissimoLabelService en dépend pour
+     * déclencher OrderHistory::changeIdOrderState()).
+     */
+    public function getLabelShippedStateId(): int
+    {
+        $settings = $this->all();
+        if (!isset($settings['label_shipped_state_id']) || !is_numeric($settings['label_shipped_state_id'])) {
+            return self::DEFAULT_LABEL_SHIPPED_STATE_ID;
+        }
+
+        $stateId = (int) $settings['label_shipped_state_id'];
+
+        return $stateId > 0 ? $stateId : self::DEFAULT_LABEL_SHIPPED_STATE_ID;
+    }
+
+    public function setLabelShippedStateId(int $stateId): void
+    {
+        $settings = $this->all();
+        $settings['label_shipped_state_id'] = $stateId > 0 ? $stateId : self::DEFAULT_LABEL_SHIPPED_STATE_ID;
+        $this->save($settings);
+    }
+
+    /**
      * Toggle BO des alertes push « stock faible » (événement `stock.low`). Désactivé par défaut :
      * le hook `actionUpdateQuantity` ne notifie que si ce réglage est actif ET le hub push configuré.
      */
@@ -517,6 +549,7 @@ class SettingsService
             'order_created_alerts_enabled' => $this->isOrderCreatedAlertsEnabled(),
             'order_status_alerts_enabled' => $this->isOrderStatusAlertsEnabled(),
             'stock_low_alerts_enabled' => $this->isStockLowAlertsEnabled(),
+            'label_shipped_state_id' => $this->getLabelShippedStateId(),
         ];
     }
 

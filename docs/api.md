@@ -363,7 +363,18 @@ Content-Disposition: attachment; filename="bordereau-colissimo-6120-6A0552833389
 Scope requis : `orders.write`
 
 Génère une étiquette Colissimo via le webservice La Poste (`ws.colissimo.fr`), la stocke sur disque dans
-`modules/colissimo/documents/labels/` et enregistre le numéro de suivi sur la commande.
+`modules/colissimo/documents/labels/` et enregistre le numéro de suivi sur la commande
+(`order_carrier.tracking_number` **et** `orders.shipping_number` — les deux champs standard
+PrestaShop, pour couvrir le BO et les éventuels crons de suivi tiers).
+
+**Effet de bord — changement de statut** : si la génération réussit, la commande est automatiquement
+passée à l'état « En cours d'expédition » (ID configurable dans le BO du module, réglage
+`REBUILDCONNECTOR_LABEL_SHIPPED_STATE_ID`, défaut `20`), via `OrderHistory` — l'email associé à cet
+état n'est envoyé que si l'état est lui-même configuré pour le faire (BO PrestaShop standard). Ce
+changement n'est **jamais** appliqué si la commande est déjà dans un état plus avancé (Expédiée,
+Livrée, Remise au transporteur, Terminée, Annulée) — pas de rétrogradation. Un consommateur de l'API
+peut donc voir `PATCH .../orders/{id}` / le statut renvoyé par `GET .../orders/{id}` changer après un
+`POST .../shipping-label` réussi, sans appel PATCH explicite.
 
 **Conditions préalables** :
 - Le module Colissimo doit être installé et actif.

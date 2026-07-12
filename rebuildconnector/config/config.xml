@@ -3,7 +3,7 @@
     <name>rebuildconnector</name>
     <displayName><![CDATA[Rebuild Connector]]></displayName>
     <tab>administration</tab>
-    <version>1.15.0</version>
+    <version>1.16.0</version>
     <author>Rebuild IT</author>
     <need_instance>0</need_instance>
     <description><![CDATA[API connector for the PrestaFlow mobile application.]]></description>

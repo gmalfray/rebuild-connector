@@ -37,7 +37,7 @@ class RebuildConnector extends Module
     {
         $this->name = 'rebuildconnector';
         $this->tab = 'administration';
-        $this->version = '1.15.0';
+        $this->version = '1.16.0';
         $this->author = 'Rebuild IT';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -390,6 +390,15 @@ class RebuildConnector extends Module
 
             if (Tools::getValue('REBUILDCONNECTOR_STOCK_LOW_ALERTS_ENABLED') !== false) {
                 $settingsService->setStockLowAlertsEnabled(Tools::getValue('REBUILDCONNECTOR_STOCK_LOW_ALERTS_ENABLED') === '1');
+            }
+
+            if (Tools::getValue('REBUILDCONNECTOR_LABEL_SHIPPED_STATE_ID') !== false) {
+                $labelStateIdRaw = Tools::getValue('REBUILDCONNECTOR_LABEL_SHIPPED_STATE_ID', 20);
+                if (!is_numeric($labelStateIdRaw) || (int) $labelStateIdRaw <= 0) {
+                    $errors[] = $this->t('admin.error.invalid_label_shipped_state_id');
+                } else {
+                    $settingsService->setLabelShippedStateId((int) $labelStateIdRaw);
+                }
             }
 
             if ($errors === []) {

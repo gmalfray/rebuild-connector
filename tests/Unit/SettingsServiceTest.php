@@ -63,6 +63,33 @@ final class SettingsServiceTest extends TestCase
         $this->assertSame('', $this->invokeRenderSecretPreview(''));
     }
 
+    // =========================================================================
+    // getLabelShippedStateId — fallback par défaut (20) + override configurable.
+    // =========================================================================
+
+    public function testGetLabelShippedStateIdDefaultsTo20WhenUnset(): void
+    {
+        $service = new SettingsService();
+
+        $this->assertSame(20, $service->getLabelShippedStateId());
+    }
+
+    public function testSetLabelShippedStateIdOverridesDefault(): void
+    {
+        $service = new SettingsService();
+        $service->setLabelShippedStateId(30);
+
+        $this->assertSame(30, $service->getLabelShippedStateId());
+    }
+
+    public function testSetLabelShippedStateIdRejectsNonPositiveValueByFallingBackToDefault(): void
+    {
+        $service = new SettingsService();
+        $service->setLabelShippedStateId(0);
+
+        $this->assertSame(20, $service->getLabelShippedStateId());
+    }
+
     private function invokeRenderSecretPreview(string $secret): string
     {
         $method = new \ReflectionMethod(SettingsService::class, 'renderSecretPreview');
