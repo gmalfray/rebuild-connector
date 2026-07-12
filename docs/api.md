@@ -994,11 +994,30 @@ Scope requis : `dashboard.read`
 
 Métriques agrégées sur une période. Deux modes exclusifs :
 
-#### Mode preset (comportement historique, inchangé)
+#### Mode preset
 
 | Paramètre | Type   | Valeurs                                              |
 |-----------|--------|------------------------------------------------------|
 | `period`  | string | `today`/`day`, `week`, `month` (défaut), `quarter`, `year` |
+
+**Périodes CIVILES (depuis v1.15.0).** Les clés `period` sont inchangées, mais leur résolution
+l'est : chaque preset part désormais du **début de la période civile en cours** (fuseau boutique
+`PS_TIMEZONE`) et court jusqu'à **maintenant** — la période courante est donc potentiellement
+**partielle** (ex. `month` consulté un 13 = du 1er au 13, plus « les 30 derniers jours »
+glissants) :
+
+| `period`  | Début (`from`)                                          | Fin (`to`) |
+|-----------|----------------------------------------------------------|------------|
+| `today`/`day` | Aujourd'hui 00:00                                     | maintenant |
+| `week`    | Lundi de la semaine civile en cours 00:00 (ISO)           | maintenant |
+| `month`   | 1er du mois en cours 00:00                                | maintenant |
+| `quarter` | 1er jour du trimestre civil en cours 00:00 (Q1 janv, Q2 avr, Q3 juil, Q4 oct) | maintenant |
+| `year`    | 1er janvier de l'année en cours 00:00                     | maintenant |
+
+Avant v1.15.0, ces presets étaient des fenêtres **glissantes** (7/30/90 derniers jours, année
+glissante) se terminant à la fin de la journée courante. **Changement de comportement** pour les
+apps déjà en usage : `period.from`/`period.to` reflètent maintenant les nouvelles bornes civiles
+ci-dessus ; la forme de la réponse ne change pas.
 
 #### Mode plage libre (depuis v1.7.0)
 
@@ -1015,11 +1034,23 @@ Règles de validation :
 - Plage maximale : 730 jours (2 ans) → sinon `400 invalid_payload`.
 - Fournir un seul des deux paramètres → `400 invalid_payload`.
 
-En mode plage libre, `period.label` vaut `"custom"`. `previous_turnover` compare à la plage précédente de même durée (identique aux presets).
+En mode plage libre, `period.label` vaut `"custom"`. `previous_turnover` compare à la **fenêtre équivalente précédente de même durée**, décalée en arrière (comportement historique inchangé pour ce mode).
+
+**Comparaison N-1 des presets civils (depuis v1.15.0).** Pour `today`/`week`/`month`/`quarter`/`year`,
+`previous_turnover` compare désormais à la **même période civile l'an dernier, tronquée à la durée
+déjà écoulée depuis le début de la période courante** (comparaison « à date », pratique standard de
+contrôle de gestion) — et non plus à la fenêtre glissante précédente. Exemple : `month` consulté le
+13 juillet compare au 1-13 juillet de l'an dernier, pas au mois de juin. Cas limites : le 29 février
+retombe sur le 28 février l'an dernier si celui-ci n'est pas bissextile ; une durée écoulée qui
+traverse un 29 février peut décaler la borne de fin de comparaison d'un jour (la durée brute en
+secondes est préservée, pas le repère calendaire). Les bornes réellement utilisées sont exposées
+dans le champ additif `comparison_period` (voir plus bas) ; `previous_turnover` reste un nombre,
+sa forme ne change pas.
 
 **Granularité du `chart[]` :**
-- Plage d'exactement 1 jour → points **horaires** (24 points, labels `YYYY-MM-DD HH:00:00`).
-- Toute autre plage (preset ou plage libre) → points **journaliers** (1 point par jour, labels `YYYY-MM-DD`).
+- Plage d'exactement 1 jour, ou preset `today`/`day` → points **horaires** (24 points, labels `YYYY-MM-DD HH:00:00`).
+- Preset `year` → points **mensuels** (jusqu'à 12 points, labels `YYYY-MM-01` = 1er du mois).
+- Toute autre plage (preset `week`/`month`/`quarter` ou plage libre) → points **journaliers** (1 point par jour, labels `YYYY-MM-DD`).
 
 **Réponse 200**
 
@@ -1028,7 +1059,11 @@ En mode plage libre, `period.label` vaut `"custom"`. `previous_turnover` compare
   "period": {
     "label": "month",
     "from": "2025-06-01T00:00:00+00:00",
-    "to": "2025-06-19T23:59:59+00:00"
+    "to": "2025-06-19T14:32:07+00:00"
+  },
+  "comparison_period": {
+    "from": "2024-06-01T00:00:00+00:00",
+    "to": "2024-06-19T14:32:07+00:00"
   },
   "turnover": 12500.00,
   "orders_count": 145,
@@ -1065,7 +1100,7 @@ En mode plage libre, `period.label` vaut `"custom"`. `previous_turnover` compare
 
 | Champ           | Type  | Description                                                                                  |
 |-----------------|-------|----------------------------------------------------------------------------------------------|
-| `label`         | string | Clé temporelle du bucket : date `YYYY-MM-DD` (journalier) ou `YYYY-MM-DD HH:00:00` (horaire). |
+| `label`         | string | Clé temporelle du bucket : date `YYYY-MM-DD` (journalier), `YYYY-MM-DD HH:00:00` (horaire), ou `YYYY-MM-01` = 1er du mois (mensuel, preset `year`, depuis v1.15.0). |
 | `turnover`      | float | CA TTC sur ce bucket.                                                                        |
 | `orders`        | int   | Nombre de commandes créées sur ce bucket.                                                    |
 | `customers`     | int   | Nombre de clients **ayant commandé** (COUNT DISTINCT id_customer) sur ce bucket.             |
@@ -1080,6 +1115,15 @@ En mode plage libre, `period.label` vaut `"custom"`. `previous_turnover` compare
 > produits uniquement. Avant v1.10.15, ces valeurs incluaient le port (`total_paid_tax_incl`/
 > `total_paid_tax_excl` bruts), ce qui gonflait le CA affiché. **Aucun champ JSON ajouté/renommé**
 > — seule la valeur change, la structure de l'enveloppe est inchangée.
+
+> **Périodes civiles + comparaison N-1 « à date » (depuis v1.15.0).** `period.from`/`period.to`
+> des presets (`today`/`week`/`month`/`quarter`/`year`) reflètent désormais des bornes **civiles**
+> (voir tableau plus haut), potentiellement partielles (`to` = maintenant, plus fin de journée).
+> `previous_turnover` compare, pour ces presets, à la même période civile l'an dernier tronquée à
+> la durée écoulée (au lieu de la fenêtre glissante précédente) ; le mode plage libre (`from`/`to`
+> explicites) garde l'ancien comparatif par fenêtre décalée. **Champ additif** `comparison_period`
+> (`{from, to}`, format `DATE_ATOM` comme `period`) : expose les bornes réellement utilisées pour
+> `previous_turnover`. Aucun champ existant renommé/supprimé.
 
 **Exemples cURL**
 

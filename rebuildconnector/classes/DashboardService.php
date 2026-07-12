@@ -74,11 +74,22 @@ class DashboardService
             . ' WHERE order_return.date_add BETWEEN "' . $fromSql . '" AND "' . $toSql . '"'
         );
 
-        // Période précédente de même durée (décalée en arrière pour comparatif CA).
-        $duration = $to->getTimestamp() - $from->getTimestamp();
-        $prevTo = $from->modify('-1 second');
-        // setTimestamp() sur $prevTo préserve le fuseau boutique (shopTimeZone) de $from/$to.
-        $prevFrom = $prevTo->setTimestamp($prevTo->getTimestamp() - $duration);
+        $isCustomRange = $customFrom !== null && $customTo !== null;
+        if ($isCustomRange) {
+            // Plage libre (from/to explicites) : comparatif = fenêtre équivalente précédente de
+            // même durée, décalée en arrière (comportement historique inchangé, cf. docs/api.md).
+            $duration = $to->getTimestamp() - $from->getTimestamp();
+            $prevTo = $from->modify('-1 second');
+            // setTimestamp() sur $prevTo préserve le fuseau boutique (shopTimeZone) de $from/$to.
+            $prevFrom = $prevTo->setTimestamp($prevTo->getTimestamp() - $duration);
+        } else {
+            // Preset civil (today/week/month/quarter/year) : comparatif N-1 "à date comparable"
+            // (même période civile l'an dernier, tronquée à la durée déjà écoulée depuis le début
+            // de la période courante) — cf. resolveYoyComparisonRange().
+            $comparisonRange = $this->resolveYoyComparisonRange($from, $to, $period);
+            $prevFrom = $comparisonRange['from'];
+            $prevTo = $comparisonRange['to'];
+        }
         $prevFromSql = pSQL($prevFrom->format('Y-m-d H:i:s'));
         $prevToSql = pSQL($prevTo->format('Y-m-d H:i:s'));
         // Même correction hors-port sur la période comparative (previous_turnover), sinon le
@@ -101,6 +112,13 @@ class DashboardService
                 'label' => $period,
                 'from' => $from->format(DATE_ATOM),
                 'to' => $to->format(DATE_ATOM),
+            ],
+            // Champ additif (v1.15.0) : bornes de la période de comparaison réellement utilisées
+            // pour previous_turnover. Optionnel — ne pas modifier la lecture existante de
+            // previous_turnover, qui reste au même endroit avec la même sémantique (un nombre).
+            'comparison_period' => [
+                'from' => $prevFrom->format(DATE_ATOM),
+                'to' => $prevTo->format(DATE_ATOM),
             ],
             'turnover' => $revenueTaxIncl,
             'previous_turnover' => $previousTurnover,
@@ -267,6 +285,13 @@ class DashboardService
         return new \DateTimeZone(date_default_timezone_get() ?: 'UTC');
     }
 
+    /**
+     * Bornes CIVILES (depuis v1.15.0) : chaque preset part du début de la période civile en cours
+     * (fuseau boutique) et court jusqu'à `now` — la période courante est donc potentiellement
+     * PARTIELLE (ex : « month » un 13 du mois = du 1er au 13, pas les 30 derniers jours glissants).
+     * C'est voulu : ces presets servent désormais à piloter un objectif sur la période civile,
+     * comparé à la même période civile l'an dernier (cf. resolveYoyComparisonRange()).
+     */
     private function resolvePeriodRange(string $period): array
     {
         // Heure BOUTIQUE (PS_TIMEZONE), pas le fuseau PHP ambiant : sinon, sur une instance où
@@ -274,48 +299,112 @@ class DashboardService
         // après minuit heure boutique ne sont pas comptées). date_add est stocké en heure boutique.
         $now = new \DateTimeImmutable('now', self::shopTimeZone());
 
-        // Valeurs envoyées par l'app : today / week / month / quarter / year (glissantes,
-        // alignées sur les libellés « Aujourd'hui / 7 jours / 30 jours / Trimestre / Année »).
+        // Valeurs envoyées par l'app : today / week / month / quarter / year (contrat de requête
+        // inchangé), mais désormais résolues en périodes CIVILES plutôt que glissantes.
         switch (Tools::strtolower($period)) {
             case 'today':
             case 'day':
                 $from = $now->setTime(0, 0, 0);
-                $to = $now->setTime(23, 59, 59);
                 break;
             case 'week':
-                // 7 derniers jours (aujourd'hui inclus)
-                $from = $now->modify('-6 days')->setTime(0, 0, 0);
-                $to = $now->setTime(23, 59, 59);
+                // Semaine civile ISO : lundi 00:00 de la semaine en cours.
+                $isoDayOfWeek = (int) $now->format('N'); // 1 (lundi) .. 7 (dimanche)
+                $from = $now->modify('-' . ($isoDayOfWeek - 1) . ' days')->setTime(0, 0, 0);
                 break;
             case 'quarter':
-                // 3 derniers mois
-                $from = $now->modify('-3 months')->setTime(0, 0, 0);
-                $to = $now->setTime(23, 59, 59);
+                // Trimestre civil en cours : Q1 janv-mars, Q2 avr-juin, Q3 juil-sept, Q4 oct-déc.
+                $quarterStartMonth = ((int) floor(((int) $now->format('n') - 1) / 3)) * 3 + 1;
+                $from = $now->setDate((int) $now->format('Y'), $quarterStartMonth, 1)->setTime(0, 0, 0);
                 break;
             case 'year':
                 $from = $now->setDate((int) $now->format('Y'), 1, 1)->setTime(0, 0, 0);
-                $to = $now->setTime(23, 59, 59);
                 break;
             case 'month':
             default:
-                // 30 derniers jours (aujourd'hui inclus)
-                $from = $now->modify('-29 days')->setTime(0, 0, 0);
-                $to = $now->setTime(23, 59, 59);
+                $from = $now->setDate((int) $now->format('Y'), (int) $now->format('n'), 1)->setTime(0, 0, 0);
                 break;
         }
 
         return [
             'from' => $from,
-            'to' => $to,
+            // `to` = maintenant (pas fin de journée) : la période civile courante peut être partielle.
+            'to' => $now,
         ];
+    }
+
+    /**
+     * Comparaison N-1 « à date comparable » pour les presets civils : même période civile l'an
+     * dernier, tronquée à la même durée déjà écoulée (D = $to - $from) que la période courante.
+     *
+     * Ex. : « month » consulté le 13 juillet → comparaison du 1er au 13 juillet N-1 (pas le mois
+     * N-1 entier), pour comparer une durée écoulée identique (pratique standard de contrôle de
+     * gestion « à date »/« like-for-like »).
+     *
+     * @return array{from: \DateTimeImmutable, to: \DateTimeImmutable}
+     */
+    private function resolveYoyComparisonRange(\DateTimeImmutable $from, \DateTimeImmutable $to, string $period): array
+    {
+        $prevFrom = $this->resolvePreviousYearPeriodStart($from, Tools::strtolower($period));
+        $elapsedSeconds = $to->getTimestamp() - $from->getTimestamp();
+        // setTimestamp() préserve le fuseau boutique (shopTimeZone) porté par $prevFrom.
+        $prevTo = $prevFrom->setTimestamp($prevFrom->getTimestamp() + $elapsedSeconds);
+
+        return [
+            'from' => $prevFrom,
+            'to' => $prevTo,
+        ];
+    }
+
+    /**
+     * Début de la même période civile un an plus tôt.
+     *
+     * Cas particulier `week` : la même date civile l'an dernier ne tombe pas forcément un lundi
+     * (le calendrier se décale d'1 jour, 2 les années à cheval sur un 29 février) → on reprend le
+     * lundi de la semaine qui contient cette date, pour rester sur une semaine civile ISO complète.
+     */
+    private function resolvePreviousYearPeriodStart(\DateTimeImmutable $periodStart, string $periodLower): \DateTimeImmutable
+    {
+        $sameDateLastYear = $this->sameCivilDateOneYearEarlier($periodStart);
+
+        if ($periodLower === 'week') {
+            $isoDayOfWeek = (int) $sameDateLastYear->format('N');
+            return $isoDayOfWeek > 1 ? $sameDateLastYear->modify('-' . ($isoDayOfWeek - 1) . ' days') : $sameDateLastYear;
+        }
+
+        return $sameDateLastYear;
+    }
+
+    /**
+     * Reproduit le même mois/jour un an plus tôt (heure et fuseau préservés).
+     *
+     * Cas limite 29 février : une année N-1 non bissextile n'a pas de 29 février → on retombe sur
+     * le 28 février N-1 (convention standard, cf. contrôle de gestion « à date »).
+     */
+    private function sameCivilDateOneYearEarlier(\DateTimeImmutable $date): \DateTimeImmutable
+    {
+        $year = (int) $date->format('Y') - 1;
+        $month = (int) $date->format('n');
+        $day = (int) $date->format('j');
+
+        if ($month === 2 && $day === 29 && !self::isGregorianLeapYear($year)) {
+            $day = 28;
+        }
+
+        return $date->setDate($year, $month, $day);
+    }
+
+    private static function isGregorianLeapYear(int $year): bool
+    {
+        return ($year % 4 === 0 && $year % 100 !== 0) || $year % 400 === 0;
     }
 
     /**
      * Résout la granularité du graphique selon la période et la plage réelle.
      *
      * - today / day → horaire (24 points)
+     * - year (preset civil) → mensuel (jusqu'à 12 points, cf. resolvePeriodRange())
      * - plage libre d'exactement 1 jour → horaire
-     * - tout le reste → journalier
+     * - tout le reste (week/month/quarter, plage libre) → journalier
      *
      * @param bool $isCustomRange La plage est-elle libre (from/to explicites) ?
      */
@@ -324,6 +413,10 @@ class DashboardService
         $periodLower = Tools::strtolower($period);
         if ($periodLower === 'today' || $periodLower === 'day') {
             return 'hour';
+        }
+
+        if (!$isCustomRange && $periodLower === 'year') {
+            return 'month';
         }
 
         if ($isCustomRange) {
@@ -340,8 +433,8 @@ class DashboardService
      * Nouveaux clients = clients dont la date d'inscription (date_add dans ps_customer)
      * tombe dans le bucket. Distinct de `customers` (qui compte les clients ayant commandé).
      *
-     * @param string $granularity 'hour' ou 'day'
-     * @return array<string, int> Index clé = format du bucket ('Y-m-d H:00:00' ou 'Y-m-d')
+     * @param string $granularity 'hour', 'day' ou 'month'
+     * @return array<string, int> Index clé = format du bucket ('Y-m-d H:00:00', 'Y-m-d' ou 'Y-m-01')
      */
     private function buildNewCustomersIndex(
         \DateTimeImmutable $from,
@@ -360,6 +453,8 @@ class DashboardService
 
         if ($granularity === 'hour') {
             $query->select('DATE_FORMAT(c.date_add, \'%Y-%m-%d %H:00:00\') AS bucket');
+        } elseif ($granularity === 'month') {
+            $query->select('DATE_FORMAT(c.date_add, \'%Y-%m-01\') AS bucket');
         } else {
             $query->select('DATE(c.date_add) AS bucket');
         }
@@ -450,6 +545,58 @@ class DashboardService
                     'customers' => (int) $data['customers'],
                     'new_customers' => $newCustomersIndex[$key] ?? 0,
                 ];
+            }
+
+            return $chart;
+        }
+
+        if ($granularity === 'month') {
+            // Granularité mensuelle (preset `year`, cf. resolveGranularity()) : 1 point par mois
+            // civil, du mois de $from jusqu'au mois de $to inclus (12 points max sur une année).
+            $query = new DbQuery();
+            $query->select('DATE_FORMAT(o.date_add, \'%Y-%m-01\') AS month');
+            $query->select('SUM(o.total_paid_tax_incl - o.total_shipping_tax_incl) AS revenue');
+            $query->select('COUNT(*) AS orders');
+            $query->select('COUNT(DISTINCT o.id_customer) AS customers');
+            $query->from('orders', 'o');
+            $query->where('o.date_add BETWEEN "' . $fromSql . '" AND "' . $toSql . '"');
+            if ($shopId > 0) {
+                $query->where('o.id_shop = ' . $shopId);
+            }
+            $query->groupBy('month');
+            $query->orderBy('month ASC');
+
+            $rows = (array) Db::getInstance()->executeS($query);
+            $indexed = [];
+            foreach ($rows as $row) {
+                /** @var array<string, mixed> $row */
+                if (!isset($row['month'])) {
+                    continue;
+                }
+
+                $month = (string) $row['month'];
+                $indexed[$month] = [
+                    'revenue' => isset($row['revenue']) ? (float) $row['revenue'] : 0.0,
+                    'orders' => isset($row['orders']) ? (int) $row['orders'] : 0,
+                    'customers' => isset($row['customers']) ? (int) $row['customers'] : 0,
+                ];
+            }
+
+            $chart = [];
+            $cursor = $from->setDate((int) $from->format('Y'), (int) $from->format('n'), 1)->setTime(0, 0, 0);
+            $lastMonth = $to->setDate((int) $to->format('Y'), (int) $to->format('n'), 1)->setTime(0, 0, 0);
+
+            while ($cursor <= $lastMonth) {
+                $key = $cursor->format('Y-m-01');
+                $data = $indexed[$key] ?? ['revenue' => 0.0, 'orders' => 0, 'customers' => 0];
+                $chart[] = [
+                    'label' => $key,
+                    'turnover' => (float) $data['revenue'],
+                    'orders' => (int) $data['orders'],
+                    'customers' => (int) $data['customers'],
+                    'new_customers' => $newCustomersIndex[$key] ?? 0,
+                ];
+                $cursor = $cursor->modify('+1 month');
             }
 
             return $chart;
