@@ -19,6 +19,7 @@ require_once __DIR__ . '/classes/UpdateCheckService.php';
 require_once __DIR__ . '/classes/ClientIpResolver.php';
 require_once __DIR__ . '/classes/ProductsService.php';
 require_once __DIR__ . '/classes/StockAlertService.php';
+require_once __DIR__ . '/classes/PaymentWatchService.php';
 
 class RebuildConnector extends Module
 {
@@ -31,13 +32,14 @@ class RebuildConnector extends Module
     private ?UpdateCheckService $updateCheckService = null;
     private ?ProductsService $productsService = null;
     private ?StockAlertService $stockAlertService = null;
+    private ?PaymentWatchService $paymentWatchService = null;
     private bool $settingsBootstrapped = false;
 
     public function __construct()
     {
         $this->name = 'rebuildconnector';
         $this->tab = 'administration';
-        $this->version = '1.16.0';
+        $this->version = '1.17.0';
         $this->author = 'Rebuild IT';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -88,7 +90,8 @@ class RebuildConnector extends Module
             ->registerHook('moduleRoutes')
             && $this->registerHook('actionValidateOrder')
             && $this->registerHook('actionOrderStatusPostUpdate')
-            && $this->registerHook('actionUpdateQuantity');
+            && $this->registerHook('actionUpdateQuantity')
+            && $this->registerHook('actionDispatcher');
     }
 
     public function uninstall(): bool
@@ -874,6 +877,15 @@ class RebuildConnector extends Module
         return $this->stockAlertService;
     }
 
+    private function getPaymentWatchService(): PaymentWatchService
+    {
+        if ($this->paymentWatchService === null) {
+            $this->paymentWatchService = new PaymentWatchService();
+        }
+
+        return $this->paymentWatchService;
+    }
+
     /**
      * Id boutique courante (contexte multiboutique), avec repli sur la boutique par défaut si le
      * contexte n'est pas disponible (ex. exécution CLI/cron) — même garde que ProductsService::getShopId().
@@ -921,6 +933,71 @@ class RebuildConnector extends Module
      *
      * @return array<string, array<string, mixed>>
      */
+    /**
+     * Surveillance du tunnel de paiement, branchée sur le dispatcher.
+     *
+     * PrestaShop n'a pas d'ordonnanceur : ce hook, qui passe à chaque requête, sert d'horloge
+     * pauvre. `PaymentWatchService` s'étrangle lui-même (une inspection toutes les 5 min au plus)
+     * et sort en deux lectures de configuration le reste du temps — le coût sur une page vue est
+     * négligeable. Un cron n'est pas requis : la détection voyage avec le module, y compris sur
+     * un hébergement qu'on n'administre pas.
+     *
+     * Best-effort strict : toute erreur ici est avalée. Une surveillance qui casse le site
+     * qu'elle surveille serait pire que l'absence de surveillance.
+     */
+    public function hookActionDispatcher(): void
+    {
+        try {
+            $hub = $this->getPushHubService();
+            if (!$hub->isEnabled()) {
+                return;
+            }
+
+            $this->getPaymentWatchService()->run(function (string $kind, array $context) use ($hub): void {
+                $reason = isset($context['reason']) ? (string) $context['reason'] : '';
+
+                if ($kind === PaymentWatchService::KIND_TECHNICAL) {
+                    $body = $this->t(
+                        'notifications.payment_outage_technical',
+                        [(string) $context['technical'], (string) $context['carts'], $reason],
+                        sprintf('%s technical error(s) on %s cart(s). %s', $context['technical'], $context['carts'], $reason)
+                    );
+                } else {
+                    $body = $this->t(
+                        'notifications.payment_outage_volume',
+                        [(string) $context['carts'], $reason],
+                        sprintf('%s carts failed to pay in the last hour. %s', $context['carts'], $reason)
+                    );
+                }
+
+                $notification = [
+                    'title' => $this->t('notifications.payment_outage_title', [], 'Payment outage'),
+                    'body' => $body,
+                ];
+
+                // `event` est répété dans les données : c'est de là que l'app le lit pour router
+                // l'affichage quand elle est au premier plan.
+                $hub->notify('shop.payment.error', $notification, [
+                    'event' => 'shop.payment.error',
+                    'source' => 'payment_watch',
+                    'kind' => $kind,
+                    'errors' => (string) $context['errors'],
+                    'carts' => (string) $context['carts'],
+                ]);
+
+                $this->recordAudit('payment.outage', [
+                    'kind' => $kind,
+                    'errors' => $context['errors'],
+                    'carts' => $context['carts'],
+                ]);
+            });
+        } catch (Throwable $e) {
+            if ($this->isDevMode()) {
+                error_log('[RebuildConnector] PaymentWatch: ' . $e->getMessage());
+            }
+        }
+    }
+
     public function hookModuleRoutes(): array
     {
         $module = $this->name;

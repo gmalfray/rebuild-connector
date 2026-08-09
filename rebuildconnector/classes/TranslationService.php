@@ -333,6 +333,19 @@ class TranslationService
             'en' => 'Order status updated',
             'fr' => 'Statut de commande mis à jour',
         ],
+        'notifications.payment_outage_title' => [
+            'en' => 'Payment outage',
+            'fr' => 'Paiement en panne',
+        ],
+        // %1$s = nombre d'erreurs, %2$s = paniers touchés, %3$s = dernier message d'erreur.
+        'notifications.payment_outage_technical' => [
+            'en' => '%1$s technical error(s) on %2$s cart(s). %3$s',
+            'fr' => '%1$s erreur(s) technique(s) sur %2$s panier(s). %3$s',
+        ],
+        'notifications.payment_outage_volume' => [
+            'en' => '%1$s carts failed to pay in the last hour. %2$s',
+            'fr' => '%1$s paniers en échec de paiement dans la dernière heure. %2$s',
+        ],
         'notifications.status_updated_generic' => [
             'en' => 'Status updated',
             'fr' => 'Statut mis à jour',

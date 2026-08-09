@@ -39,6 +39,7 @@ spl_autoload_register(static function (string $class): void {
         'ReportsService' => __DIR__ . '/../rebuildconnector/classes/ReportsService.php',
         'ProductsService' => __DIR__ . '/../rebuildconnector/classes/ProductsService.php',
         'StockAlertService' => __DIR__ . '/../rebuildconnector/classes/StockAlertService.php',
+        'PaymentWatchService' => __DIR__ . '/../rebuildconnector/classes/PaymentWatchService.php',
         'ColissimoLabelService' => __DIR__ . '/../rebuildconnector/classes/ColissimoLabelService.php',
         'ClientIpResolver' => __DIR__ . '/../rebuildconnector/classes/ClientIpResolver.php',
         'LanguageResolver' => __DIR__ . '/../rebuildconnector/classes/LanguageResolver.php',
