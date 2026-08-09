@@ -66,12 +66,14 @@ class DashboardService
         );
 
         // order_return n'a pas de colonne id_shop : on filtre via une jointure sur orders.
+        // ⚠️ L'alias `orr` est obligatoire : sans lui, la table s'appelle `<prefixe>order_return`
+        // et tout qualificatif `order_return.` casse la requête (1054 Unknown column).
         $returnsShopJoin = $shopId > 0
-            ? ' INNER JOIN ' . _DB_PREFIX_ . 'orders o ON o.id_order = order_return.id_order AND o.id_shop = ' . $shopId
+            ? ' INNER JOIN ' . _DB_PREFIX_ . 'orders o ON o.id_order = orr.id_order AND o.id_shop = ' . $shopId
             : '';
         $returns = (int) $db->getValue(
-            'SELECT COUNT(*) FROM ' . _DB_PREFIX_ . 'order_return' . $returnsShopJoin
-            . ' WHERE order_return.date_add BETWEEN "' . $fromSql . '" AND "' . $toSql . '"'
+            'SELECT COUNT(*) FROM ' . _DB_PREFIX_ . 'order_return orr' . $returnsShopJoin
+            . ' WHERE orr.date_add BETWEEN "' . $fromSql . '" AND "' . $toSql . '"'
         );
 
         $isCustomRange = $customFrom !== null && $customTo !== null;
