@@ -281,6 +281,22 @@ class TranslationService
             'en' => 'Send a push notification when a product\'s stock drops to or below its threshold',
             'fr' => 'Envoyer une notification push quand le stock d\'un produit descend à ou sous son seuil',
         ],
+        'admin.form.sav_message_alerts_label' => [
+            'en' => 'New customer service message',
+            'fr' => 'Nouveau message SAV',
+        ],
+        'admin.form.sav_message_alerts_toggle' => [
+            'en' => 'Send a push notification when a customer writes a new message on a support thread',
+            'fr' => 'Envoyer une notification push quand une cliente écrit un nouveau message sur un fil SAV',
+        ],
+        'admin.form.review_pending_alerts_label' => [
+            'en' => 'Review pending moderation',
+            'fr' => 'Avis en modération',
+        ],
+        'admin.form.review_pending_alerts_toggle' => [
+            'en' => 'Send a push notification when a new native review enters the moderation queue',
+            'fr' => 'Envoyer une notification push quand un nouvel avis natif entre en file de modération',
+        ],
 
         // API & base controller errors
         'api.error.method_not_allowed' => [
@@ -450,6 +466,26 @@ class TranslationService
             'en' => '%s: only %s left in stock.',
             'fr' => '%s : plus que %s en stock.',
         ],
+        'notifications.sav_message_title' => [
+            'en' => 'New customer service message',
+            'fr' => 'Nouveau message SAV',
+        ],
+        'notifications.sav_message_body' => [
+            'en' => '%s: %s',
+            'fr' => '%s : %s',
+        ],
+        'notifications.review_pending_title' => [
+            'en' => 'Review pending moderation',
+            'fr' => 'Avis à modérer',
+        ],
+        'notifications.review_pending_body' => [
+            'en' => '%s — %s/5',
+            'fr' => '%s — %s/5',
+        ],
+        'notifications.review_pending_anonymous' => [
+            'en' => 'A customer',
+            'fr' => 'Une cliente',
+        ],
         'baskets.error.not_found' => [
             'en' => 'Basket not found.',
             'fr' => 'Panier introuvable.',
@@ -596,6 +632,10 @@ class TranslationService
             'order_status_alerts_toggle' => $this->translate('admin.form.order_status_alerts_toggle', $locale),
             'stock_low_alerts_label' => $this->translate('admin.form.stock_low_alerts_label', $locale),
             'stock_low_alerts_toggle' => $this->translate('admin.form.stock_low_alerts_toggle', $locale),
+            'sav_message_alerts_label' => $this->translate('admin.form.sav_message_alerts_label', $locale),
+            'sav_message_alerts_toggle' => $this->translate('admin.form.sav_message_alerts_toggle', $locale),
+            'review_pending_alerts_label' => $this->translate('admin.form.review_pending_alerts_label', $locale),
+            'review_pending_alerts_toggle' => $this->translate('admin.form.review_pending_alerts_toggle', $locale),
         ];
     }
 

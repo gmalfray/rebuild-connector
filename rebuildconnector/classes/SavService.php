@@ -100,6 +100,21 @@ class SavService
     }
 
     /**
+     * Métadonnées d'un fil SEUL (sans ses messages) — utilisé par le hook push `sav.message`
+     * (cf. `RebuildConnector::hookActionObjectCustomerMessageAddAfter()`), qui n'a besoin que du
+     * nom de la cliente pour composer la notification, pas de l'historique complet des messages.
+     * Même protection IDOR que `getThreadById()` : `null` si absent ou autre boutique.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function getThreadSummary(int $idThread): ?array
+    {
+        $threadRow = $this->fetchThreadRow($idThread);
+
+        return $threadRow === null ? null : $this->formatThreadRow($threadRow);
+    }
+
+    /**
      * Fil complet (métadonnées + messages dans l'ordre chronologique). `null` si absent ou
      * appartenant à une autre boutique (protection IDOR — traité comme "introuvable", pas 403,
      * pour ne pas confirmer l'existence d'un fil d'une autre boutique).

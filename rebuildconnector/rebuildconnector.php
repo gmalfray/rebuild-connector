@@ -20,6 +20,8 @@ require_once __DIR__ . '/classes/ClientIpResolver.php';
 require_once __DIR__ . '/classes/ProductsService.php';
 require_once __DIR__ . '/classes/StockAlertService.php';
 require_once __DIR__ . '/classes/PaymentWatchService.php';
+require_once __DIR__ . '/classes/SavService.php';
+require_once __DIR__ . '/classes/Reviews/ReviewsAvailability.php';
 
 class RebuildConnector extends Module
 {
@@ -33,13 +35,14 @@ class RebuildConnector extends Module
     private ?ProductsService $productsService = null;
     private ?StockAlertService $stockAlertService = null;
     private ?PaymentWatchService $paymentWatchService = null;
+    private ?SavService $savService = null;
     private bool $settingsBootstrapped = false;
 
     public function __construct()
     {
         $this->name = 'rebuildconnector';
         $this->tab = 'administration';
-        $this->version = '1.18.1';
+        $this->version = '1.19.0';
         $this->author = 'Rebuild IT';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -91,7 +94,14 @@ class RebuildConnector extends Module
             && $this->registerHook('actionValidateOrder')
             && $this->registerHook('actionOrderStatusPostUpdate')
             && $this->registerHook('actionUpdateQuantity')
-            && $this->registerHook('actionDispatcher');
+            && $this->registerHook('actionDispatcher')
+            // Hooks génériques que PrestaShop lève automatiquement à chaque ObjectModel::add()
+            // (`actionObject<ClassName>AddAfter`) — cf. hookActionObjectCustomerMessageAddAfter()
+            // et hookActionObjectRbReviewAddAfter() pour le détail. `actionObjectRbReviewAddAfter`
+            // ne se déclenchera jamais tant que rbreviews n'est pas installé (la classe RbReview
+            // n'existe pas) : l'enregistrer inconditionnellement est sans danger.
+            && $this->registerHook('actionObjectCustomerMessageAddAfter')
+            && $this->registerHook('actionObjectRbReviewAddAfter');
     }
 
     public function uninstall(): bool
@@ -393,6 +403,14 @@ class RebuildConnector extends Module
 
             if (Tools::getValue('REBUILDCONNECTOR_STOCK_LOW_ALERTS_ENABLED') !== false) {
                 $settingsService->setStockLowAlertsEnabled(Tools::getValue('REBUILDCONNECTOR_STOCK_LOW_ALERTS_ENABLED') === '1');
+            }
+
+            if (Tools::getValue('REBUILDCONNECTOR_SAV_MESSAGE_ALERTS_ENABLED') !== false) {
+                $settingsService->setSavMessageAlertsEnabled(Tools::getValue('REBUILDCONNECTOR_SAV_MESSAGE_ALERTS_ENABLED') === '1');
+            }
+
+            if (Tools::getValue('REBUILDCONNECTOR_REVIEW_PENDING_ALERTS_ENABLED') !== false) {
+                $settingsService->setReviewPendingAlertsEnabled(Tools::getValue('REBUILDCONNECTOR_REVIEW_PENDING_ALERTS_ENABLED') === '1');
             }
 
             if (Tools::getValue('REBUILDCONNECTOR_LABEL_SHIPPED_STATE_ID') !== false) {
@@ -732,6 +750,226 @@ class RebuildConnector extends Module
             $this->notifyDevices($notification, $data);
             $stockAlertService->markAlerted($idProduct, $idProductAttribute);
         });
+    }
+
+    /**
+     * Alerte push « nouveau message SAV » (événement `sav.message`). Branchée sur le hook générique
+     * `actionObject<ClassName>AddAfter` que PrestaShop lève automatiquement à chaque
+     * `ObjectModel::add()` — ici pour `CustomerMessage`.
+     *
+     * ⚠️ Ce hook se déclenche pour DEUX origines de message, qu'il faut distinguer :
+     *   - une CLIENTE écrit (formulaire de contact front, ou relance sur un fil existant)
+     *     → `id_employee == 0` → c'est CE cas qui doit notifier ;
+     *   - un EMPLOYÉ répond depuis le back-office natif PrestaShop (`AdminCustomerThreadsController`,
+     *     qui insère lui aussi via `ObjectModel::add()`) → `id_employee > 0` → à ignorer, sinon la
+     *     boutique se notifierait elle-même à chaque réponse.
+     *   (Les réponses envoyées depuis l'app PrestaFlow via `SavService::reply()` n'atteignent JAMAIS
+     *   ce hook : cette méthode écrit par `Db::insert()` direct, pas par `ObjectModel::add()`.)
+     *
+     * Aucun anti-étranglement nécessaire ici, contrairement à `stock.low` (écritures répétées pour
+     * un même franchissement) ou `shop.payment.error` (pas de hook natif, lecture périodique d'un
+     * journal) : chaque insertion d'un message CLIENT est un événement réellement unique — une
+     * notification par message, jamais plus.
+     *
+     * Best-effort strict (try/catch large) : un message SAV ne doit jamais échouer à cause d'une
+     * notification push qui rate.
+     *
+     * @param array<string, mixed> $params
+     */
+    public function hookActionObjectCustomerMessageAddAfter(array $params): void
+    {
+        try {
+            if (!$this->getSettingsService()->isSavMessageAlertsEnabled()) {
+                return;
+            }
+
+            if (!isset($params['object']) || !is_object($params['object'])) {
+                return;
+            }
+
+            $message = $params['object'];
+
+            if (!isset($message->id_employee) || (int) $message->id_employee !== 0) {
+                // Réponse d'un employé (BO natif) : jamais de notification — on ne s'auto-notifie pas.
+                return;
+            }
+
+            if (!isset($message->id_customer_thread)) {
+                return;
+            }
+
+            $idThread = (int) $message->id_customer_thread;
+            if ($idThread <= 0) {
+                return;
+            }
+
+            $thread = $this->getSavService()->getThreadSummary($idThread);
+            if ($thread === null) {
+                // Fil introuvable ou d'une autre boutique (contexte multiboutique) : rien à notifier.
+                return;
+            }
+
+            $customerName = isset($thread['customer']['name']) && is_string($thread['customer']['name'])
+                ? $thread['customer']['name']
+                : '';
+
+            $excerpt = isset($message->message) && is_string($message->message)
+                ? $this->truncateForNotification($message->message)
+                : '';
+
+            $body = $customerName !== ''
+                ? $this->t(
+                    'notifications.sav_message_body',
+                    [$customerName, $excerpt],
+                    sprintf('%s : %s', $customerName, $excerpt)
+                )
+                : $excerpt;
+
+            $notification = [
+                'title' => $this->t('notifications.sav_message_title'),
+                'body' => $body,
+            ];
+
+            $data = [
+                'event' => 'sav.message',
+                'thread_id' => (string) $idThread,
+            ];
+
+            $this->recordAudit('sav.message', [
+                'thread_id' => $idThread,
+            ]);
+
+            // Best-effort et différé : ce hook peut se déclencher au milieu d'une requête front
+            // (soumission du formulaire de contact) — même discipline que order.created/stock.low.
+            $this->runAfterResponse(function () use ($notification, $data): void {
+                $this->notifyDevices($notification, $data);
+            });
+        } catch (Throwable $e) {
+            if ($this->isDevMode()) {
+                error_log('[RebuildConnector] sav.message hook: ' . $e->getMessage());
+            }
+        }
+    }
+
+    /**
+     * Alerte push « avis en modération » (événement `review.pending`). Même mécanisme générique
+     * que `sav.message`, ici sur `RbReview` (module tiers rbreviews, cf. `classes/Reviews/`).
+     *
+     * Ne notifie QUE l'entrée en modération d'un avis natif fraîchement créé : `validated == 0 &&
+     * deleted == 0` (contrat documenté dans `ReviewsBridgeInterface`/`RbReview`). Deux garde-fous
+     * distincts protègent des ~2840 avis importés depuis Etsy :
+     *   - l'import Etsy (`RbEtsyImportService`, `pensebonheur/custom-modules/rbreviews`) écrit par
+     *     `Db::insert()` DIRECT, jamais via `ObjectModel::add()` → ce hook ne se déclenche JAMAIS
+     *     pour un avis importé, quel que soit son état ;
+     *   - même dans l'hypothèse où l'import passerait un jour par `add()`, le filtre `validated ==
+     *     0` l'exclurait de toute façon : un avis Etsy importé arrive TOUJOURS déjà publié
+     *     (`validated = 1`), jamais en modération.
+     *
+     * Aucun anti-étranglement nécessaire (même raisonnement que `sav.message`) : chaque insertion
+     * d'un avis natif est un événement unique.
+     *
+     * @param array<string, mixed> $params
+     */
+    public function hookActionObjectRbReviewAddAfter(array $params): void
+    {
+        try {
+            if (!$this->getSettingsService()->isReviewPendingAlertsEnabled()) {
+                return;
+            }
+
+            if (!ReviewsAvailability::isAvailable()) {
+                // Défense en profondeur : ne devrait jamais se produire (le hook ne peut se
+                // déclencher que si rbreviews vient d'exécuter RbReview::add()), mais une
+                // désinstallation en plein milieu de requête reste théoriquement possible.
+                return;
+            }
+
+            if (!isset($params['object']) || !is_object($params['object'])) {
+                return;
+            }
+
+            $review = $params['object'];
+
+            if (!isset($review->validated, $review->deleted)) {
+                return;
+            }
+
+            if ((int) $review->validated !== 0 || (int) $review->deleted !== 0) {
+                // Modération désactivée sur la boutique (avis publié direct) ou déjà en corbeille :
+                // rien à modérer.
+                return;
+            }
+
+            if (!isset($review->id)) {
+                return;
+            }
+
+            $reviewId = (int) $review->id;
+            if ($reviewId <= 0) {
+                return;
+            }
+
+            $grade = isset($review->grade) ? (int) $review->grade : 0;
+            $authorName = isset($review->display_name) && is_string($review->display_name) && $review->display_name !== ''
+                ? $review->display_name
+                : $this->t('notifications.review_pending_anonymous', [], 'A customer');
+
+            $notification = [
+                'title' => $this->t('notifications.review_pending_title'),
+                'body' => $this->t(
+                    'notifications.review_pending_body',
+                    [$authorName, (string) $grade],
+                    sprintf('%s — %d/5', $authorName, $grade)
+                ),
+            ];
+
+            $data = [
+                'event' => 'review.pending',
+                'review_id' => (string) $reviewId,
+            ];
+
+            $this->recordAudit('review.pending', [
+                'review_id' => $reviewId,
+            ]);
+
+            $this->runAfterResponse(function () use ($notification, $data): void {
+                $this->notifyDevices($notification, $data);
+            });
+        } catch (Throwable $e) {
+            if ($this->isDevMode()) {
+                error_log('[RebuildConnector] review.pending hook: ' . $e->getMessage());
+            }
+        }
+    }
+
+    /**
+     * Réduit un texte libre à un aperçu compact pour une notification push (lock screen) : espaces
+     * normalisés, longueur bornée avec ellipse. `Mb*` utilisé quand disponible pour ne pas couper
+     * un caractère multioctet en plein milieu.
+     */
+    private function truncateForNotification(string $text, int $maxLength = 100): string
+    {
+        $normalized = trim((string) preg_replace('/\s+/', ' ', $text));
+
+        $length = function_exists('mb_strlen') ? mb_strlen($normalized) : strlen($normalized);
+        if ($length <= $maxLength) {
+            return $normalized;
+        }
+
+        $truncated = function_exists('mb_substr')
+            ? mb_substr($normalized, 0, $maxLength)
+            : substr($normalized, 0, $maxLength);
+
+        return $truncated . '…';
+    }
+
+    private function getSavService(): SavService
+    {
+        if ($this->savService === null) {
+            $this->savService = new SavService();
+        }
+
+        return $this->savService;
     }
 
     /**
