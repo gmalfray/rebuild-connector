@@ -466,6 +466,36 @@ class RebuildConnector extends Module
         }
         unset($user);
 
+        // Avertissement BO : utilisateurs nommés actifs créés AVANT la 1.18.0, qui n'ont donc pas
+        // reçu automatiquement les scopes sav.read/sav.write/reviews.moderate (ajoutés en 1.18.0
+        // uniquement aux scopes GLOBAUX, cf. Upgrade-1.18.0.php — jamais migrés silencieusement
+        // vers les utilisateurs nommés existants : sav.write envoie de vrais e-mails à de vraies
+        // clientes, une élévation de privilège automatique est exclue). Calculé à CHAQUE affichage
+        // (jamais stocké), donc toujours à jour — y compris juste après un
+        // rebuildconnector_update_scopes traité plus haut dans cette même requête, puisque $users
+        // vient d'être rechargé.
+        $missingSavReviewScopesUsers = [];
+        foreach ($users as $userForScopeCheck) {
+            if (empty($userForScopeCheck['active'])) {
+                continue;
+            }
+            $userScopes = $userForScopeCheck['scopes_array'];
+            $hasAllNewScopes = in_array('sav.read', $userScopes, true)
+                && in_array('sav.write', $userScopes, true)
+                && in_array('reviews.moderate', $userScopes, true);
+            if (!$hasAllNewScopes) {
+                $missingSavReviewScopesUsers[] = (string) $userForScopeCheck['label'];
+            }
+        }
+        if ($missingSavReviewScopesUsers !== []) {
+            $output .= $this->displayWarning(sprintf(
+                '%d utilisateur(s) nommé(s) n\'ont pas les nouveaux droits SAV/Avis (sav.read, sav.write, reviews.moderate) : %s. '
+                . 'Modifiez leurs scopes ci-dessous (bouton « Scopes ») si vous voulez leur donner accès aux nouveaux écrans SAV/Avis de l\'app — ce n\'est PAS automatique.',
+                count($missingSavReviewScopesUsers),
+                htmlspecialchars(implode(', ', $missingSavReviewScopesUsers), ENT_QUOTES)
+            ));
+        }
+
         $updateInfo = $this->getUpdateCheckService()->getAvailableUpdate();
 
         $this->context->smarty->assign([
