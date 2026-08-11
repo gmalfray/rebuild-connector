@@ -245,6 +245,14 @@ class TranslationService
             'en' => 'Order state applied automatically after a successful Colissimo label generation. Find the ID in Shop parameters > Order statuses. Default: 20. Never applied if the order is already in a further state (shipped, delivered, cancelled…).',
             'fr' => 'État de commande appliqué automatiquement après génération réussie d’une étiquette Colissimo. Trouvez l’ID dans Paramètres boutique > Statuts des commandes. Valeur par défaut : 20. Jamais appliqué si la commande est déjà dans un état plus avancé (expédiée, livrée, annulée…).',
         ],
+        'admin.form.sav_fallback_employee_id_label' => [
+            'en' => 'SAV fallback employee',
+            'fr' => 'Employé de repli SAV',
+        ],
+        'admin.form.sav_fallback_employee_id_help' => [
+            'en' => 'Used ONLY when a SAV reply is sent via the global API key (which carries no employee). A named user always keeps their own identity — this setting never overrides it. Leave on "Automatic" to fall back on the first active employee.',
+            'fr' => 'Utilisé UNIQUEMENT quand une réponse SAV est envoyée via la clé API globale (qui ne porte aucun employé). Un utilisateur nommé garde toujours sa propre identité — ce réglage ne la remplace jamais. Laissez sur « Automatique » pour retomber sur le premier employé actif.',
+        ],
         'admin.form.save_button' => [
             'en' => 'Save settings',
             'fr' => 'Enregistrer les paramètres',
@@ -579,6 +587,8 @@ class TranslationService
             'allowed_ips_help' => $this->translate('admin.form.allowed_ips_help', $locale),
             'label_shipped_state_id_label' => $this->translate('admin.form.label_shipped_state_id_label', $locale),
             'label_shipped_state_id_help' => $this->translate('admin.form.label_shipped_state_id_help', $locale),
+            'sav_fallback_employee_id_label' => $this->translate('admin.form.sav_fallback_employee_id_label', $locale),
+            'sav_fallback_employee_id_help' => $this->translate('admin.form.sav_fallback_employee_id_help', $locale),
             'save_button' => $this->translate('admin.form.save_button', $locale),
             'order_created_alerts_label' => $this->translate('admin.form.order_created_alerts_label', $locale),
             'order_created_alerts_toggle' => $this->translate('admin.form.order_created_alerts_toggle', $locale),

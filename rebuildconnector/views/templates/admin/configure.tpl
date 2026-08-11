@@ -731,6 +731,32 @@
             <hr>
 
             <div class="form-group">
+                <label class="control-label col-lg-3" for="rebuildconnector_sav_fallback_employee_id">{$i18n.sav_fallback_employee_id_label|escape:'htmlall'}</label>
+                <div class="col-lg-9">
+                    <select
+                        id="rebuildconnector_sav_fallback_employee_id"
+                        name="REBUILDCONNECTOR_SAV_FALLBACK_EMPLOYEE_ID"
+                        class="form-control"
+                        style="max-width:320px;"
+                    >
+                        <option value="0" {if !$settings.sav_fallback_employee_id}selected{/if}>
+                            — Automatique (premier employé actif) —
+                        </option>
+                        {if isset($employees) && $employees}
+                            {foreach from=$employees item=emp}
+                                <option value="{$emp.id_employee|intval}" {if $settings.sav_fallback_employee_id == $emp.id_employee}selected{/if}>
+                                    {$emp.firstname|escape:'htmlall'} {$emp.lastname|escape:'htmlall'}
+                                </option>
+                            {/foreach}
+                        {/if}
+                    </select>
+                    <p class="help-block">{$i18n.sav_fallback_employee_id_help|escape:'htmlall'}</p>
+                </div>
+            </div>
+
+            <hr>
+
+            <div class="form-group">
                 <label class="control-label col-lg-3" for="rebuildconnector_webhook_url">URL Webhook</label>
                 <div class="col-lg-9">
                     <input

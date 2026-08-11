@@ -2,6 +2,8 @@
 
 defined('_PS_VERSION_') || exit;
 
+require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/SettingsService.php';
+
 /**
  * SAV natif PrestaShop (`customer_thread` / `customer_message`) — AUCUN module requis.
  *
@@ -31,6 +33,13 @@ class SavService
 
     /** Longueur maximale défensive d'un message de réponse (le champ SQL est en TEXT, pas de limite technique). */
     private const REPLY_MAX_LENGTH = 20000;
+
+    private SettingsService $settingsService;
+
+    public function __construct(?SettingsService $settingsService = null)
+    {
+        $this->settingsService = $settingsService ?: new SettingsService();
+    }
 
     /**
      * @param array<string, mixed> $filters {status?: string, limit?: int, offset?: int}
@@ -154,7 +163,13 @@ class SavService
             return null;
         }
 
-        $employeeId = $idEmployee !== null && $idEmployee > 0 ? $idEmployee : 0;
+        // Un message écrit par la boutique ne doit JAMAIS être attribué id_employee = 0 : c'est
+        // la convention native PrestaShop pour « message de la cliente » (reprise par
+        // formatMessageRow()), un jeton clé API globale (AuthService mode 1, aucun id_employee
+        // porté) ne doit donc pas produire un fil trompeur, y compris dans le BO natif qui lit la
+        // même table. Voir resolveReplyEmployee() pour la résolution de repli.
+        $employeeIdentity = $this->resolveReplyEmployee($idEmployee);
+        $employeeId = $employeeIdentity['id'];
         $now = date('Y-m-d H:i:s');
 
         // file_name/ip_address/user_agent : toujours une valeur concrète (jamais null) — cf.
@@ -196,10 +211,99 @@ class SavService
                 'private' => 0,
                 'read' => 1,
                 'date_add' => $now,
-                'employee_firstname' => null,
-                'employee_lastname' => null,
+                'employee_firstname' => $employeeIdentity['firstname'],
+                'employee_lastname' => $employeeIdentity['lastname'],
             ]),
             'email_sent' => $emailSent,
+        ];
+    }
+
+    /**
+     * Détermine QUI, côté boutique, a écrit cette réponse — et son nom d'affichage.
+     *
+     * - Jeton d'un utilisateur nommé (`$tokenEmployeeId > 0`) : c'est LUI l'auteur, on va juste
+     *   chercher son nom pour l'affichage (`employee_name`, cf. D2).
+     * - Jeton clé API globale (`$tokenEmployeeId` `null`/`0`, aucun `id_employee` porté par le
+     *   JWT) : repli sur `sav_fallback_employee_id` (réglage BO) s'il est configuré ET toujours
+     *   actif, sinon le premier employé actif par ID croissant (cf. D1).
+     *
+     * @return array{id: int, firstname: string, lastname: string}
+     */
+    private function resolveReplyEmployee(?int $tokenEmployeeId): array
+    {
+        if ($tokenEmployeeId !== null && $tokenEmployeeId > 0) {
+            return $this->fetchEmployeeIdentity($tokenEmployeeId);
+        }
+
+        $configuredFallbackId = $this->settingsService->getSavFallbackEmployeeId();
+
+        return $this->fetchFallbackEmployeeIdentity($configuredFallbackId);
+    }
+
+    /**
+     * @return array{id: int, firstname: string, lastname: string}
+     */
+    private function fetchEmployeeIdentity(int $idEmployee): array
+    {
+        $query = new DbQuery();
+        $query->select('id_employee, firstname, lastname');
+        $query->from('employee');
+        $query->where('id_employee = ' . $idEmployee);
+
+        $rows = Db::getInstance()->executeS($query);
+        $rows = is_array($rows) ? $rows : [];
+
+        if ($rows === []) {
+            // Employé du jeton introuvable (supprimé entre-temps) : on garde son ID (comportement
+            // historique, l'auteur reste "employee") mais sans nom à afficher.
+            return ['id' => $idEmployee, 'firstname' => '', 'lastname' => ''];
+        }
+
+        return $this->rowToIdentity($rows[0]);
+    }
+
+    /**
+     * @return array{id: int, firstname: string, lastname: string}
+     */
+    private function fetchFallbackEmployeeIdentity(int $configuredFallbackId): array
+    {
+        $query = new DbQuery();
+        $query->select('id_employee, firstname, lastname');
+        $query->from('employee');
+        $query->where('active = 1');
+        if ($configuredFallbackId > 0) {
+            // Priorise l'employé configuré en BO s'il est toujours actif ; sinon, premier employé
+            // actif par ID croissant — jamais une exception, jamais id_employee = 0 tant qu'il
+            // existe au moins un employé actif.
+            $query->orderBy('(id_employee = ' . $configuredFallbackId . ') DESC, id_employee ASC');
+        } else {
+            $query->orderBy('id_employee ASC');
+        }
+        $query->limit(1);
+
+        $rows = Db::getInstance()->executeS($query);
+        $rows = is_array($rows) ? $rows : [];
+
+        if ($rows === []) {
+            // Edge case extrême : aucun employé actif en base. Aucune attribution valide n'est
+            // matérialisable — dégradation vers id_employee = 0, uniquement dans ce cas limite
+            // (comportement identique à avant correctif, mais plus jamais atteint en usage normal).
+            return ['id' => 0, 'firstname' => '', 'lastname' => ''];
+        }
+
+        return $this->rowToIdentity($rows[0]);
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     * @return array{id: int, firstname: string, lastname: string}
+     */
+    private function rowToIdentity(array $row): array
+    {
+        return [
+            'id' => isset($row['id_employee']) ? (int) $row['id_employee'] : 0,
+            'firstname' => isset($row['firstname']) ? trim((string) $row['firstname']) : '',
+            'lastname' => isset($row['lastname']) ? trim((string) $row['lastname']) : '',
         ];
     }
 

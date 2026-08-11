@@ -39,7 +39,7 @@ class RebuildConnector extends Module
     {
         $this->name = 'rebuildconnector';
         $this->tab = 'administration';
-        $this->version = '1.18.0';
+        $this->version = '1.18.1';
         $this->author = 'Rebuild IT';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -401,6 +401,18 @@ class RebuildConnector extends Module
                     $errors[] = $this->t('admin.error.invalid_label_shipped_state_id');
                 } else {
                     $settingsService->setLabelShippedStateId((int) $labelStateIdRaw);
+                }
+            }
+
+            if (Tools::getValue('REBUILDCONNECTOR_SAV_FALLBACK_EMPLOYEE_ID') !== false) {
+                // 0 est une valeur légitime ("non configuré" → SavService retombe automatiquement
+                // sur le premier employé actif) : seule une valeur non numérique ou négative est
+                // une erreur de saisie.
+                $savFallbackRaw = Tools::getValue('REBUILDCONNECTOR_SAV_FALLBACK_EMPLOYEE_ID', 0);
+                if (!is_numeric($savFallbackRaw) || (int) $savFallbackRaw < 0) {
+                    $errors[] = $this->t('admin.error.invalid_sav_fallback_employee_id', [], 'ID employé de repli SAV invalide.');
+                } else {
+                    $settingsService->setSavFallbackEmployeeId((int) $savFallbackRaw);
                 }
             }
 

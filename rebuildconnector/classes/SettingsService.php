@@ -469,6 +469,33 @@ class SettingsService
     }
 
     /**
+     * Employé de repli utilisé pour attribuer une réponse SAV envoyée via un jeton qui ne porte
+     * aucun `id_employee` (clé API globale, `AuthService` mode 1). `0` = non configuré : dans ce
+     * cas, `SavService` retombe automatiquement sur le premier employé actif — voir
+     * `SavService::resolveReplyEmployee()`. Contrairement à `label_shipped_state_id`, il n'y a pas
+     * de défaut « en dur » ici : le bon employé dépend entièrement de l'organisation de chaque
+     * boutique, `0` déclenche donc une résolution dynamique plutôt qu'un ID arbitraire.
+     */
+    public function getSavFallbackEmployeeId(): int
+    {
+        $settings = $this->all();
+        if (!isset($settings['sav_fallback_employee_id']) || !is_numeric($settings['sav_fallback_employee_id'])) {
+            return 0;
+        }
+
+        $id = (int) $settings['sav_fallback_employee_id'];
+
+        return $id > 0 ? $id : 0;
+    }
+
+    public function setSavFallbackEmployeeId(int $idEmployee): void
+    {
+        $settings = $this->all();
+        $settings['sav_fallback_employee_id'] = $idEmployee > 0 ? $idEmployee : 0;
+        $this->save($settings);
+    }
+
+    /**
      * Toggle BO des alertes push « stock faible » (événement `stock.low`). Désactivé par défaut :
      * le hook `actionUpdateQuantity` ne notifie que si ce réglage est actif ET le hub push configuré.
      */
@@ -553,6 +580,7 @@ class SettingsService
             'order_status_alerts_enabled' => $this->isOrderStatusAlertsEnabled(),
             'stock_low_alerts_enabled' => $this->isStockLowAlertsEnabled(),
             'label_shipped_state_id' => $this->getLabelShippedStateId(),
+            'sav_fallback_employee_id' => $this->getSavFallbackEmployeeId(),
         ];
     }
 

@@ -1086,6 +1086,17 @@ les fils non-clos en premier.
 > une installation PS8 de référence locale au moment de l'écriture**. À confirmer contre le
 > back-office réel de pensebonheur.fr avant déploiement — cf. rapport de tâche.
 
+> **Migration depuis < v1.18.0 : utilisateurs nommés existants.** La v1.18.0 a ajouté les scopes
+> `sav.read`/`sav.write`/`reviews.moderate` aux **scopes globaux** (clé API Admin), mais **pas**
+> aux utilisateurs nommés créés avant cette version (table `rebuildconnector_user`) — chacun garde
+> exactement les scopes qui lui avaient été attribués, c'est le principe de moindre privilège. Ce
+> n'est **pas automatisable** : `sav.write` permet d'envoyer de vrais e-mails à de vraies clientes,
+> l'accorder en silence à une montée de version serait une élévation de privilège. Depuis v1.18.1,
+> le back-office affiche un avertissement nommant les utilisateurs actifs concernés tant que
+> l'admin n'a pas mis à jour leurs scopes manuellement (bouton « Scopes » de la page de
+> configuration du module). Une app appairée via un tel utilisateur reçoit `403` sur les écrans
+> SAV/Avis jusqu'à cette mise à jour.
+
 ### GET `.../api/sav`
 
 Scope requis : `sav.read`
@@ -1210,16 +1221,19 @@ Corps JSON : `{"message": "Votre colis est en cours de préparation."}` (requis,
 caractères max).
 
 Effets, dans cet ordre :
-1. Insertion d'un `ps_customer_message` (`id_employee` = celui du jeton si utilisateur nommé, sinon
-   `0` ; `private = 0` ; `read = 1`).
-
-> ⚠️ **Limitation connue — jeton issu de la clé API globale.** Ce mode d'authentification ne porte
-> aucun `id_employee` (`AuthService`, mode 1) : le message est donc écrit avec `id_employee = 0`,
-> et il ressort ensuite avec **`author: "customer"`** dans `GET .../sav/{id}` (comme dans le
-> back-office natif), alors qu'il s'agit d'une réponse du marchand. Avec un **utilisateur nommé**
-> (mode 2), l'`id_employee` réel est écrit et `author` vaut bien `"employee"`. À corriger côté
-> connecteur (repli sur un employé configurable) — d'ici là, appairer l'app avec un utilisateur
-> nommé si le fil doit rester lisible.
+1. Insertion d'un `ps_customer_message` (`private = 0` ; `read = 1`), attribué à un employé
+   déterminé par `SavService::resolveReplyEmployee()` :
+   - **Utilisateur nommé** (jeton porteur d'un `id_employee`) : c'est lui l'auteur — `id_employee`
+     = celui du jeton, `author: "employee"`.
+   - **Clé API globale** (`AuthService` mode 1, aucun `id_employee` porté par le JWT) : **jamais**
+     `id_employee = 0` — un message écrit par la boutique ne doit jamais ressortir comme un message
+     de la cliente, y compris dans le back-office natif qui lit la même table. Repli sur l'employé
+     configuré en BO (réglage « Employé de repli SAV », `sav_fallback_employee_id`) s'il est
+     toujours actif, sinon sur le **premier employé actif** par ID croissant. Cas limite extrême
+     (aucun employé actif en base) : dégradation vers `id_employee = 0`, seul cas où `author` peut
+     encore valoir `"customer"` pour un message envoyé par cette route.
+   Dans tous les cas non dégradés, `employee_name` (prénom + nom) est renseigné dans la réponse —
+   dès ce premier appel, pas seulement au rafraîchissement suivant.
 2. Le fil passe au statut `pending1` (en attente d'une réponse de la cliente).
 3. Envoi d'un e-mail via le mécanisme natif PrestaShop `Mail::Send()`, avec un gabarit **propre au
    connecteur** (`rebuildconnector/mails/fr/sav_reply.html`/`.txt`) — voir note de conception
@@ -1244,7 +1258,7 @@ Effets, dans cet ordre :
   "message": {
     "id": 514,
     "author": "employee",
-    "employee_name": null,
+    "employee_name": "Camille Petit",
     "message": "Votre colis est en cours de préparation.",
     "private": false,
     "read": true,
