@@ -1117,7 +1117,11 @@ Scope requis : `sav.read`
 ```
 
 `customer.id`/`order` sont `null` quand le fil n'est rattaché à aucun client PrestaShop / aucune
-commande (ex. contact anonyme via formulaire). `unread` = au moins un message de la cliente
+commande (ex. contact anonyme via formulaire). **`customer` lui-même est toujours présent** (jamais
+`null`), et **`customer.email` est toujours une chaîne** — **vide** (`""`, jamais `null`) quand le
+fil n'a pas d'adresse enregistrée. Un client doit donc tester « chaîne non vide », pas « non
+`null` » : c'est cette adresse qui décide de `email_sent` sur `POST .../sav/{id}/reply`.
+`unread` = au moins un message de la cliente
 (`id_employee = 0`) marqué non lu (`read = 0`) — convention du connecteur, documentée faute d'accès
 à une référence BO locale pour confirmer la définition exacte utilisée par l'admin natif.
 
@@ -1208,6 +1212,14 @@ caractères max).
 Effets, dans cet ordre :
 1. Insertion d'un `ps_customer_message` (`id_employee` = celui du jeton si utilisateur nommé, sinon
    `0` ; `private = 0` ; `read = 1`).
+
+> ⚠️ **Limitation connue — jeton issu de la clé API globale.** Ce mode d'authentification ne porte
+> aucun `id_employee` (`AuthService`, mode 1) : le message est donc écrit avec `id_employee = 0`,
+> et il ressort ensuite avec **`author: "customer"`** dans `GET .../sav/{id}` (comme dans le
+> back-office natif), alors qu'il s'agit d'une réponse du marchand. Avec un **utilisateur nommé**
+> (mode 2), l'`id_employee` réel est écrit et `author` vaut bien `"employee"`. À corriger côté
+> connecteur (repli sur un employé configurable) — d'ici là, appairer l'app avec un utilisateur
+> nommé si le fil doit rester lisible.
 2. Le fil passe au statut `pending1` (en attente d'une réponse de la cliente).
 3. Envoi d'un e-mail via le mécanisme natif PrestaShop `Mail::Send()`, avec un gabarit **propre au
    connecteur** (`rebuildconnector/mails/fr/sav_reply.html`/`.txt`) — voir note de conception
@@ -1291,6 +1303,14 @@ Avis en attente (`validated = 0, deleted = 0`), plus récents d'abord.
   "pagination": { "limit": 20, "offset": 0, "count": 1, "has_next": false, "next_offset": null }
 }
 ```
+
+> **Schéma de liste ≠ schéma d'action.** Les objets renvoyés ici ne portent **pas** `validated`,
+> `deleted`, `reply` ni `rejection_reason` (absents de la charge utile, pas `null`) : la file ne
+> contenant que des avis `validated = 0, deleted = 0`, ces quatre champs n'apporteraient rien.
+> Les réponses de `publish`/`trash`/`reply` ci-dessous, elles, les portent toujours. Un client
+> typé doit donc traiter ces quatre champs comme **optionnels avec valeur par défaut**
+> (`false`/`false`/`null`/`null`), jamais comme requis. `product` et `author` sont en revanche
+> toujours présents dans les deux formes.
 
 **Erreurs** : `409 reviews_unavailable` si `rbreviews` n'est pas installé/actif.
 
