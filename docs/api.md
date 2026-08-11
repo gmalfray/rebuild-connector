@@ -155,17 +155,24 @@ valide (n'importe lequel) reste néanmoins requis : cette information n'est pas 
 ```json
 {
   "reviews": true,
-  "sav": true
+  "sav": true,
+  "shipping_labels": false
 }
 ```
 
-| Champ     | Type | Description                                                                 |
-|-----------|------|-------------------------------------------------------------------------------|
-| `sav`     | bool | **Toujours `true`** — fils clients natifs PrestaShop, aucun module requis.   |
-| `reviews` | bool | `Module::isInstalled('rbreviews') && Module::isEnabled('rbreviews')`, évalué **à chaud à chaque appel** (aucun cache au-delà de la requête HTTP courante). |
+| Champ              | Type | Description                                                                 |
+|--------------------|------|-------------------------------------------------------------------------------|
+| `sav`              | bool | **Toujours `true`** — fils clients natifs PrestaShop, aucun module requis.   |
+| `reviews`          | bool | `Module::isInstalled('rbreviews') && Module::isEnabled('rbreviews')`, évalué **à chaud à chaque appel** (aucun cache au-delà de la requête HTTP courante). |
+| `shipping_labels`  | bool | Module Colissimo installé **et** actif, **et** des credentials exploitables configurés (`COLISSIMO_CONNEXION_KEY` + `COLISSIMO_ACCOUNT_KEY`, **ou** `COLISSIMO_ACCOUNT_LOGIN` + `COLISSIMO_ACCOUNT_PASSWORD`) — `ColissimoLabelService::isConfigured()`, évalué **à chaud à chaque appel**. |
 
-> D'autres capacités pourront s'ajouter ici plus tard (ex. `shipping_labels`) sans changer le
-> contrat existant — traiter cet objet comme extensible côté app (ignorer les clés inconnues).
+`shipping_labels` reflète **exactement** la condition qui fait répondre `POST /orders/{id}/shipping-label`
+par `501 generation_not_configured` (même code, mêmes deux vérifications, cf. § Commandes) — jamais
+une approximation : ce champ ne vaut `true` que si cet endpoint répondrait effectivement. Ne
+contient aucun secret ; les credentials eux-mêmes ne sont jamais lus en clair ni exposés.
+
+> D'autres capacités pourront s'ajouter ici plus tard sans changer le contrat existant — traiter cet
+> objet comme extensible côté app (ignorer les clés inconnues).
 
 **Erreurs**
 

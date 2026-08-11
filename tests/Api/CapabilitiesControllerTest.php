@@ -15,6 +15,13 @@ final class CapabilitiesControllerTest extends TestCase
         $_GET = [];
         Module::$testInstalledModules = [];
         Module::$testEnabledModules = [];
+        Configuration::$testValues = [];
+    }
+
+    protected function tearDown(): void
+    {
+        Configuration::$testValues = [];
+        parent::tearDown();
     }
 
     public function testMethodNotAllowedForPost(): void
@@ -34,9 +41,11 @@ final class CapabilitiesControllerTest extends TestCase
         $controller->initContent();
 
         $this->assertSame(200, $controller->response['status']);
-        // Enveloppe réelle : {"reviews": bool, "sav": bool} — pas {"capabilities": {...}}.
+        // Enveloppe réelle : {"reviews": bool, "sav": bool, "shipping_labels": bool} — pas
+        // {"capabilities": {...}}.
         $this->assertArrayHasKey('reviews', $controller->response['payload']);
         $this->assertArrayHasKey('sav', $controller->response['payload']);
+        $this->assertArrayHasKey('shipping_labels', $controller->response['payload']);
         $this->assertTrue($controller->response['payload']['sav']);
     }
 
@@ -49,6 +58,29 @@ final class CapabilitiesControllerTest extends TestCase
         $controller->initContent();
 
         $this->assertTrue($controller->response['payload']['reviews']);
+    }
+
+    public function testShippingLabelsFalseByDefault(): void
+    {
+        $controller = new TestCapabilitiesController();
+        $controller->initContent();
+
+        $this->assertFalse($controller->response['payload']['shipping_labels']);
+    }
+
+    public function testShippingLabelsReflectsColissimoConfiguration(): void
+    {
+        Module::$testInstalledModules = ['colissimo' => true];
+        Module::$testEnabledModules = ['colissimo' => true];
+        Configuration::$testValues = [
+            'COLISSIMO_CONNEXION_KEY' => '1',
+            'COLISSIMO_ACCOUNT_KEY' => 'a-valid-key',
+        ];
+
+        $controller = new TestCapabilitiesController();
+        $controller->initContent();
+
+        $this->assertTrue($controller->response['payload']['shipping_labels']);
     }
 }
 

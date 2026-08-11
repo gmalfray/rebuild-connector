@@ -126,6 +126,24 @@ class ColissimoLabelService
     // =========================================================================
 
     /**
+     * La boutique est-elle équipée pour générer une étiquette Colissimo ?
+     *
+     * Reflète EXACTEMENT la condition qui fait répondre `501 generation_not_configured` à
+     * `POST /orders/{id}/shipping-label` (cf. `generateColissimoLabel()` ci-dessus, étapes 1 et 2) :
+     * module Colissimo installé ET actif, ET des credentials exploitables (l'un des deux modes
+     * supportés par `readCredentials()`). Sert de source de vérité à `CapabilitiesService` — ne lit
+     * jamais les credentials en clair, ne les logue jamais, ne déclenche aucun appel réseau.
+     */
+    public function isConfigured(): bool
+    {
+        if (!Module::isInstalled('colissimo') || !Module::isEnabled('colissimo')) {
+            return false;
+        }
+
+        return $this->readCredentials() !== [];
+    }
+
+    /**
      * Lit les credentials Colissimo depuis ps_configuration.
      * Supporte les deux modes : clé de connexion (COLISSIMO_CONNEXION_KEY) et login/password.
      *
