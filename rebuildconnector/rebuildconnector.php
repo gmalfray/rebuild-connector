@@ -39,7 +39,7 @@ class RebuildConnector extends Module
     {
         $this->name = 'rebuildconnector';
         $this->tab = 'administration';
-        $this->version = '1.18.0';
+        $this->version = '1.18.1';
         $this->author = 'Rebuild IT';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -404,6 +404,18 @@ class RebuildConnector extends Module
                 }
             }
 
+            if (Tools::getValue('REBUILDCONNECTOR_SAV_FALLBACK_EMPLOYEE_ID') !== false) {
+                // 0 est une valeur légitime ("non configuré" → SavService retombe automatiquement
+                // sur le premier employé actif) : seule une valeur non numérique ou négative est
+                // une erreur de saisie.
+                $savFallbackRaw = Tools::getValue('REBUILDCONNECTOR_SAV_FALLBACK_EMPLOYEE_ID', 0);
+                if (!is_numeric($savFallbackRaw) || (int) $savFallbackRaw < 0) {
+                    $errors[] = $this->t('admin.error.invalid_sav_fallback_employee_id', [], 'ID employé de repli SAV invalide.');
+                } else {
+                    $settingsService->setSavFallbackEmployeeId((int) $savFallbackRaw);
+                }
+            }
+
             if ($errors === []) {
                 $messages[] = $this->t('admin.message.settings_updated');
             }
@@ -453,6 +465,36 @@ class RebuildConnector extends Module
             $user['scopes_array'] = is_array($decoded) ? $decoded : [];
         }
         unset($user);
+
+        // Avertissement BO : utilisateurs nommés actifs créés AVANT la 1.18.0, qui n'ont donc pas
+        // reçu automatiquement les scopes sav.read/sav.write/reviews.moderate (ajoutés en 1.18.0
+        // uniquement aux scopes GLOBAUX, cf. Upgrade-1.18.0.php — jamais migrés silencieusement
+        // vers les utilisateurs nommés existants : sav.write envoie de vrais e-mails à de vraies
+        // clientes, une élévation de privilège automatique est exclue). Calculé à CHAQUE affichage
+        // (jamais stocké), donc toujours à jour — y compris juste après un
+        // rebuildconnector_update_scopes traité plus haut dans cette même requête, puisque $users
+        // vient d'être rechargé.
+        $missingSavReviewScopesUsers = [];
+        foreach ($users as $userForScopeCheck) {
+            if (empty($userForScopeCheck['active'])) {
+                continue;
+            }
+            $userScopes = $userForScopeCheck['scopes_array'];
+            $hasAllNewScopes = in_array('sav.read', $userScopes, true)
+                && in_array('sav.write', $userScopes, true)
+                && in_array('reviews.moderate', $userScopes, true);
+            if (!$hasAllNewScopes) {
+                $missingSavReviewScopesUsers[] = (string) $userForScopeCheck['label'];
+            }
+        }
+        if ($missingSavReviewScopesUsers !== []) {
+            $output .= $this->displayWarning(sprintf(
+                '%d utilisateur(s) nommé(s) n\'ont pas les nouveaux droits SAV/Avis (sav.read, sav.write, reviews.moderate) : %s. '
+                . 'Modifiez leurs scopes ci-dessous (bouton « Scopes ») si vous voulez leur donner accès aux nouveaux écrans SAV/Avis de l\'app — ce n\'est PAS automatique.',
+                count($missingSavReviewScopesUsers),
+                htmlspecialchars(implode(', ', $missingSavReviewScopesUsers), ENT_QUOTES)
+            ));
+        }
 
         $updateInfo = $this->getUpdateCheckService()->getAvailableUpdate();
 

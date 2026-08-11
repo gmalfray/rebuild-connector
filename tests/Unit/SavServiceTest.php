@@ -23,6 +23,13 @@ final class SavServiceTest extends TestCase
         Db::$updatedRows = [];
         Mail::$sentMails = [];
         Mail::$testSendResult = true;
+        Configuration::$testValues = [];
+    }
+
+    protected function tearDown(): void
+    {
+        Configuration::$testValues = [];
+        parent::tearDown();
     }
 
     public function testGetThreadsPaginatesWithHasNext(): void
@@ -81,6 +88,77 @@ final class SavServiceTest extends TestCase
         $this->assertCount(1, Mail::$sentMails);
         $this->assertSame('sav_reply', Mail::$sentMails[0]['template']);
         $this->assertSame('cliente@example.com', Mail::$sentMails[0]['to']);
+    }
+
+    // =========================================================================
+    // resolveReplyEmployee() — D1 (jamais id_employee = 0 pour une réponse boutique) et D2
+    // (employee_name toujours renseigné dans la réponse de POST /sav/{id}/reply).
+    // =========================================================================
+
+    public function testReplyWithGlobalApiKeyTokenFallsBackToFirstActiveEmployee(): void
+    {
+        Db::$testGetRowResult = $this->threadRow(1, 'open');
+        // Aucun réglage sav_fallback_employee_id configuré : repli sur le premier employé actif.
+        Db::$testExecuteSResult = [
+            ['id_employee' => 4, 'firstname' => 'Sophie', 'lastname' => 'Martin'],
+        ];
+
+        $service = new SavService();
+        // $idEmployee = null : simule un jeton clé API globale (AuthService mode 1).
+        $result = $service->reply(1, 'Votre colis part demain.', null, '10.0.0.1', 'PrestaFlow/1.0');
+
+        $this->assertNotNull($result);
+        $this->assertSame(4, Db::$insertedRows[0]['data']['id_employee'], 'Jamais id_employee = 0 pour une réponse boutique.');
+        $this->assertSame('employee', $result['message']['author']);
+        $this->assertSame('Sophie Martin', $result['message']['employee_name']);
+    }
+
+    public function testReplyWithGlobalApiKeyTokenPrefersConfiguredFallbackEmployee(): void
+    {
+        Db::$testGetRowResult = $this->threadRow(1, 'open');
+        Db::$testExecuteSResult = [
+            ['id_employee' => 9, 'firstname' => 'Camille', 'lastname' => 'Petit'],
+        ];
+
+        $settingsService = new SettingsService();
+        $settingsService->setSavFallbackEmployeeId(9);
+
+        $service = new SavService($settingsService);
+        $result = $service->reply(1, 'Réponse.', null, '10.0.0.1', 'PrestaFlow/1.0');
+
+        $this->assertNotNull($result);
+        $this->assertSame(9, Db::$insertedRows[0]['data']['id_employee']);
+        $this->assertSame('Camille Petit', $result['message']['employee_name']);
+    }
+
+    public function testReplyWithGlobalApiKeyTokenDegradesGracefullyWhenNoActiveEmployee(): void
+    {
+        Db::$testGetRowResult = $this->threadRow(1, 'open');
+        Db::$testExecuteSResult = []; // aucun employé actif en base : cas limite extrême.
+
+        $service = new SavService();
+        $result = $service->reply(1, 'Réponse.', null, '10.0.0.1', 'PrestaFlow/1.0');
+
+        $this->assertNotNull($result, 'Jamais d\'exception, même sans employé actif disponible.');
+        $this->assertSame(0, Db::$insertedRows[0]['data']['id_employee']);
+        $this->assertSame('customer', $result['message']['author']);
+        $this->assertNull($result['message']['employee_name']);
+    }
+
+    public function testReplyWithNamedUserTokenReportsEmployeeName(): void
+    {
+        Db::$testGetRowResult = $this->threadRow(1, 'open');
+        Db::$testExecuteSResult = [
+            ['id_employee' => 7, 'firstname' => 'Julie', 'lastname' => 'Bernard'],
+        ];
+
+        $service = new SavService();
+        $result = $service->reply(1, 'Votre colis est en cours de préparation.', 7, '10.0.0.1', 'PrestaFlow/1.0');
+
+        $this->assertNotNull($result);
+        $this->assertSame(7, Db::$insertedRows[0]['data']['id_employee']);
+        $this->assertSame('employee', $result['message']['author']);
+        $this->assertSame('Julie Bernard', $result['message']['employee_name']);
     }
 
     public function testReplySkipsEmailWhenThreadHasNoExploitableAddress(): void

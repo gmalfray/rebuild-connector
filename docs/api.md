@@ -1086,6 +1086,17 @@ les fils non-clos en premier.
 > une installation PS8 de référence locale au moment de l'écriture**. À confirmer contre le
 > back-office réel de pensebonheur.fr avant déploiement — cf. rapport de tâche.
 
+> **Migration depuis < v1.18.0 : utilisateurs nommés existants.** La v1.18.0 a ajouté les scopes
+> `sav.read`/`sav.write`/`reviews.moderate` aux **scopes globaux** (clé API Admin), mais **pas**
+> aux utilisateurs nommés créés avant cette version (table `rebuildconnector_user`) — chacun garde
+> exactement les scopes qui lui avaient été attribués, c'est le principe de moindre privilège. Ce
+> n'est **pas automatisable** : `sav.write` permet d'envoyer de vrais e-mails à de vraies clientes,
+> l'accorder en silence à une montée de version serait une élévation de privilège. Depuis v1.18.1,
+> le back-office affiche un avertissement nommant les utilisateurs actifs concernés tant que
+> l'admin n'a pas mis à jour leurs scopes manuellement (bouton « Scopes » de la page de
+> configuration du module). Une app appairée via un tel utilisateur reçoit `403` sur les écrans
+> SAV/Avis jusqu'à cette mise à jour.
+
 ### GET `.../api/sav`
 
 Scope requis : `sav.read`
@@ -1117,7 +1128,11 @@ Scope requis : `sav.read`
 ```
 
 `customer.id`/`order` sont `null` quand le fil n'est rattaché à aucun client PrestaShop / aucune
-commande (ex. contact anonyme via formulaire). `unread` = au moins un message de la cliente
+commande (ex. contact anonyme via formulaire). **`customer` lui-même est toujours présent** (jamais
+`null`), et **`customer.email` est toujours une chaîne** — **vide** (`""`, jamais `null`) quand le
+fil n'a pas d'adresse enregistrée. Un client doit donc tester « chaîne non vide », pas « non
+`null` » : c'est cette adresse qui décide de `email_sent` sur `POST .../sav/{id}/reply`.
+`unread` = au moins un message de la cliente
 (`id_employee = 0`) marqué non lu (`read = 0`) — convention du connecteur, documentée faute d'accès
 à une référence BO locale pour confirmer la définition exacte utilisée par l'admin natif.
 
@@ -1206,8 +1221,19 @@ Corps JSON : `{"message": "Votre colis est en cours de préparation."}` (requis,
 caractères max).
 
 Effets, dans cet ordre :
-1. Insertion d'un `ps_customer_message` (`id_employee` = celui du jeton si utilisateur nommé, sinon
-   `0` ; `private = 0` ; `read = 1`).
+1. Insertion d'un `ps_customer_message` (`private = 0` ; `read = 1`), attribué à un employé
+   déterminé par `SavService::resolveReplyEmployee()` :
+   - **Utilisateur nommé** (jeton porteur d'un `id_employee`) : c'est lui l'auteur — `id_employee`
+     = celui du jeton, `author: "employee"`.
+   - **Clé API globale** (`AuthService` mode 1, aucun `id_employee` porté par le JWT) : **jamais**
+     `id_employee = 0` — un message écrit par la boutique ne doit jamais ressortir comme un message
+     de la cliente, y compris dans le back-office natif qui lit la même table. Repli sur l'employé
+     configuré en BO (réglage « Employé de repli SAV », `sav_fallback_employee_id`) s'il est
+     toujours actif, sinon sur le **premier employé actif** par ID croissant. Cas limite extrême
+     (aucun employé actif en base) : dégradation vers `id_employee = 0`, seul cas où `author` peut
+     encore valoir `"customer"` pour un message envoyé par cette route.
+   Dans tous les cas non dégradés, `employee_name` (prénom + nom) est renseigné dans la réponse —
+   dès ce premier appel, pas seulement au rafraîchissement suivant.
 2. Le fil passe au statut `pending1` (en attente d'une réponse de la cliente).
 3. Envoi d'un e-mail via le mécanisme natif PrestaShop `Mail::Send()`, avec un gabarit **propre au
    connecteur** (`rebuildconnector/mails/fr/sav_reply.html`/`.txt`) — voir note de conception
@@ -1232,7 +1258,7 @@ Effets, dans cet ordre :
   "message": {
     "id": 514,
     "author": "employee",
-    "employee_name": null,
+    "employee_name": "Camille Petit",
     "message": "Votre colis est en cours de préparation.",
     "private": false,
     "read": true,
@@ -1291,6 +1317,14 @@ Avis en attente (`validated = 0, deleted = 0`), plus récents d'abord.
   "pagination": { "limit": 20, "offset": 0, "count": 1, "has_next": false, "next_offset": null }
 }
 ```
+
+> **Schéma de liste ≠ schéma d'action.** Les objets renvoyés ici ne portent **pas** `validated`,
+> `deleted`, `reply` ni `rejection_reason` (absents de la charge utile, pas `null`) : la file ne
+> contenant que des avis `validated = 0, deleted = 0`, ces quatre champs n'apporteraient rien.
+> Les réponses de `publish`/`trash`/`reply` ci-dessous, elles, les portent toujours. Un client
+> typé doit donc traiter ces quatre champs comme **optionnels avec valeur par défaut**
+> (`false`/`false`/`null`/`null`), jamais comme requis. `product` et `author` sont en revanche
+> toujours présents dans les deux formes.
 
 **Erreurs** : `409 reviews_unavailable` si `rbreviews` n'est pas installé/actif.
 

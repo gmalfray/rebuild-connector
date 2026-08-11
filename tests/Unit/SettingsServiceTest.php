@@ -90,6 +90,34 @@ final class SettingsServiceTest extends TestCase
         $this->assertSame(20, $service->getLabelShippedStateId());
     }
 
+    // =========================================================================
+    // getSavFallbackEmployeeId — 0 = non configuré (SavService retombe alors sur le premier
+    // employé actif), jamais de valeur négative.
+    // =========================================================================
+
+    public function testGetSavFallbackEmployeeIdDefaultsToZeroWhenUnset(): void
+    {
+        $service = new SettingsService();
+
+        $this->assertSame(0, $service->getSavFallbackEmployeeId());
+    }
+
+    public function testSetSavFallbackEmployeeIdRoundTrips(): void
+    {
+        $service = new SettingsService();
+        $service->setSavFallbackEmployeeId(9);
+
+        $this->assertSame(9, $service->getSavFallbackEmployeeId());
+    }
+
+    public function testSetSavFallbackEmployeeIdRejectsNonPositiveValueByFallingBackToZero(): void
+    {
+        $service = new SettingsService();
+        $service->setSavFallbackEmployeeId(-3);
+
+        $this->assertSame(0, $service->getSavFallbackEmployeeId());
+    }
+
     private function invokeRenderSecretPreview(string $secret): string
     {
         $method = new \ReflectionMethod(SettingsService::class, 'renderSecretPreview');
