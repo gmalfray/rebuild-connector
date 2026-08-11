@@ -39,7 +39,7 @@ class RebuildConnector extends Module
     {
         $this->name = 'rebuildconnector';
         $this->tab = 'administration';
-        $this->version = '1.17.0';
+        $this->version = '1.18.0';
         $this->author = 'Rebuild IT';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -1022,6 +1022,15 @@ class RebuildConnector extends Module
                     'module' => $module,
                 ],
             ],
+            'module-' . $module . '-api-connector-capabilities' => [
+                'controller' => 'capabilities',
+                'rule' => $baseRule . '/connector/capabilities',
+                'keywords' => [],
+                'params' => [
+                    'fc' => 'module',
+                    'module' => $module,
+                ],
+            ],
             'module-' . $module . '-api-orders' => [
                 'controller' => 'orders',
                 'rule' => $baseRule . '/orders',
@@ -1258,6 +1267,77 @@ class RebuildConnector extends Module
                     'token' => [
                         'regexp' => '[A-Za-z0-9._:-]+',
                         'param' => 'token',
+                    ],
+                ],
+                'params' => [
+                    'fc' => 'module',
+                    'module' => $module,
+                ],
+            ],
+            'module-' . $module . '-api-sav' => [
+                'controller' => 'sav',
+                'rule' => $baseRule . '/sav',
+                'keywords' => [],
+                'params' => [
+                    'fc' => 'module',
+                    'module' => $module,
+                ],
+            ],
+            'module-' . $module . '-api-sav-id' => [
+                'controller' => 'sav',
+                'rule' => $baseRule . '/sav/{id}',
+                'keywords' => [
+                    'id' => [
+                        'regexp' => '[0-9]+',
+                        'param' => 'id',
+                    ],
+                ],
+                'params' => [
+                    'fc' => 'module',
+                    'module' => $module,
+                ],
+            ],
+            'module-' . $module . '-api-sav-action' => [
+                'controller' => 'sav',
+                'rule' => $baseRule . '/sav/{id}/{action}',
+                'keywords' => [
+                    'id' => [
+                        'regexp' => '[0-9]+',
+                        'param' => 'id',
+                    ],
+                    'action' => [
+                        'regexp' => '(status|reply)',
+                        'param' => 'action',
+                    ],
+                ],
+                'params' => [
+                    'fc' => 'module',
+                    'module' => $module,
+                ],
+            ],
+            // NB : { id, action } supporte à la fois PATCH .../sav/{id}/status (changer le statut,
+            // sans e-mail) et POST .../sav/{id}/reply (ajoute un message ET envoie un e-mail réel)
+            // — même URL, verbe HTTP différent, exactement comme .../orders/{id}/{action}.
+            'module-' . $module . '-api-reviews' => [
+                'controller' => 'reviews',
+                'rule' => $baseRule . '/reviews',
+                'keywords' => [],
+                'params' => [
+                    'fc' => 'module',
+                    'module' => $module,
+                ],
+            ],
+            'module-' . $module . '-api-reviews-action' => [
+                'controller' => 'reviews',
+                'rule' => $baseRule . '/reviews/{id}/{action}',
+                'keywords' => [
+                    'id' => [
+                        'regexp' => '[0-9]+',
+                        'param' => 'id',
+                    ],
+                    'action' => [
+                        'regexp' => '(publish|trash|reply)',
+                        'param' => 'action',
                     ],
                 ],
                 'params' => [

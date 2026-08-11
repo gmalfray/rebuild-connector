@@ -30,6 +30,9 @@ class SettingsService
         'baskets.read',
         'reports.read',
         'notifications.send',
+        'sav.read',
+        'sav.write',
+        'reviews.moderate',
     ];
 
     /** @var array<string, mixed>|null */

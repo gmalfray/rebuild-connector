@@ -269,14 +269,26 @@ class Employee
 
 class Module
 {
+    /**
+     * Bascules de test : résultat retourné par isEnabled()/isInstalled() PAR NOM DE MODULE
+     * (par défaut aucune entrée → `false`, comportement historique du stub). Permet de simuler
+     * un module tiers présent/actif (ex. `rbreviews`, `colissimo`) sans environnement PrestaShop
+     * réel, module par module — pas un booléen global qui affecterait tous les modules à la fois.
+     *
+     * @var array<string, bool>
+     */
+    public static array $testEnabledModules = [];
+    /** @var array<string, bool> */
+    public static array $testInstalledModules = [];
+
     public static function isEnabled(string $moduleName): bool
     {
-        return false;
+        return self::$testEnabledModules[$moduleName] ?? false;
     }
 
     public static function isInstalled(string $moduleName): bool
     {
-        return false;
+        return self::$testInstalledModules[$moduleName] ?? false;
     }
 
     /** @var string */
@@ -352,9 +364,21 @@ class Module
     /**
      * @return static|false
      */
+    /**
+     * Bascule de test : instance renvoyée par getInstanceByName() (par défaut `false`,
+     * comportement historique du stub — aucun module tiers "installé"). Permet aux tests de
+     * simuler un module tiers réellement chargé (ex. rbreviews) sans environnement PrestaShop réel.
+     *
+     * @var Module|false
+     */
+    public static $testInstanceByName = false;
+
+    /**
+     * @return static|false
+     */
     public static function getInstanceByName(string $moduleName)
     {
-        return false;
+        return self::$testInstanceByName;
     }
 
     /**
@@ -516,6 +540,16 @@ class Validate
     }
 
     /**
+     * Stub simplifié du cœur PrestaShop : validation regex standard d'une adresse e-mail.
+     *
+     * @param mixed $email
+     */
+    public static function isEmail($email): bool
+    {
+        return is_string($email) && $email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL) !== false;
+    }
+
+    /**
      * @param mixed $url
      */
     public static function isUrl($url): bool
@@ -621,12 +655,21 @@ class Db
     }
 
     /**
+     * Bascule de test : valeur retournée par getRow() (par défaut `false`, comportement
+     * historique du stub — aucune ligne trouvée). Permet de simuler ex. le fil SAV chargé par
+     * `SavService::fetchThreadRow()` sans base réelle.
+     *
+     * @var array<string, mixed>|false
+     */
+    public static $testGetRowResult = false;
+
+    /**
      * @param mixed $query
      * @return array<string, mixed>|false
      */
     public function getRow($query, bool $useCache = true)
     {
-        return false;
+        return self::$testGetRowResult;
     }
 
     public function Insert_ID(): int
@@ -1214,6 +1257,155 @@ class PDF
     public function render(bool $display = true)
     {
         return self::$testRenderResult;
+    }
+}
+
+/**
+ * Stub cœur PrestaShop : envoi d'e-mail natif. Utilisé par `SavService::sendReplyEmail()`
+ * (réponse SAV → e-mail réel à la cliente). Bascule de test : `$sentMails` journalise chaque
+ * appel (sans jamais rien envoyer réellement) pour que PHPUnit puisse asserter qu'un e-mail A
+ * ÉTÉ composé, sans black-box réseau — exigence du mandat de tâche (« jamais toucher une vraie
+ * donnée ni déclencher un vrai envoi »).
+ */
+class Mail
+{
+    /**
+     * @var array<int, array{id_lang: int, template: string, subject: string, template_vars: array<string, mixed>, to: mixed, to_name: mixed, template_path: mixed, id_shop: mixed}>
+     */
+    public static array $sentMails = [];
+
+    /** Bascule de test : résultat renvoyé par Send() (par défaut true). */
+    public static bool $testSendResult = true;
+
+    /**
+     * @param array<string, mixed> $templateVars
+     * @param string|array<int, string>|null $to
+     * @param mixed $fileAttachment
+     * @param mixed $bcc
+     */
+    public static function Send(
+        int $idLang,
+        string $template,
+        string $subject,
+        array $templateVars,
+        $to,
+        ?string $toName = null,
+        ?string $from = null,
+        ?string $fromName = null,
+        $fileAttachment = null,
+        ?bool $modeSmtp = null,
+        ?string $templatePath = null,
+        bool $die = false,
+        ?int $idShop = null,
+        $bcc = null,
+        ?string $replyTo = null
+    ): bool {
+        self::$sentMails[] = [
+            'id_lang' => $idLang,
+            'template' => $template,
+            'subject' => $subject,
+            'template_vars' => $templateVars,
+            'to' => $to,
+            'to_name' => $toName,
+            'template_path' => $templatePath,
+            'id_shop' => $idShop,
+        ];
+
+        return self::$testSendResult;
+    }
+}
+
+// =============================================================================
+// Stub optionnel : module tiers rbreviews (`RbReview`, cf. `classes/Reviews/RbReviewsBridge.php`).
+// Chargé dynamiquement UNIQUEMENT si le module est installé/actif — jamais requis par un fichier
+// toujours chargé du connecteur. Ce stub sert la satisfaction de PHPStan ET les tests PHPUnit
+// (qui n'installent jamais un vrai rbreviews) ; il n'est JAMAIS chargé en production : si le
+// vrai rbreviews est présent, c'est SA classe RbReview (autochargée par PrestaShop) qui est
+// utilisée, pas celle-ci (phpstan-bootstrap.php n'est requis que par tests/bootstrap.php et par
+// PHPStan, jamais par le code de production).
+// =============================================================================
+
+class RbReview
+{
+    /** @var int */
+    public $id = 0;
+    /** @var int */
+    public $id_product = 0;
+    /** @var int */
+    public $id_shop = 0;
+    /** @var int */
+    public $id_lang = 0;
+    /** @var int */
+    public $id_customer = 0;
+    /** @var string */
+    public $email = '';
+    /** @var string */
+    public $display_name = '';
+    /** @var string */
+    public $title = '';
+    /** @var string */
+    public $content = '';
+    /** @var int */
+    public $grade = 0;
+    /** @var bool */
+    public $verified_buyer = false;
+    /** @var bool */
+    public $validated = false;
+    /** @var bool */
+    public $deleted = false;
+    /** @var string|null */
+    public $reply;
+    /** @var string|null */
+    public $rejection_reason;
+    /** @var bool */
+    public $rejection_notified = false;
+    /** @var string */
+    public $date_add = '';
+    /** @var string */
+    public $date_upd = '';
+
+    /**
+     * Bascule de test : journal des appels reçus par update() (id de l'avis, propriétés au
+     * moment de l'appel), pour permettre aux tests d'asserter qu'un avis a bien été modifié sans
+     * base réelle.
+     *
+     * @var array<int, array{id: int, validated: bool, deleted: bool, reply: string|null, rejection_reason: string|null}>
+     */
+    public static array $updateCalls = [];
+
+    /**
+     * Bascule de test : journal des appels reçus par notifyRejection() (id de l'avis).
+     *
+     * @var array<int, int>
+     */
+    public static array $notifyRejectionCalls = [];
+
+    /** Bascule de test : résultat renvoyé par notifyRejection() (par défaut true). */
+    public static bool $testNotifyRejectionResult = true;
+
+    public function __construct(int $id = 0)
+    {
+        $this->id = $id;
+    }
+
+    public function update(): bool
+    {
+        self::$updateCalls[] = [
+            'id' => $this->id,
+            'validated' => (bool) $this->validated,
+            'deleted' => (bool) $this->deleted,
+            'reply' => $this->reply,
+            'rejection_reason' => $this->rejection_reason,
+        ];
+
+        return true;
+    }
+
+    public function notifyRejection(Module $module): bool
+    {
+        self::$notifyRejectionCalls[] = $this->id;
+
+        return self::$testNotifyRejectionResult;
     }
 }
 
