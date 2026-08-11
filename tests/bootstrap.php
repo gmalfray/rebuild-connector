@@ -46,6 +46,14 @@ spl_autoload_register(static function (string $class): void {
         'HubKeyVerifier' => __DIR__ . '/../rebuildconnector/classes/HubKeyVerifier.php',
         'AuthenticationException' => __DIR__ . '/../rebuildconnector/classes/Exceptions/AuthenticationException.php',
         'AuthorizationException' => __DIR__ . '/../rebuildconnector/classes/Exceptions/AuthorizationException.php',
+        'CapabilitiesService' => __DIR__ . '/../rebuildconnector/classes/CapabilitiesService.php',
+        'SavService' => __DIR__ . '/../rebuildconnector/classes/SavService.php',
+        'ReviewsAvailability' => __DIR__ . '/../rebuildconnector/classes/Reviews/ReviewsAvailability.php',
+        'ReviewsBridgeInterface' => __DIR__ . '/../rebuildconnector/classes/Reviews/ReviewsBridgeInterface.php',
+        'ReviewsUnavailableException' => __DIR__ . '/../rebuildconnector/classes/Reviews/ReviewsUnavailableException.php',
+        'NullReviewsBridge' => __DIR__ . '/../rebuildconnector/classes/Reviews/NullReviewsBridge.php',
+        'RbReviewsBridge' => __DIR__ . '/../rebuildconnector/classes/Reviews/RbReviewsBridge.php',
+        'ReviewsBridgeFactory' => __DIR__ . '/../rebuildconnector/classes/Reviews/ReviewsBridgeFactory.php',
         'RebuildconnectorBaseApiModuleFrontController' => __DIR__ . '/../rebuildconnector/controllers/front/BaseApiController.php',
         'RebuildconnectorApiModuleFrontController' => __DIR__ . '/../rebuildconnector/controllers/front/ApiController.php',
         'RebuildconnectorCustomersModuleFrontController' => __DIR__ . '/../rebuildconnector/controllers/front/CustomersController.php',
@@ -56,6 +64,9 @@ spl_autoload_register(static function (string $class): void {
         'RebuildconnectorBasketsModuleFrontController' => __DIR__ . '/../rebuildconnector/controllers/front/BasketsController.php',
         'RebuildconnectorReportsModuleFrontController' => __DIR__ . '/../rebuildconnector/controllers/front/ReportsController.php',
         'RebuildconnectorHubkeyModuleFrontController' => __DIR__ . '/../rebuildconnector/controllers/front/HubkeyController.php',
+        'RebuildconnectorCapabilitiesModuleFrontController' => __DIR__ . '/../rebuildconnector/controllers/front/CapabilitiesController.php',
+        'RebuildconnectorSavModuleFrontController' => __DIR__ . '/../rebuildconnector/controllers/front/SavController.php',
+        'RebuildconnectorReviewsModuleFrontController' => __DIR__ . '/../rebuildconnector/controllers/front/ReviewsController.php',
     ];
 
     if (isset($map[$class]) && file_exists($map[$class])) {

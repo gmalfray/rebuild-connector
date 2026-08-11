@@ -1,0 +1,20 @@
+<!-- Rebuild Connector — SAV : réponse du marchand à un fil client (ps_customer_thread).
+     Envoyé UNIQUEMENT depuis un acte volontaire (POST /api/sav/{id}/reply) : jamais de brouillon
+     auto-envoyé. Voir docs/api.md pour le contrat de l'endpoint. -->
+<table style="width:100%;max-width:600px;margin:0 auto;font-family:Helvetica,Arial,sans-serif;font-size:15px;color:#333;line-height:1.6">
+  <tr>
+    <td style="padding:24px 20px">
+      <p>{firstname},</p>
+
+      <p>Vous avez contacté notre service client{order_reference_block}, voici notre réponse :</p>
+
+      <p style="background:#f7f7f7;border-left:3px solid #4F46E5;padding:12px 16px;margin:16px 0;white-space:pre-wrap">
+        {message_html}
+      </p>
+
+      <p>N'hésitez pas à répondre directement à ce message si vous avez d'autres questions.</p>
+
+      <p>Bien à vous,<br>L'équipe {shop_name}</p>
+    </td>
+  </tr>
+</table>

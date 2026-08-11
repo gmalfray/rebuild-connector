@@ -41,6 +41,8 @@ final class ColissimoLabelServiceTest extends TestCase
         Db::$testGetValueResult = 0;
         Db::$updatedRows = [];
         Db::$insertedRows = [];
+        Module::$testInstalledModules = [];
+        Module::$testEnabledModules = [];
     }
 
     protected function tearDown(): void
@@ -51,6 +53,8 @@ final class ColissimoLabelServiceTest extends TestCase
         Db::$testGetValueResult = 0;
         Db::$updatedRows = [];
         Db::$insertedRows = [];
+        Module::$testInstalledModules = [];
+        Module::$testEnabledModules = [];
         parent::tearDown();
     }
 
@@ -222,5 +226,84 @@ final class ColissimoLabelServiceTest extends TestCase
         }
 
         return null;
+    }
+
+    // =========================================================================
+    // isConfigured() — source de vérité de la capacité `shipping_labels`. Reflète EXACTEMENT les
+    // deux vérifications de generateColissimoLabel() qui font répondre 501 : module Colissimo
+    // installé+actif, puis credentials exploitables. Ne déclenche AUCUN appel réseau ni écriture.
+    // =========================================================================
+
+    public function testIsConfiguredFalseWhenModuleAbsent(): void
+    {
+        $this->assertFalse($this->service->isConfigured());
+    }
+
+    public function testIsConfiguredFalseWhenModuleInstalledButDisabled(): void
+    {
+        Module::$testInstalledModules = ['colissimo' => true];
+        Module::$testEnabledModules = ['colissimo' => false];
+        Configuration::$testValues = [
+            'COLISSIMO_CONNEXION_KEY' => '1',
+            'COLISSIMO_ACCOUNT_KEY' => 'a-valid-key',
+        ];
+
+        $this->assertFalse($this->service->isConfigured());
+    }
+
+    public function testIsConfiguredFalseWhenActiveButNoCredentials(): void
+    {
+        Module::$testInstalledModules = ['colissimo' => true];
+        Module::$testEnabledModules = ['colissimo' => true];
+
+        $this->assertFalse($this->service->isConfigured());
+    }
+
+    public function testIsConfiguredFalseWhenConnexionKeyModeButAccountKeyBlank(): void
+    {
+        Module::$testInstalledModules = ['colissimo' => true];
+        Module::$testEnabledModules = ['colissimo' => true];
+        Configuration::$testValues = [
+            'COLISSIMO_CONNEXION_KEY' => '1',
+            'COLISSIMO_ACCOUNT_KEY' => '   ',
+        ];
+
+        $this->assertFalse($this->service->isConfigured());
+    }
+
+    public function testIsConfiguredTrueWithConnexionKeyMode(): void
+    {
+        Module::$testInstalledModules = ['colissimo' => true];
+        Module::$testEnabledModules = ['colissimo' => true];
+        Configuration::$testValues = [
+            'COLISSIMO_CONNEXION_KEY' => '1',
+            'COLISSIMO_ACCOUNT_KEY' => 'a-valid-key',
+        ];
+
+        $this->assertTrue($this->service->isConfigured());
+    }
+
+    public function testIsConfiguredTrueWithLoginPasswordMode(): void
+    {
+        Module::$testInstalledModules = ['colissimo' => true];
+        Module::$testEnabledModules = ['colissimo' => true];
+        Configuration::$testValues = [
+            'COLISSIMO_ACCOUNT_LOGIN' => '123456',
+            'COLISSIMO_ACCOUNT_PASSWORD' => 'secret',
+        ];
+
+        $this->assertTrue($this->service->isConfigured());
+    }
+
+    public function testIsConfiguredFalseWhenLoginPasswordModePasswordBlank(): void
+    {
+        Module::$testInstalledModules = ['colissimo' => true];
+        Module::$testEnabledModules = ['colissimo' => true];
+        Configuration::$testValues = [
+            'COLISSIMO_ACCOUNT_LOGIN' => '123456',
+            'COLISSIMO_ACCOUNT_PASSWORD' => '   ',
+        ];
+
+        $this->assertFalse($this->service->isConfigured());
     }
 }

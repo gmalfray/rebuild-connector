@@ -120,6 +120,69 @@ Deux formats de QR coexistent. Tous deux portent les mêmes champs de base (`mod
 
 ---
 
+## Capacités
+
+**Depuis v1.18.0.**
+
+### GET `.../api/connector/capabilities`
+
+Scope requis : **aucun** — un jeton valide suffit (n'importe quel scope). Voir justification ci-dessous.
+
+Ce que **cette boutique** sait faire, indépendamment des scopes portés par le jeton qui appelle
+cette route. À NE PAS confondre avec les scopes : un jeton peut porter le scope `reviews.moderate`
+sur une boutique où le module d'avis n'est pas installé — l'app doit alors masquer la section avis,
+pas afficher un écran vide. Voir `docs/app-avis-sav.md` (§ « Capacité ≠ droit ») pour le
+raisonnement complet.
+
+> **Arbitrage endpoint dédié vs bloc dans la réponse de login** : le connecteur expose un endpoint
+> dédié plutôt qu'un bloc `capabilities` injecté dans `POST /connector/login`. Le TTL du jeton est
+> configurable en BO (**3600 s par défaut**, `SettingsService::getTokenTtl()`) et peut être bien
+> plus long qu'une session d'usage réelle : un bloc posé au login serait obsolète dès qu'une
+> boutique désinstalle `rbreviews` en cours de jeton valide, alors que la capacité `reviews` doit
+> être vue **à chaud** (contrainte explicite de l'étude préalable). Un endpoint séparé, que l'app
+> peut rappeler à volonté (ouverture d'app, pull-to-refresh, etc.), sans dépendre du cycle de vie
+> du jeton, répond à cette contrainte — un bloc de login ne le peut pas structurellement.
+
+**Pourquoi aucun scope requis** (et pas `dashboard.read` ou un scope « lecture de base » existant) :
+une capacité n'est pas une donnée métier à garder derrière un scope précis — c'est un pré-requis
+que l'app doit pouvoir lire **quels que soient** les scopes du jeton, précisément pour décider
+quelles sections gardées par un scope proposer. La gater derrière un scope forcerait toute
+installation à accorder un scope arbitraire juste pour savoir ce qui existe (circulaire). Un jeton
+valide (n'importe lequel) reste néanmoins requis : cette information n'est pas publique.
+
+**Réponse 200** — objet plat, pas d'enveloppe (même convention que `GET /dashboard/metrics`) :
+
+```json
+{
+  "reviews": true,
+  "sav": true,
+  "shipping_labels": false
+}
+```
+
+| Champ              | Type | Description                                                                 |
+|--------------------|------|-------------------------------------------------------------------------------|
+| `sav`              | bool | **Toujours `true`** — fils clients natifs PrestaShop, aucun module requis.   |
+| `reviews`          | bool | `Module::isInstalled('rbreviews') && Module::isEnabled('rbreviews')`, évalué **à chaud à chaque appel** (aucun cache au-delà de la requête HTTP courante). |
+| `shipping_labels`  | bool | Module Colissimo installé **et** actif, **et** des credentials exploitables configurés (`COLISSIMO_CONNEXION_KEY` + `COLISSIMO_ACCOUNT_KEY`, **ou** `COLISSIMO_ACCOUNT_LOGIN` + `COLISSIMO_ACCOUNT_PASSWORD`) — `ColissimoLabelService::isConfigured()`, évalué **à chaud à chaque appel**. |
+
+`shipping_labels` reflète **exactement** la condition qui fait répondre `POST /orders/{id}/shipping-label`
+par `501 generation_not_configured` (même code, mêmes deux vérifications, cf. § Commandes) — jamais
+une approximation : ce champ ne vaut `true` que si cet endpoint répondrait effectivement. Ne
+contient aucun secret ; les credentials eux-mêmes ne sont jamais lus en clair ni exposés.
+
+> D'autres capacités pourront s'ajouter ici plus tard sans changer le contrat existant — traiter cet
+> objet comme extensible côté app (ignorer les clés inconnues).
+
+**Erreurs**
+
+| Code | `error`             | Raison                             |
+|------|---------------------|-------------------------------------|
+| 401  | `unauthenticated`   | Token JWT absent, expiré ou invalide|
+| 405  | `method_not_allowed` | Méthode HTTP non supportée         |
+
+---
+
 ## Localisation
 
 **Depuis v1.10.16.** Le connecteur localise le contenu qu'il renvoie (statuts de commande, noms
@@ -997,6 +1060,343 @@ Fiche client détaillée avec les 10 dernières commandes (format liste, voir `G
 
 ---
 
+## SAV
+
+**Depuis v1.18.0.** SAV natif PrestaShop (`ps_customer_thread` / `ps_customer_message`) — **aucun
+module requis**, capacité `sav` toujours `true` (voir § Capacités). Toute lecture porte le filtre
+`id_shop` (protection IDOR multiboutique) : un fil d'une autre boutique répond `404`, jamais `403`
+(pour ne pas confirmer son existence).
+
+**Statuts de fil** (valeurs natives `ps_customer_thread.status`, ENUM inchangée de PrestaShop 1.6 à
+8.x) :
+
+| Valeur     | Signification                                                          |
+|------------|--------------------------------------------------------------------------|
+| `open`     | Fil jamais traité.                                                     |
+| `pending1` | En attente d'une réponse de la **cliente** (le marchand vient de répondre). |
+| `pending2` | En attente d'une réponse du **marchand** (la cliente vient d'écrire/relancer). |
+| `closed`   | Fil clos.                                                               |
+
+« Ouvert » au sens de l'app/étude préalable = tout ce qui n'est **pas** `closed` (les 3 autres
+valeurs) — c'est ce qui correspond aux « 97 fils ouverts » mesurés. La liste par défaut trie donc
+les fils non-clos en premier.
+
+> ⚠️ Ces libellés/rôles (`pending1`/`pending2`) sont documentés à partir du schéma natif
+> PrestaShop (stable depuis 1.6) et du comportement observé de `ps_customer_thread`, **sans accès à
+> une installation PS8 de référence locale au moment de l'écriture**. À confirmer contre le
+> back-office réel de pensebonheur.fr avant déploiement — cf. rapport de tâche.
+
+### GET `.../api/sav`
+
+Scope requis : `sav.read`
+
+| Paramètre | Type   | Requis | Description                                              |
+|-----------|--------|--------|------------------------------------------------------------|
+| `limit`   | int    | non    | Défaut 20, max 100.                                        |
+| `offset`  | int    | non    | Défaut 0.                                                   |
+| `status`  | string | non    | Un des 4 statuts natifs ci-dessus. Sans filtre : tous statuts, non-clos d'abord. |
+
+**Réponse 200**
+
+```json
+{
+  "threads": [
+    {
+      "id": 154,
+      "status": "pending2",
+      "unread": true,
+      "customer": { "id": 88, "name": "Camille Martin", "email": "camille@example.com" },
+      "order": { "id": 4021, "reference": "ABCDEF123" },
+      "last_message_at": "2026-08-09 16:42:00",
+      "date_add": "2026-08-01 10:03:00",
+      "date_upd": "2026-08-09 16:42:00"
+    }
+  ],
+  "pagination": { "limit": 20, "offset": 0, "count": 1, "has_next": false, "next_offset": null }
+}
+```
+
+`customer.id`/`order` sont `null` quand le fil n'est rattaché à aucun client PrestaShop / aucune
+commande (ex. contact anonyme via formulaire). `unread` = au moins un message de la cliente
+(`id_employee = 0`) marqué non lu (`read = 0`) — convention du connecteur, documentée faute d'accès
+à une référence BO locale pour confirmer la définition exacte utilisée par l'admin natif.
+
+**Erreurs** : `400 invalid_payload` si `status` ne correspond à aucune des 4 valeurs.
+
+---
+
+### GET `.../api/sav/{id}`
+
+Scope requis : `sav.read`
+
+Fil complet : métadonnées + tous les messages, ordre chronologique croissant.
+
+**Réponse 200**
+
+```json
+{
+  "thread": {
+    "id": 154,
+    "status": "pending2",
+    "unread": true,
+    "customer": { "id": 88, "name": "Camille Martin", "email": "camille@example.com" },
+    "order": { "id": 4021, "reference": "ABCDEF123" },
+    "last_message_at": "2026-08-09 16:42:00",
+    "date_add": "2026-08-01 10:03:00",
+    "date_upd": "2026-08-09 16:42:00"
+  },
+  "messages": [
+    {
+      "id": 512,
+      "author": "customer",
+      "employee_name": null,
+      "message": "Bonjour, ma commande n'est toujours pas arrivée.",
+      "private": false,
+      "read": true,
+      "date_add": "2026-08-01 10:03:00"
+    },
+    {
+      "id": 513,
+      "author": "employee",
+      "employee_name": "Marina",
+      "message": "Bonjour, votre colis a été retardé, il arrive sous 48h.",
+      "private": false,
+      "read": true,
+      "date_add": "2026-08-01 14:10:00"
+    }
+  ]
+}
+```
+
+`author` vaut `"employee"` si `id_employee > 0`, `"customer"` sinon (message envoyé par la cliente).
+
+**Erreurs** : `404 not_found` si le fil n'existe pas ou appartient à une autre boutique.
+
+---
+
+### PATCH `.../api/sav/{id}/status`  — Changer le statut
+
+Scope requis : `sav.write`
+
+Corps JSON : `{"status": "closed"}` (une des 4 valeurs natives). Aucun message ajouté, **aucun
+e-mail envoyé** — uniquement une mise à jour de statut (ex. clore un fil, ou le rouvrir).
+
+**Réponse : `204 No Content`** (même convention que `PATCH /orders/{id}?action=status`).
+
+**Erreurs**
+
+| Code | `error`           | Raison                                   |
+|------|-------------------|--------------------------------------------|
+| 400  | `invalid_payload` | `status` absent, vide, ou action inconnue dans l'URL |
+| 404  | `not_found`       | Fil introuvable / autre boutique          |
+
+---
+
+### POST `.../api/sav/{id}/reply`  — Répondre (⚠️ envoie un VRAI e-mail)
+
+Scope requis : `sav.write`
+
+> ⚠️⚠️ **Cet endpoint envoie un e-mail RÉEL à la cliente**, à l'adresse enregistrée sur le fil
+> (`ps_customer_thread.email`). Aucun brouillon, aucune confirmation supplémentaire côté API : c'est
+> l'appel HTTP lui-même qui constitue l'acte d'envoi (l'app doit demander confirmation à
+> l'utilisatrice AVANT d'appeler cette route, jamais après). **Ne jamais appeler cette route en
+> test/recette contre un fil réel** — utiliser un fil de test dédié.
+
+Corps JSON : `{"message": "Votre colis est en cours de préparation."}` (requis, non vide, 20 000
+caractères max).
+
+Effets, dans cet ordre :
+1. Insertion d'un `ps_customer_message` (`id_employee` = celui du jeton si utilisateur nommé, sinon
+   `0` ; `private = 0` ; `read = 1`).
+2. Le fil passe au statut `pending1` (en attente d'une réponse de la cliente).
+3. Envoi d'un e-mail via le mécanisme natif PrestaShop `Mail::Send()`, avec un gabarit **propre au
+   connecteur** (`rebuildconnector/mails/fr/sav_reply.html`/`.txt`) — voir note de conception
+   ci-dessous. Silencieusement ignoré (`email_sent: false`) si le fil n'a pas d'adresse exploitable
+   (`Validate::isEmail()` invalide), sans faire échouer la réponse elle-même.
+
+> **Note de conception — mécanisme d'envoi.** Le cœur PrestaShop possède son propre flux de réponse
+> SAV en back-office (`AdminCustomerThreadsController`), mais son gabarit mail exact et son
+> emplacement n'ont pas pu être vérifiés contre une installation PS8 de référence (aucune disponible
+> localement au moment de l'écriture). Plutôt que de reproduire un comportement non vérifiable, le
+> connecteur envoie via `Mail::Send()` avec **son propre gabarit** dans son propre dossier
+> (`_PS_MODULE_DIR_ . 'rebuildconnector/mails/'`) — exactement le mécanisme déjà utilisé par
+> `rbreviews` pour `RbReview::notifyRejection()` (gabarit `review_rejected` dans
+> `rbreviews/mails/fr/`). Comportement fonctionnel identique pour la cliente (elle reçoit un
+> e-mail), zéro dépendance à un détail d'implémentation core non vérifié.
+
+**Réponse 201**
+
+```json
+{
+  "thread": { "id": 154, "status": "pending1", "...": "..." },
+  "message": {
+    "id": 514,
+    "author": "employee",
+    "employee_name": null,
+    "message": "Votre colis est en cours de préparation.",
+    "private": false,
+    "read": true,
+    "date_add": "2026-08-11 09:00:00"
+  },
+  "email_sent": true
+}
+```
+
+**Erreurs**
+
+| Code | `error`           | Raison                                          |
+|------|-------------------|---------------------------------------------------|
+| 400  | `invalid_payload` | `message` absent/vide/trop long, ou action inconnue dans l'URL |
+| 404  | `not_found`       | Fil introuvable / autre boutique                 |
+
+**Hors périmètre (volontaire)** : créer un fil, gérer les contacts, les pièces jointes.
+
+---
+
+## Avis
+
+**Depuis v1.18.0.** PONT vers le module tiers `rbreviews` — le connecteur n'accède **jamais**
+directement aux tables `rbreviews_*` depuis une route publique, uniquement via un pont interne
+(`ReviewsBridgeInterface`). Si `rbreviews` n'est pas installé/actif sur la boutique : **toutes**
+les routes ci-dessous répondent `409 reviews_unavailable`, jamais une erreur SQL sur une table
+absente. Vérifier la capacité `reviews` (§ Capacités) avant d'afficher cette section dans l'app.
+
+### GET `.../api/reviews`  — File de modération
+
+Scope requis : `reviews.moderate`
+
+Avis en attente (`validated = 0, deleted = 0`), plus récents d'abord.
+
+| Paramètre | Type | Requis | Description         |
+|-----------|------|--------|------------------------|
+| `limit`   | int  | non    | Défaut 20, max 100.   |
+| `offset`  | int  | non    | Défaut 0.              |
+
+**Réponse 200**
+
+```json
+{
+  "reviews": [
+    {
+      "id": 812,
+      "product": { "id": 305, "name": "Bougie parfumée Lavande" },
+      "author": { "name": "Julie M.", "email": "julie@example.com" },
+      "grade": 4,
+      "title": "Très satisfaite",
+      "content": "Odeur agréable, tient longtemps.",
+      "verified_buyer": true,
+      "date_add": "2026-08-10 18:22:00"
+    }
+  ],
+  "pagination": { "limit": 20, "offset": 0, "count": 1, "has_next": false, "next_offset": null }
+}
+```
+
+**Erreurs** : `409 reviews_unavailable` si `rbreviews` n'est pas installé/actif.
+
+---
+
+### POST `.../api/reviews/{id}/publish`  — Publier
+
+Scope requis : `reviews.moderate`
+
+Pose `validated = 1`. Pas de corps requis.
+
+**Réponse 200**
+
+```json
+{
+  "review": {
+    "id": 812,
+    "product": { "id": 305, "name": "Bougie parfumée Lavande" },
+    "author": { "name": "Julie M.", "email": "julie@example.com" },
+    "grade": 4,
+    "title": "Très satisfaite",
+    "content": "Odeur agréable, tient longtemps.",
+    "verified_buyer": true,
+    "validated": true,
+    "deleted": false,
+    "reply": null,
+    "rejection_reason": null,
+    "date_add": "2026-08-10 18:22:00"
+  }
+}
+```
+
+**Erreurs** : `404 not_found` (avis introuvable/autre boutique), `409 reviews_unavailable`.
+
+---
+
+### POST `.../api/reviews/{id}/trash`  — Mettre à la corbeille (⚠️ motif OBLIGATOIRE, envoie un e-mail)
+
+Scope requis : `reviews.moderate`
+
+> ⚠️ **Obligation légale (article L111-7-2)** : l'auteur d'un avis non publié doit être informé du
+> motif. **Aucune route ne permet un rejet sans motif** — validé ICI, **avant toute écriture en
+> base**, avant même d'appeler le pont.
+
+Corps JSON : `{"reason": "Contenu hors sujet, sans rapport avec le produit vendu."}` — motif
+**obligatoire, 10 caractères minimum** (aligné sur la validation déjà en place côté back-office
+`rbreviews`).
+
+Effets, dans cet ordre (même ordre que la mise en corbeille en BO) :
+1. `deleted = 1, validated = 0, rejection_reason = <motif>`.
+2. Appel de `RbReview::notifyRejection()` sur une instance chargée du module `rbreviews` → envoie
+   l'e-mail de motif à l'auteur (si celui-ci a une adresse exploitable et n'a pas déjà été notifié).
+   Un échec de notification (exception, adresse absente) **ne fait jamais échouer** la mise en
+   corbeille elle-même — reflété par `author_notified: false` dans la réponse.
+
+**Réponse 200**
+
+```json
+{
+  "review": {
+    "id": 812,
+    "validated": false,
+    "deleted": true,
+    "rejection_reason": "Contenu hors sujet, sans rapport avec le produit vendu.",
+    "...": "..."
+  },
+  "author_notified": true
+}
+```
+
+**Erreurs**
+
+| Code | `error`                      | Raison                                                    |
+|------|------------------------------|--------------------------------------------------------------|
+| 422  | `invalid_rejection_reason`   | Motif absent ou < 10 caractères — **aucune écriture tentée** |
+| 404  | `not_found`                  | Avis introuvable / autre boutique                          |
+| 409  | `reviews_unavailable`        | `rbreviews` non installé/actif                              |
+
+---
+
+### POST `.../api/reviews/{id}/reply`  — Répondre publiquement
+
+Scope requis : `reviews.moderate`
+
+Corps JSON : `{"reply": "Merci pour votre retour !"}` (requis, non vide). Pose le champ `reply`,
+affiché publiquement sous l'avis sur la boutique.
+
+**Réponse 200**
+
+```json
+{ "review": { "id": 812, "reply": "Merci pour votre retour !", "...": "..." } }
+```
+
+**Erreurs**
+
+| Code | `error`               | Raison                             |
+|------|-----------------------|--------------------------------------|
+| 400  | `invalid_payload`     | `reply` absent/vide                 |
+| 404  | `not_found`           | Avis introuvable / autre boutique   |
+| 409  | `reviews_unavailable` | `rbreviews` non installé/actif      |
+
+**Hors périmètre (volontaire)** : modifier le texte d'un avis (c'est celui de la cliente), import
+Etsy, réglages du module.
+
+---
+
 ## Dashboard
 
 ### GET `.../api/dashboard/metrics`
@@ -1532,6 +1932,8 @@ Toutes les erreurs retournent un corps JSON :
 | 403       | `forbidden`         | Scope insuffisant ou IP non autorisée           |
 | 404       | `not_found`         | Ressource introuvable                           |
 | 405       | `method_not_allowed`| Méthode HTTP non supportée par cet endpoint     |
+| 409       | `reviews_unavailable`| `rbreviews` non installé/actif (routes `/reviews/*` uniquement) |
+| 422       | `invalid_rejection_reason` | Motif de rejet d'avis absent ou < 10 caractères (`/reviews/{id}/trash`) |
 | 429       | `too_many_requests` | Limite de débit atteinte (rate limiter activé)  |
 | 500       | `server_error`      | Erreur interne (détail en mode dev uniquement)  |
 
@@ -1586,6 +1988,31 @@ curl -X GET "https://example.com/module/rebuildconnector/api/dashboard/metrics?f
   -H "Authorization: Bearer eyJhbGci..."
 ```
 
+### Capacités de la boutique
+
+```bash
+curl -X GET "https://example.com/module/rebuildconnector/api/connector/capabilities" \
+  -H "Authorization: Bearer eyJhbGci..."
+```
+
+### Répondre à un fil SAV (⚠️ envoie un vrai e-mail)
+
+```bash
+curl -X POST "https://example.com/module/rebuildconnector/api/sav/154/reply" \
+  -H "Authorization: Bearer eyJhbGci..." \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Votre colis est en cours de préparation."}'
+```
+
+### Mettre un avis à la corbeille (motif obligatoire, ⚠️ envoie un e-mail)
+
+```bash
+curl -X POST "https://example.com/module/rebuildconnector/api/reviews/812/trash" \
+  -H "Authorization: Bearer eyJhbGci..." \
+  -H "Content-Type: application/json" \
+  -d '{"reason": "Contenu hors sujet, sans rapport avec le produit vendu."}'
+```
+
 ---
 
 ## Table des routes
@@ -1593,6 +2020,7 @@ curl -X GET "https://example.com/module/rebuildconnector/api/dashboard/metrics?f
 | Méthode | URL friendly                                    | Controller   | Scope requis        |
 |---------|-------------------------------------------------|--------------|---------------------|
 | POST    | `.../api/connector/login`                       | api          | —                   |
+| GET     | `.../api/connector/capabilities`                | capabilities | *(jeton valide)*    |
 | GET     | `.../api/orders/statuses`                       | orders       | `orders.read`       |
 | GET     | `.../api/orders`                                | orders       | `orders.read`       |
 | GET     | `.../api/orders/{id}`                           | orders       | `orders.read`       |
@@ -1615,3 +2043,11 @@ curl -X GET "https://example.com/module/rebuildconnector/api/dashboard/metrics?f
 | GET     | `.../api/baskets/{id}`                          | baskets      | `baskets.read`      |
 | POST    | `.../api/notifications/devices`                 | notifications| `notifications.send`|
 | DELETE  | `.../api/notifications/devices/{token}`         | notifications| `notifications.send`|
+| GET     | `.../api/sav`                                   | sav          | `sav.read`          |
+| GET     | `.../api/sav/{id}`                              | sav          | `sav.read`          |
+| PATCH   | `.../api/sav/{id}/status`                       | sav          | `sav.write`         |
+| POST    | `.../api/sav/{id}/reply`                        | sav          | `sav.write`         |
+| GET     | `.../api/reviews`                               | reviews      | `reviews.moderate`  |
+| POST    | `.../api/reviews/{id}/publish`                  | reviews      | `reviews.moderate`  |
+| POST    | `.../api/reviews/{id}/trash`                    | reviews      | `reviews.moderate`  |
+| POST    | `.../api/reviews/{id}/reply`                    | reviews      | `reviews.moderate`  |

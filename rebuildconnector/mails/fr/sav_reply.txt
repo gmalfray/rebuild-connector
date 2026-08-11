@@ -1,0 +1,10 @@
+{firstname},
+
+Vous avez contacté notre service client{order_reference_block}, voici notre réponse :
+
+  {message_text}
+
+N'hésitez pas à répondre directement à ce message si vous avez d'autres questions.
+
+Bien à vous,
+L'équipe {shop_name}
