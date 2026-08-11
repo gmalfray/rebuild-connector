@@ -1081,6 +1081,12 @@ module requis**, capacité `sav` toujours `true` (voir § Capacités). Toute lec
 valeurs) — c'est ce qui correspond aux « 97 fils ouverts » mesurés. La liste par défaut trie donc
 les fils non-clos en premier.
 
+**Depuis v1.19.0 — notification push `sav.message`.** Un nouveau message **client** sur un fil
+déclenche l'événement push `sav.message` (voir § Notifications / Appareils FCM). Réglage BO
+`sav_message_alerts_enabled`, **actif par défaut**. Une réponse d'employé (BO natif PrestaShop ou
+`POST .../sav/{id}/reply` ci-dessous) ne déclenche jamais cette notification — seule l'arrivée d'un
+message client compte.
+
 > ⚠️ Ces libellés/rôles (`pending1`/`pending2`) sont documentés à partir du schéma natif
 > PrestaShop (stable depuis 1.6) et du comportement observé de `ps_customer_thread`, **sans accès à
 > une installation PS8 de référence locale au moment de l'écriture**. À confirmer contre le
@@ -1260,6 +1266,12 @@ directement aux tables `rbreviews_*` depuis une route publique, uniquement via u
 (`ReviewsBridgeInterface`). Si `rbreviews` n'est pas installé/actif sur la boutique : **toutes**
 les routes ci-dessous répondent `409 reviews_unavailable`, jamais une erreur SQL sur une table
 absente. Vérifier la capacité `reviews` (§ Capacités) avant d'afficher cette section dans l'app.
+
+**Depuis v1.19.0 — notification push `review.pending`.** Un nouvel avis **natif** (pas un import
+Etsy) entrant en file de modération déclenche l'événement push `review.pending` (voir §
+Notifications / Appareils FCM). Réglage BO `review_pending_alerts_enabled`, **désactivé par
+défaut** (volume faible — cf. `docs/app-avis-sav.md`). Les avis importés depuis Etsy n'entrent
+jamais en modération (ils arrivent déjà publiés) et ne déclenchent donc jamais cet événement.
 
 ### GET `.../api/reviews`  — File de modération
 
@@ -1788,6 +1800,20 @@ qu'aux appareils dont la liste `topics` intersecte la catégorie de l'événemen
 | `order.created`           | Nouvelle commande validée                      |
 | `order.status.changed`    | Changement de statut d'une commande            |
 | `order.shipping.updated`  | Mise à jour du numéro de suivi / expédition    |
+| `sav.message`              | Nouveau message **client** sur un fil SAV (depuis v1.19.0) |
+| `review.pending`           | Nouvel avis natif entrant en modération (depuis v1.19.0) |
+
+> `stock.low` et `shop.payment.error` existent également côté serveur (cf. §§ Produits / gestion
+> du stock et la surveillance du tunnel de paiement) mais ne figuraient pas encore dans cette table
+> au moment de l'écriture — écart préexistant à corriger séparément, sans lien avec `sav.message`/
+> `review.pending`.
+
+**Réglages back-office (par boutique, panneau « Hub push ») :** chacun des événements ci-dessus
+peut être coupé côté SERVEUR indépendamment du choix de l'appareil (`topics`) — si le réglage BO
+est désactivé, l'événement n'est simplement jamais émis. `order.created`/`order.status.changed`
+sont actifs par défaut (rétrocompatibilité), `stock.low` et `review.pending` sont désactivés par
+défaut (volume/bruit), `sav.message` est actif par défaut (c'est la notification jugée la plus
+utile — cf. `docs/app-avis-sav.md`).
 
 **Règle de ciblage :**
 
@@ -1812,6 +1838,16 @@ par type d'événement).
 | `order.created`            | `sales_v2`        | Nouvelle vente — son « caisse enregistreuse » |
 | `order.status.changed`     | `order_status`    | Changement de statut commande                 |
 | `order.shipping.updated`   | `order_shipping`  | Mise à jour numéro de suivi / expédition      |
+| `sav.message`               | `sav_message`      | Nouveau message client sur un fil SAV (**proposé**, depuis v1.19.0) |
+| `review.pending`            | `review_pending`   | Nouvel avis à modérer (**proposé**, depuis v1.19.0) |
+
+⚠️ **Le mapping `event → channel_id` est calculé par le hub** (`push.rebuild-it.fr`,
+`services/push/src/index.js`, constante `CHANNELS`), **pas par ce module** — le connecteur envoie
+uniquement `data.event`. Les deux dernières lignes ci-dessus documentent le contrat **visé** côté
+`sav.message`/`review.pending` (noms alignés sur le style `snake_case` des entrées existantes) ;
+**le hub doit encore être mis à jour pour les reconnaître** (hors périmètre de ce module — cf.
+`rebuild-it/docs/push-centralise.md`). Tant que ce n'est pas fait, ces deux événements arrivent
+côté app sans `channel_id` (canal par défaut), exactement comme un événement inconnu.
 
 Si l'événement est absent ou inconnu, aucun `channel_id` n'est transmis : l'app utilise son
 canal par défaut. La clé `message.notification` (top-level) reste inchangée pour la
@@ -1839,6 +1875,32 @@ Exemple de payload FCM HTTP v1 pour `order.created` :
   }
 }
 ```
+
+Charge `data` envoyée au hub (`POST /v1/notify`) pour les deux nouveaux événements — `event` est
+la seule clé garantie ; les autres sont des identifiants pour le deep-link app, jamais de contenu
+personnel étendu (le corps de la notification, lui, contient un extrait tronqué du message/de
+l'avis, cf. ci-dessous) :
+
+```json
+// sav.message
+{
+  "event": "sav.message",
+  "thread_id": "128"
+}
+```
+
+```json
+// review.pending
+{
+  "event": "review.pending",
+  "review_id": "57"
+}
+```
+
+`title`/`body` sont composés côté module (localisés FR/EN) :
+- `sav.message` : titre « Nouveau message SAV », corps `{nom de la cliente} : {extrait du message,
+  tronqué à 100 caractères}`.
+- `review.pending` : titre « Avis à modérer », corps `{nom de l'auteur} — {note}/5`.
 
 ---
 

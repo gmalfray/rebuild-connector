@@ -41,6 +41,28 @@ final class SavServiceTest extends TestCase
         $this->assertSame(1, $result['pagination']['next_offset']);
     }
 
+    public function testGetThreadSummaryReturnsFormattedThreadWithoutMessages(): void
+    {
+        Db::$testGetRowResult = $this->threadRow(128, 'pending2');
+
+        $service = new SavService();
+        $summary = $service->getThreadSummary(128);
+
+        $this->assertNotNull($summary);
+        $this->assertSame(128, $summary['id']);
+        $this->assertSame('Camille Dupont', $summary['customer']['name']);
+        $this->assertArrayNotHasKey('messages', $summary, 'getThreadSummary() ne doit renvoyer que le fil, pas ses messages.');
+    }
+
+    public function testGetThreadSummaryReturnsNullForUnknownThread(): void
+    {
+        Db::$testGetRowResult = false;
+
+        $service = new SavService();
+
+        $this->assertNull($service->getThreadSummary(999));
+    }
+
     public function testReplyToUnknownThreadReturnsNull(): void
     {
         Db::$testGetRowResult = false;

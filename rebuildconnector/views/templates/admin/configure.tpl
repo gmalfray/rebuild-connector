@@ -554,6 +554,40 @@
                         </label>
                     </div>
                 </div>
+
+                {* ─── Nouveau message SAV (événement `sav.message`) ─── *}
+                <div class="form-group">
+                    <label class="control-label col-lg-3">{$i18n.sav_message_alerts_label|escape:'htmlall'}</label>
+                    <div class="col-lg-9">
+                        <input type="hidden" name="REBUILDCONNECTOR_SAV_MESSAGE_ALERTS_ENABLED" value="0">
+                        <label class="checkbox-inline">
+                            <input
+                                type="checkbox"
+                                name="REBUILDCONNECTOR_SAV_MESSAGE_ALERTS_ENABLED"
+                                value="1"
+                                {if $settings.sav_message_alerts_enabled}checked{/if}
+                            >
+                            {$i18n.sav_message_alerts_toggle|escape:'htmlall'}
+                        </label>
+                    </div>
+                </div>
+
+                {* ─── Avis en modération (événement `review.pending`) ─── *}
+                <div class="form-group">
+                    <label class="control-label col-lg-3">{$i18n.review_pending_alerts_label|escape:'htmlall'}</label>
+                    <div class="col-lg-9">
+                        <input type="hidden" name="REBUILDCONNECTOR_REVIEW_PENDING_ALERTS_ENABLED" value="0">
+                        <label class="checkbox-inline">
+                            <input
+                                type="checkbox"
+                                name="REBUILDCONNECTOR_REVIEW_PENDING_ALERTS_ENABLED"
+                                value="1"
+                                {if $settings.review_pending_alerts_enabled}checked{/if}
+                            >
+                            {$i18n.review_pending_alerts_toggle|escape:'htmlall'}
+                        </label>
+                    </div>
+                </div>
                 <div class="panel-footer">
                     <button type="submit" name="submitRebuildconnectorModule" value="1" class="btn btn-primary">
                         <i class="icon-save"></i> {$i18n.save_button|escape:'htmlall'}

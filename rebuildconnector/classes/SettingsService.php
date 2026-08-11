@@ -153,6 +153,20 @@ class SettingsService
             $updated = true;
         }
 
+        // `sav.message` : ACTIF par défaut — c'est LA notification utile (97 fils ouverts en prod,
+        // une réponse tardive coûte plus qu'une vente ratée). Cf. docs/app-avis-sav.md.
+        if (!isset($settings['sav_message_alerts_enabled'])) {
+            $settings['sav_message_alerts_enabled'] = true;
+            $updated = true;
+        }
+
+        // `review.pending` : DÉSACTIVÉ par défaut — volume faible (un avis en attente en prod
+        // aujourd'hui), à l'inverse de sav_message_alerts_enabled. Cf. docs/app-avis-sav.md.
+        if (!isset($settings['review_pending_alerts_enabled'])) {
+            $settings['review_pending_alerts_enabled'] = false;
+            $updated = true;
+        }
+
         if ($updated) {
             $this->save($settings);
         }
@@ -525,6 +539,45 @@ class SettingsService
     }
 
     /**
+     * Toggle BO des alertes push « nouveau message SAV » (événement `sav.message`, un message
+     * CLIENT arrivant sur un fil `customer_thread`). Activé par défaut : c'est la notification
+     * jugée la plus utile (cf. docs/app-avis-sav.md), une mise à jour en place ne doit pas la
+     * couper silencieusement.
+     */
+    public function isSavMessageAlertsEnabled(): bool
+    {
+        $settings = $this->all();
+
+        return isset($settings['sav_message_alerts_enabled']) ? (bool) $settings['sav_message_alerts_enabled'] : true;
+    }
+
+    public function setSavMessageAlertsEnabled(bool $enabled): void
+    {
+        $settings = $this->all();
+        $settings['sav_message_alerts_enabled'] = $enabled;
+        $this->save($settings);
+    }
+
+    /**
+     * Toggle BO des alertes push « avis en modération » (événement `review.pending`, un avis natif
+     * rbreviews entrant en file de modération). Désactivé par défaut : le volume est faible (un seul
+     * avis en attente mesuré en prod), l'activer par défaut agacerait pour peu de gain.
+     */
+    public function isReviewPendingAlertsEnabled(): bool
+    {
+        $settings = $this->all();
+
+        return isset($settings['review_pending_alerts_enabled']) ? (bool) $settings['review_pending_alerts_enabled'] : false;
+    }
+
+    public function setReviewPendingAlertsEnabled(bool $enabled): void
+    {
+        $settings = $this->all();
+        $settings['review_pending_alerts_enabled'] = $enabled;
+        $this->save($settings);
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function exportForTemplate(): array
@@ -552,6 +605,8 @@ class SettingsService
             'order_created_alerts_enabled' => $this->isOrderCreatedAlertsEnabled(),
             'order_status_alerts_enabled' => $this->isOrderStatusAlertsEnabled(),
             'stock_low_alerts_enabled' => $this->isStockLowAlertsEnabled(),
+            'sav_message_alerts_enabled' => $this->isSavMessageAlertsEnabled(),
+            'review_pending_alerts_enabled' => $this->isReviewPendingAlertsEnabled(),
             'label_shipped_state_id' => $this->getLabelShippedStateId(),
         ];
     }
