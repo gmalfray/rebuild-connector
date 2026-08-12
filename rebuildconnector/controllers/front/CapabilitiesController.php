@@ -6,14 +6,14 @@ require_once __DIR__ . '/BaseApiController.php';
 require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/CapabilitiesService.php';
 
 /**
- * GET /api/connector/capabilities — ce que CETTE boutique sait faire (indépendamment des scopes
+ * GET /api/connector/capabilities : ce que CETTE boutique sait faire (indépendamment des scopes
  * du jeton). Voir `CapabilitiesService` pour la distinction capacité/scope.
  *
  * Auth : jeton valide requis, mais AUCUN scope particulier. Justification (cf. rapport de tâche) :
- * une capacité n'est pas une donnée métier gardée par un scope — c'est un pré-requis que l'app doit
+ * une capacité n'est pas une donnée métier gardée par un scope, c'est un pré-requis que l'app doit
  * pouvoir lire quels que soient les scopes du jeton, précisément pour décider quelles sections
  * gardées par un scope proposer. La gater derrière un scope forcerait toute installation à accorder
- * un scope arbitraire juste pour savoir ce qui existe — circulaire.
+ * un scope arbitraire juste pour savoir ce qui existe, ce qui est circulaire.
  */
 class RebuildconnectorCapabilitiesModuleFrontController extends RebuildconnectorBaseApiModuleFrontController
 {

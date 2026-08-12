@@ -8,13 +8,13 @@ class SettingsService
 
     /**
      * ID d'état de commande appliqué par défaut après génération réussie d'une étiquette Colissimo
-     * (« En cours d'expédition »). Valeur vérifiée en base sur pensebonheur.fr — configurable car
+     * (« En cours d'expédition »). Valeur vérifiée en base sur pensebonheur.fr, configurable car
      * cet ID dépend du workflow de statuts propre à chaque boutique.
      */
     private const DEFAULT_LABEL_SHIPPED_STATE_ID = 20;
 
     /**
-     * URL du hub push centralisé. Hardcodée — les boutiques distribuées n'ont pas accès
+     * URL du hub push centralisé. Hardcodée : les boutiques distribuées n'ont pas accès
      * au compte de service FCM, seul le hub y a accès.
      * Override DEV uniquement : définir la constante PHP `REBUILDCONNECTOR_HUB_URL_OVERRIDE`.
      */
@@ -153,14 +153,14 @@ class SettingsService
             $updated = true;
         }
 
-        // `sav.message` : ACTIF par défaut — c'est LA notification utile (97 fils ouverts en prod,
+        // `sav.message` : ACTIF par défaut, c'est LA notification utile (97 fils ouverts en prod,
         // une réponse tardive coûte plus qu'une vente ratée). Cf. docs/app-avis-sav.md.
         if (!isset($settings['sav_message_alerts_enabled'])) {
             $settings['sav_message_alerts_enabled'] = true;
             $updated = true;
         }
 
-        // `review.pending` : DÉSACTIVÉ par défaut — volume faible (un avis en attente en prod
+        // `review.pending` : DÉSACTIVÉ par défaut, volume faible (un avis en attente en prod
         // aujourd'hui), à l'inverse de sav_message_alerts_enabled. Cf. docs/app-avis-sav.md.
         if (!isset($settings['review_pending_alerts_enabled'])) {
             $settings['review_pending_alerts_enabled'] = false;
@@ -460,7 +460,7 @@ class SettingsService
     /**
      * ID de l'état de commande appliqué automatiquement après génération réussie d'une étiquette
      * Colissimo (ex. « En cours d'expédition »). Fallback sur DEFAULT_LABEL_SHIPPED_STATE_ID (20)
-     * si non configuré ou invalide — jamais 0/négatif (ColissimoLabelService en dépend pour
+     * si non configuré ou invalide, jamais 0/négatif (ColissimoLabelService en dépend pour
      * déclencher OrderHistory::changeIdOrderState()).
      */
     public function getLabelShippedStateId(): int
@@ -485,7 +485,7 @@ class SettingsService
     /**
      * Employé de repli utilisé pour attribuer une réponse SAV envoyée via un jeton qui ne porte
      * aucun `id_employee` (clé API globale, `AuthService` mode 1). `0` = non configuré : dans ce
-     * cas, `SavService` retombe automatiquement sur le premier employé actif — voir
+     * cas, `SavService` retombe automatiquement sur le premier employé actif, voir
      * `SavService::resolveReplyEmployee()`. Contrairement à `label_shipped_state_id`, il n'y a pas
      * de défaut « en dur » ici : le bon employé dépend entièrement de l'organisation de chaque
      * boutique, `0` déclenche donc une résolution dynamique plutôt qu'un ID arbitraire.
@@ -642,7 +642,7 @@ class SettingsService
     /* ───────────── Hub push centralisé (push.rebuild-it.fr) ───────────── */
 
     /**
-     * URL du hub push. Hardcodée — les boutiques distribuées n'ont pas de compte FCM.
+     * URL du hub push. Hardcodée : les boutiques distribuées n'ont pas de compte FCM.
      * Override DEV uniquement via la constante PHP REBUILDCONNECTOR_HUB_URL_OVERRIDE.
      */
     public function getHubUrl(): string
@@ -681,7 +681,7 @@ class SettingsService
 
     /**
      * Le mode hub est actif dès qu'une clé de licence est configurée.
-     * L'URL du hub est hardcodée (push.rebuild-it.fr) — les boutiques distribuées n'ont pas
+     * L'URL du hub est hardcodée (push.rebuild-it.fr) : les boutiques distribuées n'ont pas
      * accès au compte de service FCM, la résilience est gérée côté hub.
      */
     public function isHubEnabled(): bool

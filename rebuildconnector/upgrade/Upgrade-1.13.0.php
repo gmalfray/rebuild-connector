@@ -7,7 +7,7 @@ if (!defined('_PS_VERSION_')) {
 require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/SettingsService.php';
 
 /**
- * Upgrade 1.13.0 — Interrupteurs BO pour les notifications de commande
+ * Upgrade 1.13.0 : interrupteurs BO pour les notifications de commande
  *
  * Nouveautés :
  *   - Nouveau réglage BO `order_created_alerts_enabled` (panneau Hub push) : contrôle l'émission de

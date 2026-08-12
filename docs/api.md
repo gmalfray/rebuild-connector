@@ -1988,7 +1988,7 @@ l'avis, cf. ci-dessous) :
 `title`/`body` sont composés côté module (localisés FR/EN) :
 - `sav.message` : titre « Nouveau message SAV », corps `{nom de la cliente} : {extrait du message,
   tronqué à 100 caractères}`.
-- `review.pending` : titre « Avis à modérer », corps `{nom de l'auteur} — {note}/5`.
+- `review.pending` : titre « Avis à modérer », corps `{nom de l'auteur} · {note}/5`.
 
 ---
 

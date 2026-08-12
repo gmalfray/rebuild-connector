@@ -5,7 +5,7 @@ if (!defined('_PS_VERSION_')) {
 }
 
 /**
- * Upgrade 1.1.8 — Security hardening
+ * Upgrade 1.1.8 : durcissement de la sécurité
  *
  * - Active le rate-limiting par défaut (rate_limit_enabled = true) si non déjà activé.
  *

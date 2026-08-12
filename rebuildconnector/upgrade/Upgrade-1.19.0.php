@@ -7,7 +7,7 @@ if (!defined('_PS_VERSION_')) {
 require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/SettingsService.php';
 
 /**
- * Upgrade 1.19.0 — Notifications push SAV et avis
+ * Upgrade 1.19.0 : notifications push SAV et avis
  *
  * Nouveautés :
  *   - `sav.message` : un message CLIENT arrive sur un fil SAV natif (`ps_customer_thread` /
@@ -16,7 +16,7 @@ require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/SettingsService.php';
  *     `sav_message_alerts_enabled`, ACTIF par défaut.
  *   - `review.pending` : un avis natif (rbreviews) entre en file de modération. Branché sur
  *     `actionObjectRbReviewAddAfter`. Réglage BO `review_pending_alerts_enabled`, DÉSACTIVÉ par
- *     défaut (volume faible — cf. docs/app-avis-sav.md).
+ *     défaut (volume faible, cf. docs/app-avis-sav.md).
  *
  * Les DEUX hooks DOIVENT être enregistrés ici : `install()` n'est pas rejoué lors d'une mise à
  * jour, et une boutique déjà équipée resterait sans ces deux notifications malgré le code présent
@@ -47,7 +47,7 @@ function upgrade_module_1_19_0($module)
     }
 
     // Pose les deux nouveaux réglages BO (sav_message_alerts_enabled=true,
-    // review_pending_alerts_enabled=false) sur une installation existante — ensureDefaults() est
+    // review_pending_alerts_enabled=false) sur une installation existante. ensureDefaults() est
     // idempotent et ne touche jamais un réglage déjà présent.
     $settingsService = new SettingsService();
     $settingsService->ensureDefaults();

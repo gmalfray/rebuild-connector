@@ -7,12 +7,12 @@ defined('_PS_VERSION_') || exit;
  *
  * Le hook `actionUpdateQuantity` se déclenche à CHAQUE écriture de quantité (y compris
  * `ProductsService::updateStock()` depuis l'app, ou plusieurs décréments successifs pendant un
- * même checkout) — sans état persistant, un produit resté sous son seuil bas déclencherait une
+ * même checkout). Sans état persistant, un produit resté sous son seuil bas déclencherait une
  * notification à chaque appel. Cette table mémorise, par couple (produit, déclinaison), qu'une
  * alerte a déjà été envoyée pour le franchissement en cours :
  *   - une entrée est créée après l'envoi de la notification (franchissement descendant) ;
- *   - elle est supprimée dès que le stock repasse au-dessus du seuil (réarmement), permettant une
- *     nouvelle alerte à la prochaine descente.
+ *   - elle est supprimée dès que le stock repasse au-dessus du seuil (réarmement) : la prochaine
+ *     descente peut donc déclencher une nouvelle alerte.
  */
 class StockAlertService
 {

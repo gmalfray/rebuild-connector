@@ -5,7 +5,7 @@ defined('_PS_VERSION_') || exit;
 require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/SettingsService.php';
 
 /**
- * SAV natif PrestaShop (`customer_thread` / `customer_message`) — AUCUN module requis.
+ * SAV natif PrestaShop (`customer_thread` / `customer_message`). AUCUN module requis.
  *
  * Contrat des statuts de fil (valeurs natives PrestaShop, `customer_thread.status`, ENUM
  * inchangée depuis 1.6 jusqu'à 8.x) :
@@ -17,14 +17,14 @@ require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/SettingsService.php';
  * qui correspond aux « 97 fils ouverts » mesurés dans l'étude préalable. Cette classe expose donc
  * un tri « non-clos d'abord », et un filtre `status` qui accepte les 4 valeurs natives.
  *
- * Piège rappelé par le mandat de tâche : `Db::getValue()` pose déjà son propre `LIMIT 1`, ne pas
- * en ajouter un dans les requêtes qui l'utilisent.
+ * Piège : `Db::getValue()` pose déjà son propre `LIMIT 1`, ne pas en ajouter un dans les requêtes
+ * qui l'utilisent.
  *
- * **« À traiter » (`to_process`, depuis v1.20.0).** `customer_message.read` s'est révélé
+ * « À traiter » (`to_process`, depuis v1.20.0). `customer_message.read` s'est révélé
  * inexploitable pour signaler ce qui mérite une action : PrestaShop ne le pose que quand un
  * employé ouvre le fil dans la vue BO, et sur une boutique dont le SAV est en réalité traité par
- * e-mail, ce champ n'est quasiment jamais posé — mesuré en prod : 449 fils « non lus » au sens
- * PrestaShop, dont 364 déjà **fermés** et 190 déjà **répondus par un employé**, avec un message
+ * e-mail, ce champ n'est quasiment jamais posé. Mesuré en prod : 449 fils « non lus » au sens
+ * PrestaShop, dont 364 déjà fermés et 190 déjà répondus par un employé, avec un message
  * « non lu » remontant à 2021-07-14. Le signal utile n'est donc PAS `read`, mais :
  *
  *   fil `status <> 'closed'` ET dernier message du fil émis par la cliente (`id_employee = 0`)
@@ -32,7 +32,7 @@ require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/SettingsService.php';
  *
  * La fenêtre de fraîcheur est nécessaire en plus des deux premières conditions : sans elle, « non
  * clos + dernier message client » remonte 83 fils en prod, mais 81 d'entre eux sont des fils
- * anciens (2021-2025) jamais fermés — du bruit historique, pas une file d'attente réelle. Avec la
+ * anciens (2021-2025) jamais fermés : du bruit historique, pas une file d'attente réelle. Avec la
  * fenêtre de 90 jours, il n'en reste que 2 : c'est ce nombre-là, pas 88 ni 449, qui doit apparaître
  * sur la pastille de l'app. `unread` (ci-dessous) reste exposé tel quel pour compat ascendante
  * (l'app l'utilise dans le détail de fil) mais ne doit plus servir à calculer un compteur global.
@@ -43,7 +43,7 @@ class SavService
     public const MAX_LIMIT = 100;
 
     /**
-     * Fenêtre de fraîcheur (en jours) de la définition « à traiter » — voir docblock de classe.
+     * Fenêtre de fraîcheur (en jours) de la définition « à traiter », voir docblock de classe.
      * Volontairement une constante et non un réglage BO : la valeur découle d'une mesure produit
      * (81/83 fils « à traiter » sans fenêtre sont des fils dormants de plusieurs années), pas d'un
      * choix par boutique ; l'exposer en réglage ajouterait une UI BO sans besoin identifié.
@@ -130,7 +130,7 @@ class SavService
     }
 
     /**
-     * Compteur exact de fils « à traiter » (voir docblock de classe pour la définition) —
+     * Compteur exact de fils « à traiter » (voir docblock de classe pour la définition),
      * indépendant de la pagination, calculé entièrement en SQL. C'est CE nombre que l'app doit
      * afficher sur sa pastille SAV, plus jamais une approximation obtenue en comptant les
      * résultats d'une page de `GET /sav`.
@@ -155,7 +155,7 @@ class SavService
     }
 
     /**
-     * Métadonnées d'un fil SEUL (sans ses messages) — utilisé par le hook push `sav.message`
+     * Métadonnées d'un fil SEUL (sans ses messages), utilisé par le hook push `sav.message`
      * (cf. `RebuildConnector::hookActionObjectCustomerMessageAddAfter()`), qui n'a besoin que du
      * nom de la cliente pour composer la notification, pas de l'historique complet des messages.
      * Même protection IDOR que `getThreadById()` : `null` si absent ou autre boutique.
@@ -171,7 +171,7 @@ class SavService
 
     /**
      * Fil complet (métadonnées + messages dans l'ordre chronologique). `null` si absent ou
-     * appartenant à une autre boutique (protection IDOR — traité comme "introuvable", pas 403,
+     * appartenant à une autre boutique (protection IDOR : traité comme "introuvable", pas 403,
      * pour ne pas confirmer l'existence d'un fil d'une autre boutique).
      *
      * @return array{thread: array<string, mixed>, messages: array<int, array<string, mixed>>}|null
@@ -210,7 +210,7 @@ class SavService
 
     /**
      * Ajoute une réponse du marchand ET envoie un e-mail RÉEL à la cliente (mécanisme documenté
-     * dans `docs/api.md` — mail template propre au connecteur, `rebuildconnector/mails/`, PAS le
+     * dans `docs/api.md` : mail template propre au connecteur, `rebuildconnector/mails/`, PAS le
      * template `contact` du cœur PrestaShop dont l'existence/l'emplacement exacts ne sont pas
      * vérifiables sans installation PS8 de référence).
      *
@@ -242,9 +242,9 @@ class SavService
         $employeeId = $employeeIdentity['id'];
         $now = date('Y-m-d H:i:s');
 
-        // file_name/ip_address/user_agent : toujours une valeur concrète (jamais null) — cf.
-        // piège rappelé par le mandat de tâche, Db::insert() transforme null en chaîne vide, donc
-        // autant fixer la chaîne vide explicitement plutôt que de compter sur cette conversion.
+        // file_name/ip_address/user_agent : toujours une valeur concrète, jamais null. Db::insert()
+        // transforme null en chaîne vide, donc autant fixer la chaîne vide explicitement plutôt
+        // que de compter sur cette conversion.
         Db::getInstance()->insert('customer_message', [
             'id_employee' => $employeeId,
             'id_customer_thread' => (int) $idThread,
@@ -289,7 +289,7 @@ class SavService
     }
 
     /**
-     * Détermine QUI, côté boutique, a écrit cette réponse — et son nom d'affichage.
+     * Détermine QUI, côté boutique, a écrit cette réponse, et son nom d'affichage.
      *
      * - Jeton d'un utilisateur nommé (`$tokenEmployeeId > 0`) : c'est LUI l'auteur, on va juste
      *   chercher son nom pour l'affichage (`employee_name`, cf. D2).
@@ -343,7 +343,7 @@ class SavService
         $query->where('active = 1');
         if ($configuredFallbackId > 0) {
             // Priorise l'employé configuré en BO s'il est toujours actif ; sinon, premier employé
-            // actif par ID croissant — jamais une exception, jamais id_employee = 0 tant qu'il
+            // actif par ID croissant. Jamais une exception, jamais id_employee = 0 tant qu'il
             // existe au moins un employé actif.
             $query->orderBy('(id_employee = ' . $configuredFallbackId . ') DESC, id_employee ASC');
         } else {
@@ -356,8 +356,8 @@ class SavService
 
         if ($rows === []) {
             // Edge case extrême : aucun employé actif en base. Aucune attribution valide n'est
-            // matérialisable — dégradation vers id_employee = 0, uniquement dans ce cas limite
-            // (comportement identique à avant correctif, mais plus jamais atteint en usage normal).
+            // matérialisable : dégradation vers id_employee = 0, uniquement dans ce cas limite,
+            // plus jamais atteint en usage normal.
             return ['id' => 0, 'firstname' => '', 'lastname' => ''];
         }
 
@@ -418,13 +418,13 @@ class SavService
     }
 
     /**
-     * Clause `JOIN` fournissant, pour chaque fil, le dernier message (date + auteur) — SANS
+     * Clause `JOIN` fournissant, pour chaque fil, le dernier message (date + auteur), SANS
      * sous-select corrélé exécuté par ligne. Deux passes non corrélées sur `customer_message` :
      * (1) un `GROUP BY id_customer_thread` qui trouve l'ID max par fil (s'appuie sur l'index
      * natif PrestaShop `id_customer_thread` de cette table), (2) une jointure de ce résultat sur
      * la table pour récupérer `date_add`/`id_employee` de CE message précis. Le tout est ensuite
-     * joint une seule fois sur `customer_thread`, quel que soit le nombre de fils retournés —
-     * mesuré à 481 fils en prod, mais pensé pour ne pas dégénérer en O(fils) sur une boutique plus
+     * joint une seule fois sur `customer_thread`, quel que soit le nombre de fils retournés.
+     * Mesuré à 481 fils en prod, mais pensé pour ne pas dégénérer en O(fils) sur une boutique plus
      * grosse. Alias fixe `lm` (last message), attendu par `threadSelectFields()` et
      * `toProcessSqlCondition()`.
      */
@@ -445,7 +445,7 @@ class SavService
 
     /**
      * Fragment `WHERE` de la définition « à traiter » (voir docblock de classe), partagé entre
-     * `getThreads(['to_process' => true])` et `getToProcessCount()` — une seule définition SQL,
+     * `getThreads(['to_process' => true])` et `getToProcessCount()` : une seule définition SQL,
      * jamais dupliquée. Suppose l'alias `ct` (customer_thread) et `lm` (voir
      * `lastMessageJoinClause()`) déjà présents dans la requête appelante.
      */
@@ -468,7 +468,7 @@ class SavService
 
     /**
      * Traduit les faits bruts remontés par SQL (`status`, dernier auteur, `date_upd`) en drapeau
-     * `to_process` — même définition que `toProcessSqlCondition()`, appliquée en PHP plutôt que
+     * `to_process`, même définition que `toProcessSqlCondition()`, appliquée en PHP plutôt que
      * relue depuis une colonne SQL calculée, pour rester testable sans dépendre d'une horloge
      * serveur MySQL simulée. `null` (aucun message rattaché au fil, cas limite) est traité comme
      * « pas à traiter » : on ne peut pas confirmer que la cliente est bien la dernière à avoir

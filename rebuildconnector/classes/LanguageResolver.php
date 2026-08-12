@@ -8,13 +8,13 @@ defined('_PS_VERSION_') || exit;
  * par l'app PrestaFlow sur chaque requête.
  *
  * Contrat (verrouillé avec l'app, ne pas dévier) :
- * - L'app envoie un tag de langue primaire simple (ex. `de`, `fr-FR,fr;q=0.9`) — on ne garde que le
+ * - L'app envoie un tag de langue primaire simple (ex. `de`, `fr-FR,fr;q=0.9`) : on ne garde que le
  *   premier sous-tag primaire, normalisé en ISO 639-1 minuscule.
- * - Le tag doit correspondre à une langue **installée ET active pour la boutique courante** : on
+ * - Le tag doit correspondre à une langue installée ET active pour la boutique courante : on
  *   réutilise `Language::getLanguages(true, $idShop)`, l'API core déjà utilisée par PrestaShop pour ne
- *   proposer que les langues actives associées à la boutique (ex. sélecteur de langue du front) —
- *   plus sûr qu'un `Language::getIdByIso()` brut, qui ne filtre ni l'activation ni l'association
- *   boutique.
+ *   proposer que les langues actives associées à la boutique (ex. sélecteur de langue du front).
+ *   C'est plus sûr qu'un `Language::getIdByIso()` brut, qui ne filtre ni l'activation ni
+ *   l'association boutique.
  * - Sinon (langue absente, non installée ou non active) → fallback sur `PS_LANG_DEFAULT`, le
  *   comportement historique. C'est la garantie anti-régression : une boutique n'ayant que le FR
  *   installé (ex. pensebonheur en prod) ne voit AUCUN changement de comportement.

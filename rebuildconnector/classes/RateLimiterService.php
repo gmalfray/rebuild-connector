@@ -74,9 +74,9 @@ class RateLimiterService
 
         Db::getInstance()->execute($insertSql);
 
-        // ⚠️ PAS de "LIMIT 1" ici : Db::getValue() (via getRow) ajoute TOUJOURS " LIMIT 1" en PS
-        // 1.7.8. Un "LIMIT 1" déjà présent donne "LIMIT 1 LIMIT 1" → erreur SQL silencieuse →
-        // getValue renvoie 0 → le rate-limiter ne bloquait jamais. $use_cache=false par sécurité.
+        // Piège : PAS de "LIMIT 1" ici. Db::getValue() (via getRow) ajoute TOUJOURS " LIMIT 1" en
+        // PS 1.7.8. Un "LIMIT 1" déjà présent donne "LIMIT 1 LIMIT 1" → erreur SQL silencieuse →
+        // getValue renvoie 0 → le rate-limiter ne bloquerait jamais. $use_cache=false par sécurité.
         $countSql = sprintf(
             'SELECT `count` FROM %s WHERE `identifier` = "%s" AND `period_start` = "%s"',
             $table,

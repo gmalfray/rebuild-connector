@@ -95,7 +95,7 @@ class RebuildconnectorProductsModuleFrontController extends RebuildconnectorBase
         }
 
         // Le filtre "active" n'est appliqué que si le paramètre est explicitement fourni.
-        // Tools::getValue retourne false quand le paramètre est absent — dans ce cas on ne filtre
+        // Tools::getValue retourne false quand le paramètre est absent : dans ce cas on ne filtre
         // pas sur active afin de retourner tous les produits (actifs + inactifs).
         $activeRaw = Tools::getValue('active');
         if ($activeRaw !== false && $activeRaw !== '') {

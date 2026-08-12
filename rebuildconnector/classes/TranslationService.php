@@ -53,9 +53,9 @@ class TranslationService
         ],
         'admin.message.hub_recover_in_progress' => [
             'en' => 'Recovery in progress: the hub delivers the new key directly to this shop via a secure '
-                . 'callback. This can take a few seconds — reload this page to check whether push is active.',
+                . 'callback. This can take a few seconds. Reload this page to check whether push is active.',
             'fr' => 'Récupération en cours : le hub livre la nouvelle clé directement à cette boutique via un '
-                . 'callback sécurisé. Cela peut prendre quelques secondes — rechargez cette page pour vérifier '
+                . 'callback sécurisé. Cela peut prendre quelques secondes. Rechargez cette page pour vérifier '
                 . 'que le push est actif.',
         ],
         'admin.message.hub_recover_provisioned_fallback' => [
@@ -86,8 +86,8 @@ class TranslationService
 
         // Admin form labels & help
         'admin.form.title' => [
-            'en' => 'Rebuild Connector — API & Notifications',
-            'fr' => 'Rebuild Connector — API & notifications',
+            'en' => 'Rebuild Connector : API and notifications',
+            'fr' => 'Rebuild Connector : API et notifications',
         ],
         'admin.form.api_key_label' => [
             'en' => 'API key',
@@ -250,8 +250,8 @@ class TranslationService
             'fr' => 'Employé de repli SAV',
         ],
         'admin.form.sav_fallback_employee_id_help' => [
-            'en' => 'Used ONLY when a SAV reply is sent via the global API key (which carries no employee). A named user always keeps their own identity — this setting never overrides it. Leave on "Automatic" to fall back on the first active employee.',
-            'fr' => 'Utilisé UNIQUEMENT quand une réponse SAV est envoyée via la clé API globale (qui ne porte aucun employé). Un utilisateur nommé garde toujours sa propre identité — ce réglage ne la remplace jamais. Laissez sur « Automatique » pour retomber sur le premier employé actif.',
+            'en' => 'Used ONLY when a SAV reply is sent via the global API key (which carries no employee). A named user always keeps their own identity, and this setting never overrides it. Leave on "Automatic" to fall back on the first active employee.',
+            'fr' => 'Utilisé UNIQUEMENT quand une réponse SAV est envoyée via la clé API globale (qui ne porte aucun employé). Un utilisateur nommé garde toujours sa propre identité, et ce réglage ne la remplace jamais. Laissez sur « Automatique » pour retomber sur le premier employé actif.',
         ],
         'admin.form.save_button' => [
             'en' => 'Save settings',
@@ -479,8 +479,8 @@ class TranslationService
             'fr' => 'Avis à modérer',
         ],
         'notifications.review_pending_body' => [
-            'en' => '%s — %s/5',
-            'fr' => '%s — %s/5',
+            'en' => '%s · %s/5',
+            'fr' => '%s · %s/5',
         ],
         'notifications.review_pending_anonymous' => [
             'en' => 'A customer',

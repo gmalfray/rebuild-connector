@@ -7,7 +7,7 @@ require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/HubKeyVerifier.php';
 
 /**
  * Callback PUBLIC (aucun JWT) appelé par le hub push centralisé (push.rebuild-it.fr) pour livrer
- * une nouvelle clé de licence suite à un `POST /v1/licenses/recover` — récupération self-service
+ * une nouvelle clé de licence suite à un `POST /v1/licenses/recover` : récupération self-service
  * d'une licence perdue (ex. réinstallation du module), basée sur la preuve de contrôle du domaine
  * (cf. rebuild-it/docs/push-recover.md, hors périmètre de ce repo).
  *
@@ -33,7 +33,7 @@ class RebuildconnectorHubkeyModuleFrontController extends RebuildconnectorBaseAp
      * Elle n'a pas de sens ici : ce callback est appelé depuis l'infrastructure du hub (Cloudflare
      * Workers), dont les IP sortantes ne sont ni stables ni communiquées à l'avance. L'appliquer
      * casserait la récupération de licence précisément pour les boutiques qui activent l'allowlist.
-     * L'authenticité de la requête est garantie par la signature RSA, pas par son IP source.
+     * C'est la signature RSA qui authentifie la requête, pas son IP source.
      */
     protected function isIpAllowlistEnforced(): bool
     {
@@ -80,7 +80,7 @@ class RebuildconnectorHubkeyModuleFrontController extends RebuildconnectorBaseAp
             return;
         }
 
-        // Chaîne JSON brute EXACTE reçue du hub — ne JAMAIS la ré-encoder avant la vérif signature.
+        // Chaîne JSON brute EXACTE reçue du hub : ne JAMAIS la ré-encoder avant la vérif signature.
         $payloadJson = $envelope['payload'];
         $signatureB64 = $envelope['signature'];
 
@@ -141,8 +141,8 @@ class RebuildconnectorHubkeyModuleFrontController extends RebuildconnectorBaseAp
     }
 
     /**
-     * Expose le vérificateur de signature aux sous-classes — seam de test permettant d'injecter
-     * une clé publique de test (paire RSA jetable) sans exposer la clé privée réelle du hub.
+     * Expose le vérificateur de signature aux sous-classes. Seam de test : une sous-classe peut
+     * injecter une clé publique de test (paire RSA jetable) sans exposer la clé privée réelle du hub.
      */
     protected function getVerifier(): HubKeyVerifier
     {

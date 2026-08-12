@@ -131,7 +131,7 @@ class ColissimoLabelService
      * Reflète EXACTEMENT la condition qui fait répondre `501 generation_not_configured` à
      * `POST /orders/{id}/shipping-label` (cf. `generateColissimoLabel()` ci-dessus, étapes 1 et 2) :
      * module Colissimo installé ET actif, ET des credentials exploitables (l'un des deux modes
-     * supportés par `readCredentials()`). Sert de source de vérité à `CapabilitiesService` — ne lit
+     * supportés par `readCredentials()`). Sert de source de vérité à `CapabilitiesService`. Ne lit
      * jamais les credentials en clair, ne les logue jamais, ne déclenche aucun appel réseau.
      */
     public function isConfigured(): bool
@@ -566,7 +566,8 @@ class ColissimoLabelService
             }
         } catch (\Throwable $e) {
             // Non bloquant : l'étiquette est déjà générée/persistée même si ce champ ne peut pas
-            // être mis à jour. Mais on ne l'avale plus en silence — tracé pour rester diagnosticable.
+            // être mis à jour. L'échec n'est pas avalé en silence : il est tracé pour rester
+            // diagnosticable.
             $this->auditLogService->record('orders.shipping_label.tracking_sync_failed', [
                 'order_id' => (int) $order->id,
                 'tracking_number' => $trackingNumber,
@@ -586,7 +587,7 @@ class ColissimoLabelService
      * étiquette Colissimo.
      *
      * Garde-fou anti-rétrogradation : n'applique le changement QUE si l'état courant diffère de
-     * l'état visé ET n'est pas déjà un état « en aval » (cf. NO_REGRESS_STATE_IDS) — une commande
+     * l'état visé ET n'est pas déjà un état « en aval » (cf. NO_REGRESS_STATE_IDS) : une commande
      * déjà Expédiée/Livrée/Remise au transporteur/Terminée/Annulée n'est jamais retouchée.
      *
      * Opération non bloquante : le PDF est déjà généré, un échec ici (ex. envoi de l'email associé

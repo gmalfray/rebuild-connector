@@ -7,7 +7,7 @@ defined('_PS_VERSION_') || exit;
  * (allowlist IP, rate-limiting, audit).
  *
  * Ne PAS utiliser `Tools::getRemoteAddr()` (core) pour ces décisions : cette méthode se fie au
- * 1ᵉʳ élément de l'en-tête `X-Forwarded-For` dès que REMOTE_ADDR est une IP privée/loopback — or ce
+ * 1ᵉʳ élément de l'en-tête `X-Forwarded-For` dès que REMOTE_ADDR est une IP privée/loopback, or ce
  * header est entièrement contrôlé par le client HTTP (un attaquant peut y injecter n'importe quelle
  * valeur), ce qui permet de spoofer l'IP vue par le module et de contourner l'allowlist IP ou le
  * rate-limiting.

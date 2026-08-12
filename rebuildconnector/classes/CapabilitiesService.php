@@ -6,7 +6,7 @@ require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/Reviews/ReviewsAvailabi
 require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/ColissimoLabelService.php';
 
 /**
- * Capacités de LA BOUTIQUE — à ne pas confondre avec les scopes du jeton (droit de l'utilisatrice).
+ * Capacités de LA BOUTIQUE, à ne pas confondre avec les scopes du jeton (droit de l'utilisatrice).
  *
  * Une capacité répond à « cette boutique est-elle équipée pour ça ? », indépendamment de qui
  * pose la question : un jeton peut très bien porter le scope `reviews.moderate` sur une boutique
@@ -31,12 +31,12 @@ class CapabilitiesService
             // Fils clients natifs PrestaShop (ps_customer_thread/ps_customer_message) : aucun
             // module requis, toujours vrai.
             'sav' => true,
-            // Vérifié à chaud à chaque appel — jamais mis en cache au-delà de la requête HTTP
+            // Vérifié à chaud à chaque appel, jamais mis en cache au-delà de la requête HTTP
             // courante, pour qu'une désinstallation de rbreviews soit vue immédiatement.
             'reviews' => ReviewsAvailability::isAvailable(),
             // Reflète EXACTEMENT la condition qui fait répondre 501 generation_not_configured à
             // POST /orders/{id}/shipping-label (cf. ColissimoLabelService::isConfigured()) : module
-            // Colissimo installé+actif ET credentials renseignés. Jamais une approximation — un
+            // Colissimo installé+actif ET credentials renseignés. Jamais une approximation : un
             // champ qui promettrait la fonction sans que la génération réponde effectivement serait
             // pire que son absence.
             'shipping_labels' => $this->colissimoLabelService->isConfigured(),

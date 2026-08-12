@@ -5,7 +5,7 @@ if (!defined('_PS_VERSION_')) {
 }
 
 /**
- * Upgrade 1.2.0 — Multi-utilisateur
+ * Upgrade 1.2.0 : multi-utilisateur
  *
  * Crée la table rebuildconnector_user pour la gestion des utilisateurs nommés.
  *

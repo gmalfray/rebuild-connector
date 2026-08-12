@@ -7,7 +7,7 @@ require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/Reviews/ReviewsBridgeFa
 require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/Reviews/ReviewsUnavailableException.php';
 
 /**
- * PONT vers le module tiers rbreviews — jamais d'accès direct aux tables `rbreviews_*` ici,
+ * PONT vers le module tiers rbreviews : jamais d'accès direct aux tables `rbreviews_*` ici,
  * uniquement via `ReviewsBridgeInterface` (cf. `docs/app-avis-sav.md`, § « Où vit l'API des avis »).
  *
  * Si rbreviews n'est pas installé/actif : toutes les routes répondent 409 `reviews_unavailable`,
@@ -159,7 +159,7 @@ class RebuildconnectorReviewsModuleFrontController extends RebuildconnectorBaseA
                     $this->jsonError('not_found', $this->t('reviews.error.not_found', [], 'Review not found.'), 404);
                     return;
                 }
-                // Jamais le motif ni l'e-mail de l'auteur dans l'audit — uniquement des identifiants.
+                // Jamais le motif ni l'e-mail de l'auteur dans l'audit : uniquement des identifiants.
                 $this->recordAuditEvent('reviews.trashed', [
                     'review_id' => $reviewId,
                     'author_notified' => $result['author_notified'],

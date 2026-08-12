@@ -5,7 +5,7 @@ if (!defined('_PS_VERSION_')) {
 }
 
 /**
- * Upgrade 1.17.0 — Surveillance du tunnel de paiement
+ * Upgrade 1.17.0 : surveillance du tunnel de paiement
  *
  * Nouveautés :
  *   - Détection d'une panne d'encaissement (journal du module de paiement) et notification push

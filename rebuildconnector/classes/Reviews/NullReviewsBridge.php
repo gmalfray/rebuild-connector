@@ -7,7 +7,7 @@ require_once __DIR__ . '/ReviewsUnavailableException.php';
 
 /**
  * Pont neutre utilisé quand rbreviews n'est pas installé/actif. `isAvailable()` répond `false` ;
- * toute autre méthode lève `ReviewsUnavailableException` (filet de sécurité — le contrôleur doit
+ * toute autre méthode lève `ReviewsUnavailableException` (filet de sécurité : le contrôleur doit
  * avoir déjà répondu 409 via `isAvailable()` avant d'appeler quoi que ce soit d'autre ici).
  */
 final class NullReviewsBridge implements ReviewsBridgeInterface

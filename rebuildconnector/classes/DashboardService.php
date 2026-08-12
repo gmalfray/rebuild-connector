@@ -66,7 +66,7 @@ class DashboardService
         );
 
         // order_return n'a pas de colonne id_shop : on filtre via une jointure sur orders.
-        // ⚠️ L'alias `orr` est obligatoire : sans lui, la table s'appelle `<prefixe>order_return`
+        // Piège : l'alias `orr` est obligatoire, sans lui la table s'appelle `<prefixe>order_return`
         // et tout qualificatif `order_return.` casse la requête (1054 Unknown column).
         $returnsShopJoin = $shopId > 0
             ? ' INNER JOIN ' . _DB_PREFIX_ . 'orders o ON o.id_order = orr.id_order AND o.id_shop = ' . $shopId
@@ -87,7 +87,7 @@ class DashboardService
         } else {
             // Preset civil (today/week/month/quarter/year) : comparatif N-1 "à date comparable"
             // (même période civile l'an dernier, tronquée à la durée déjà écoulée depuis le début
-            // de la période courante) — cf. resolveYoyComparisonRange().
+            // de la période courante). Cf. resolveYoyComparisonRange().
             $comparisonRange = $this->resolveYoyComparisonRange($from, $to, $period);
             $prevFrom = $comparisonRange['from'];
             $prevTo = $comparisonRange['to'];
@@ -116,7 +116,7 @@ class DashboardService
                 'to' => $to->format(DATE_ATOM),
             ],
             // Champ additif (v1.15.0) : bornes de la période de comparaison réellement utilisées
-            // pour previous_turnover. Optionnel — ne pas modifier la lecture existante de
+            // pour previous_turnover. Optionnel : ne pas modifier la lecture existante de
             // previous_turnover, qui reste au même endroit avec la même sémantique (un nombre).
             'comparison_period' => [
                 'from' => $prevFrom->format(DATE_ATOM),
@@ -289,7 +289,7 @@ class DashboardService
 
     /**
      * Bornes CIVILES (depuis v1.15.0) : chaque preset part du début de la période civile en cours
-     * (fuseau boutique) et court jusqu'à `now` — la période courante est donc potentiellement
+     * (fuseau boutique) et court jusqu'à `now`. La période courante est donc potentiellement
      * PARTIELLE (ex : « month » un 13 du mois = du 1er au 13, pas les 30 derniers jours glissants).
      * C'est voulu : ces presets servent désormais à piloter un objectif sur la période civile,
      * comparé à la même période civile l'an dernier (cf. resolveYoyComparisonRange()).
@@ -685,7 +685,7 @@ class DashboardService
 
     /**
      * Résout l'id_lang selon l'en-tête `Accept-Language` envoyé par l'app (fallback langue par
-     * défaut boutique si absent/non installée/inactive) — voir LanguageResolver.
+     * défaut boutique si absent/non installée/inactive), voir LanguageResolver.
      */
     private function getLanguageId(): int
     {

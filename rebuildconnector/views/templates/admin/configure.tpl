@@ -1,6 +1,6 @@
 {*
- * PrestaFlow — Rebuild Connector
- * Page de configuration BO — v1.3.0
+ * PrestaFlow : module Rebuild Connector
+ * Page de configuration BO (v1.3.0)
  * Structure : Bandeau état · Utilisateurs & accès · Notifications FCM · Sécurité · Avancé
  *}
 
@@ -12,7 +12,7 @@
     <i class="icon-download" style="font-size:20px; flex-shrink:0;"></i>
     <div style="flex:1; min-width:200px;">
         <strong>Mise à jour disponible : Rebuild Connector v{$update_info.latest|escape:'htmlall'}</strong>
-        &nbsp;&mdash;&nbsp;
+        &nbsp;·&nbsp;
         version installée : <code>v{$module_version|escape:'htmlall'}</code>
     </div>
     <div style="white-space:nowrap; display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
@@ -33,12 +33,12 @@
 {/if}
 
 {* ─────────────────────────────────────────────────────────────────────────────
-   SECTION 1 — BANDEAU D'ÉTAT
+   SECTION 1 : BANDEAU D'ÉTAT
    ─────────────────────────────────────────────────────────────────────────────*}
 <div class="panel panel-default" id="rbc-status-panel">
     <div class="panel-heading">
         <i class="icon-signal"></i>
-        Rebuild Connector — État du module
+        Rebuild Connector : état du module
         <span class="badge" style="float:right; background:#6c757d;">v{$module_version|escape:'htmlall'}</span>
     </div>
     <div class="panel-body">
@@ -113,7 +113,7 @@
 
 
 {* ─────────────────────────────────────────────────────────────────────────────
-   SECTION 2 — UTILISATEURS & ACCÈS
+   SECTION 2 : UTILISATEURS & ACCÈS
    ─────────────────────────────────────────────────────────────────────────────*}
 <div class="panel" id="rbc-users-panel">
     <div class="panel-heading">
@@ -122,11 +122,11 @@
     </div>
     <div class="panel-body">
 
-        {* Alerte clé régénérée (admin legacy) — affichage one-time uniquement *}
+        {* Alerte clé régénérée (admin legacy) : affichage one-time uniquement *}
         {if isset($regenerated_admin_api_key) && $regenerated_admin_api_key}
             <div class="alert alert-warning" id="rbc-admin-regen-alert">
                 <i class="icon-warning-sign"></i>
-                <strong>Clé Admin régénérée — notez-la et scannez le QR maintenant, elle ne sera plus affichée.</strong><br>
+                <strong>Clé Admin régénérée. Notez-la et scannez le QR maintenant : elle ne sera plus affichée.</strong><br>
                 <span class="text-muted" style="font-size:12px;">Cette clé donne un accès complet à tous les endpoints. Conservez-la en lieu sûr.</span><br><br>
                 Clé : <code id="rbc-admin-regen-key">{$regenerated_admin_api_key|escape:'htmlall'}</code>
                 {if isset($regenerated_admin_qr_json) && $regenerated_admin_qr_json}
@@ -151,7 +151,7 @@
         {if isset($new_user_api_key) && $new_user_api_key}
             <div class="alert alert-success" id="rbc-new-user-alert">
                 <i class="icon-check"></i>
-                <strong>Clé API générée — notez-la maintenant, elle ne sera plus affichée !</strong><br>
+                <strong>Clé API générée. Notez-la maintenant : elle ne sera plus affichée !</strong><br>
                 Clé : <code id="rbc-new-user-key">{$new_user_api_key|escape:'htmlall'}</code>
                 {if isset($new_user_qr_json) && $new_user_qr_json}
                     <div
@@ -171,7 +171,7 @@
             <div class="panel-heading" style="background:#f5f5f5;">
                 <i class="icon-star"></i>
                 <strong>Admin</strong>
-                <span class="label label-primary" style="margin-left:8px;">Accès complet — tous les scopes</span>
+                <span class="label label-primary" style="margin-left:8px;">Accès complet, tous les scopes</span>
                 <span class="text-muted" style="font-size:12px; margin-left:12px;">Clé API globale (compatibilité)</span>
             </div>
             <div class="panel-body">
@@ -182,7 +182,7 @@
                             {if $settings.api_key_configured}
                                 <code style="color:#888; letter-spacing:2px;">••••••••••••••••••••</code>
                                 <span class="text-muted" style="font-size:12px; margin-left:8px;">
-                                    Clé secrète — visible uniquement lors de la régénération
+                                    Clé secrète, visible uniquement lors de la régénération
                                 </span>
                             {else}
                                 <span class="label label-danger">Aucune clé configurée</span>
@@ -236,7 +236,7 @@
                                     <i class="icon-user-md"></i>
                                     {$u.employee_firstname|escape:'htmlall'} {$u.employee_lastname|escape:'htmlall'}
                                     &lt;{$u.employee_email|escape:'htmlall'}&gt;
-                                    — créé le {$u.date_add|date_format:'%d/%m/%Y'}
+                                    (créé le {$u.date_add|date_format:'%d/%m/%Y'})
                                 </small>
                             </div>
                             <div class="col-lg-6 text-right">
@@ -394,7 +394,7 @@
                         <label class="control-label col-lg-3" for="rbc_new_employee">Employé PrestaShop</label>
                         <div class="col-lg-9">
                             <select id="rbc_new_employee" name="rebuildconnector_user_employee" class="form-control" required>
-                                <option value="">— Sélectionner un employé —</option>
+                                <option value="">Sélectionner un employé…</option>
                                 {if isset($employees) && $employees}
                                     {foreach from=$employees item=emp}
                                         <option value="{$emp.id_employee|intval}">
@@ -486,7 +486,7 @@
 
 
 {* ─────────────────────────────────────────────────────────────────────────────
-   SECTION 3 — NOTIFICATIONS PUSH (hub-only)
+   SECTION 3 : NOTIFICATIONS PUSH (hub-only)
    ─────────────────────────────────────────────────────────────────────────────*}
 
 
@@ -606,7 +606,7 @@
                 <p>
                     Le module peut demander automatiquement une licence d'essai au hub push pour ce
                     domaine (aucune saisie requise). Si une licence existe déjà pour ce domaine, elle ne
-                    peut pas être renvoyée par le hub (secret one-time) — il faudra alors la saisir
+                    peut pas être renvoyée par le hub (secret one-time). Il faudra alors la saisir
                     manuellement dans « Avancé » ou contacter l'administrateur du hub.
                 </p>
                 <form method="post">
@@ -618,7 +618,7 @@
 
             {* ─── Récupération self-service : boutique déjà licenciée mais clé locale perdue
                  (ex. réinstallation du module). Le hub livre la nouvelle clé via un callback signé
-                 vers ce domaine — jamais dans cette réponse HTTP (preuve de contrôle du domaine). ─── *}
+                 vers ce domaine, jamais dans cette réponse HTTP (preuve de contrôle du domaine). ─── *}
             <div class="well" style="margin-bottom:0;">
                 <h4><i class="icon-key"></i> Récupérer ma clé</h4>
                 <p>
@@ -640,7 +640,7 @@
 
 
 {* ─────────────────────────────────────────────────────────────────────────────
-   SECTION 4 — SÉCURITÉ
+   SECTION 4 : SÉCURITÉ
    ─────────────────────────────────────────────────────────────────────────────*}
 <div class="panel" id="rbc-security-panel">
     <div class="panel-heading">
@@ -774,7 +774,7 @@
                         style="max-width:320px;"
                     >
                         <option value="0" {if !$settings.sav_fallback_employee_id}selected{/if}>
-                            — Automatique (premier employé actif) —
+                            Automatique (premier employé actif)
                         </option>
                         {if isset($employees) && $employees}
                             {foreach from=$employees item=emp}
@@ -840,7 +840,7 @@
 
 
 {* ─────────────────────────────────────────────────────────────────────────────
-   SECTION 5 — AVANCÉ / JOURNAUX (repliée)
+   SECTION 5 : AVANCÉ / JOURNAUX (repliée)
    ─────────────────────────────────────────────────────────────────────────────*}
 <div class="panel" id="rbc-advanced-panel">
     <div class="panel-heading" style="cursor:pointer;" data-toggle="collapse" data-target="#rbc-advanced-body">
@@ -892,7 +892,7 @@
 
             {* ─── Hub push : réglages de dépannage (l'activation normale = 1 clic dans « Hub push centralisé ») ─── *}
             <hr>
-            <h4 style="margin-top:0;"><i class="icon-cloud"></i> Hub push — réglages avancés</h4>
+            <h4 style="margin-top:0;"><i class="icon-cloud"></i> Hub push : réglages avancés</h4>
             <p class="text-muted" style="margin-bottom:12px;">
                 L'activation normale se fait en un clic depuis la section « Hub push ».
                 Les réglages ci-dessous ne servent qu'au dépannage : saisie manuelle d'une clé de licence

@@ -62,7 +62,7 @@ class OrdersService
             $query->where('o.id_customer = ' . (int) $filters['customer_id']);
         }
 
-        // Filtre multi-statuts `statuses` (liste CSV ou tableau d'IDs) — prime sur `status` unique.
+        // Filtre multi-statuts `statuses` (liste CSV ou tableau d'IDs) : prime sur `status` unique.
         $statusesFilter = $this->parseStatusesFilter($filters['statuses'] ?? null);
         if ($statusesFilter !== []) {
             $inList = implode(',', $statusesFilter);
@@ -98,7 +98,7 @@ class OrdersService
             );
         }
 
-        // Tri : résolution via whitelist — aucune interpolation directe du paramètre dans le SQL.
+        // Tri : résolution via whitelist, aucune interpolation directe du paramètre dans le SQL.
         $sortParam = isset($filters['sort']) ? (string) $filters['sort'] : '';
         $orderClause = self::SORT_WHITELIST[$sortParam] ?? self::SORT_WHITELIST['date_desc'];
         $query->orderBy($orderClause);
@@ -477,7 +477,7 @@ class OrdersService
 
     /**
      * Résout l'id_lang selon l'en-tête `Accept-Language` envoyé par l'app (fallback langue par
-     * défaut boutique si absent/non installée/inactive) — voir LanguageResolver.
+     * défaut boutique si absent/non installée/inactive), voir LanguageResolver.
      */
     private function getLanguageId(): int
     {
@@ -502,7 +502,7 @@ class OrdersService
         }
 
         // Résolution nom → id via order_state_lang uniquement.
-        // NB : pas d'appel à OrderState::getIdByName() — cette méthode n'existe pas dans l'API
+        // NB : pas d'appel à OrderState::getIdByName(), cette méthode n'existe pas dans l'API
         // PrestaShop (ni 1.7.8 ni 8.x) et provoquerait un fatal Error (500) sur PATCH /orders/{id}.
         $langId = $this->getLanguageId();
 

@@ -5,11 +5,11 @@ if (!defined('_PS_VERSION_')) {
 }
 
 /**
- * Upgrade 1.18.1 — correctifs SAV (attribution employé + nom dans la réponse) + avertissement BO.
+ * Upgrade 1.18.1 : correctifs SAV (attribution employé + nom dans la réponse) + avertissement BO.
  *
  * Aucune migration de données : ni schéma, ni scopes.
  *   - `sav_fallback_employee_id` (nouveau réglage BO, cf. SettingsService) est absent tant qu'un
- *     admin ne l'a pas explicitement configuré — `getSavFallbackEmployeeId()` renvoie alors 0, ce
+ *     admin ne l'a pas explicitement configuré. `getSavFallbackEmployeeId()` renvoie alors 0, ce
  *     qui déclenche la résolution automatique (premier employé actif). Rien à initialiser ici.
  *   - Les scopes des utilisateurs NOMMÉS existants (table `rebuildconnector_user`) restent
  *     volontairement inchangés, exactement comme en 1.18.0 (cf. Upgrade-1.18.0.php) : accorder

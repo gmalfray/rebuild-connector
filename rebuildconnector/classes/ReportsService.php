@@ -139,7 +139,7 @@ class ReportsService
 
     /**
      * Résout l'id_lang selon l'en-tête `Accept-Language` envoyé par l'app (fallback langue par
-     * défaut boutique si absent/non installée/inactive) — voir LanguageResolver.
+     * défaut boutique si absent/non installée/inactive), voir LanguageResolver.
      */
     private function getLanguageId(): int
     {
