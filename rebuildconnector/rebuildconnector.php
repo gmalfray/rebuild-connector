@@ -17,9 +17,11 @@ require_once __DIR__ . '/classes/AuthService.php';
 require_once __DIR__ . '/classes/TranslationService.php';
 require_once __DIR__ . '/classes/UpdateCheckService.php';
 require_once __DIR__ . '/classes/ClientIpResolver.php';
+require_once __DIR__ . '/classes/StockMovementService.php';
 require_once __DIR__ . '/classes/ProductsService.php';
 require_once __DIR__ . '/classes/StockAlertService.php';
 require_once __DIR__ . '/classes/PaymentWatchService.php';
+require_once __DIR__ . '/classes/EmployeeResolverService.php';
 require_once __DIR__ . '/classes/SavService.php';
 require_once __DIR__ . '/classes/Reviews/ReviewsAvailability.php';
 
@@ -42,7 +44,7 @@ class RebuildConnector extends Module
     {
         $this->name = 'rebuildconnector';
         $this->tab = 'administration';
-        $this->version = '1.20.0';
+        $this->version = '1.21.0';
         $this->author = 'Rebuild IT';
         $this->need_instance = 0;
         $this->bootstrap = true;

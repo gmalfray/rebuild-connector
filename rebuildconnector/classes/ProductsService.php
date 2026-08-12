@@ -3,6 +3,7 @@
 defined('_PS_VERSION_') || exit;
 
 require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/LanguageResolver.php';
+require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/StockMovementService.php';
 
 class ProductsService
 {
@@ -13,6 +14,13 @@ class ProductsService
 
     /** @var Link|null */
     private $link = null;
+
+    private StockMovementService $stockMovementService;
+
+    public function __construct(?StockMovementService $stockMovementService = null)
+    {
+        $this->stockMovementService = $stockMovementService ?: new StockMovementService();
+    }
 
     /**
      * @param array<string, mixed> $filters
@@ -600,10 +608,16 @@ class ProductsService
     }
 
     /**
+     * Écrit une quantité ABSOLUE (comportement historique, inchangé). Pour incrémenter le stock
+     * courant plutôt que de le remplacer, voir applyStockDelta().
+     *
      * @param int $combinationId id_product_attribute ciblé (0 ou absent = niveau produit, comportement
      *                           historique). Doit appartenir au produit sinon la mise à jour est rejetée.
+     * @param array{id: int, firstname: string, lastname: string}|null $employeeIdentity Auteur du
+     *        mouvement de stock à tracer. `null` (défaut) désactive la trace du mouvement plutôt que
+     *        de l'attribuer à un employé arbitraire : seul l'appelant connaît l'auteur réel.
      */
-    public function updateStock(int $productId, int $quantity, int $combinationId = 0): bool
+    public function updateStock(int $productId, int $quantity, int $combinationId = 0, ?array $employeeIdentity = null): bool
     {
         $product = new Product($productId);
         if (!Validate::isLoadedObject($product)) {
@@ -620,9 +634,140 @@ class ProductsService
             return false;
         }
 
-        StockAvailable::setQuantity($productId, $combinationId > 0 ? $combinationId : 0, $quantity);
+        $targetCombinationId = $combinationId > 0 ? $combinationId : 0;
+
+        // Quantité lue AVANT l'écriture, uniquement pour renseigner le delta du mouvement de stock
+        // (StockAvailable::setQuantity() n'expose pas lui-même le delta qu'il calcule en interne).
+        // Contrairement à applyStockDelta(), ce mode n'a pas besoin que cette lecture soit verrouillée :
+        // la quantité écrite est la valeur absolue fournie par l'appelant, pas dérivée de cette lecture.
+        $previousQuantity = StockAvailable::getQuantityAvailableByProduct(
+            $productId,
+            $targetCombinationId > 0 ? $targetCombinationId : null,
+            $shopId > 0 ? $shopId : null
+        );
+
+        StockAvailable::setQuantity($productId, $targetCombinationId, $quantity);
+
+        if ($employeeIdentity !== null) {
+            $idStockAvailable = (int) StockAvailable::getStockAvailableIdByProductId(
+                $productId,
+                $targetCombinationId,
+                $shopId > 0 ? $shopId : null
+            );
+            $this->stockMovementService->recordIfNeeded($idStockAvailable, $quantity - $previousQuantity, $employeeIdentity);
+        }
 
         return true;
+    }
+
+    /**
+     * Applique un INCRÉMENT (positif ou négatif) au stock courant, de façon atomique côté base :
+     * une session de scans côté app peut durer plusieurs minutes pendant que la boutique continue de
+     * vendre, écrire une quantité absolue à la fin écraserait les ventes survenues entre-temps.
+     *
+     * L'atomicité vient d'un verrou de ligne (`SELECT ... FOR UPDATE`) posé sur la ligne
+     * `stock_available` ciblée, tenu le temps d'une transaction explicite. `StockAvailable::setQuantity()`
+     * et `StockAvailable::updateQuantity()` du cœur PrestaShop calculent tous deux la nouvelle
+     * quantité en PHP après une simple lecture nue (vérifié sur le code source du cœur 8.2.x, pas
+     * seulement sur leur nom) : les rejouer tels quels pour appliquer un delta aurait reproduit,
+     * côté serveur, la même perte d'écriture que ce mode cherche justement à éliminer côté app. Le
+     * verrou, tenu jusqu'au COMMIT, force toute écriture concurrente sur la même ligne (une vente en
+     * cours, un autre appel PATCH) à attendre la fin de cette transaction plutôt que de lire une
+     * valeur de départ déjà obsolète.
+     *
+     * Le reste du chemin (hook `actionUpdateQuantity`, cache, entrepôt) passe par le même
+     * `StockAvailable::setQuantity()` que le mode absolu, appelé avec la quantité déjà calculée sous
+     * verrou plutôt que de le laisser recalculer lui-même cette valeur (ce recalcul, non verrouillé,
+     * rouvrirait la fenêtre de course qu'on vient de fermer).
+     *
+     * Un delta négatif plus grand que le stock courant n'est PAS bloqué : le résultat peut être
+     * négatif, exactement comme le permet déjà le mode quantité absolue de ce même endpoint (aucun
+     * plancher n'y a jamais existé). PrestaShop lui-même autorise une quantité négative en stock
+     * (colonne signée, usage courant pour le backorder) ; rejeter la requête empêcherait une
+     * correction légitime (session de scan avec erreur de comptage) précisément quand elle est la
+     * plus utile, et clamper à zéro masquerait l'ampleur réelle de l'écart. La quantité résultante
+     * est renvoyée telle quelle par cette méthode : rien n'est caché à l'appelant.
+     *
+     * @param int $combinationId id_product_attribute ciblé (0 = niveau produit). Doit appartenir au
+     *                           produit sinon la mise à jour est rejetée.
+     * @param array{id: int, firstname: string, lastname: string}|null $employeeIdentity Auteur du
+     *        mouvement de stock à tracer, voir updateStock().
+     * @return int|null Quantité résultante après application du delta, ou null si le produit ou la
+     *                   déclinaison ciblée est invalide (mêmes conditions de rejet que updateStock()).
+     */
+    public function applyStockDelta(int $productId, int $delta, int $combinationId = 0, ?array $employeeIdentity = null): ?int
+    {
+        $product = new Product($productId);
+        if (!Validate::isLoadedObject($product)) {
+            return null;
+        }
+
+        $shopId = $this->getShopId();
+        if ($shopId > 0 && !$this->productBelongsToShop($productId, $shopId)) {
+            return null;
+        }
+
+        if ($combinationId > 0 && !$this->combinationBelongsToProduct($combinationId, $productId)) {
+            return null;
+        }
+
+        $targetCombinationId = $combinationId > 0 ? $combinationId : 0;
+        $db = Db::getInstance();
+        $db->execute('START TRANSACTION');
+
+        try {
+            $idStockAvailable = (int) StockAvailable::getStockAvailableIdByProductId(
+                $productId,
+                $targetCombinationId,
+                $shopId > 0 ? $shopId : null
+            );
+
+            $currentQuantity = 0;
+            if ($idStockAvailable > 0) {
+                // Verrou de ligne posé ici, relâché au COMMIT plus bas. Requête bâtie à la main
+                // (DbQuery ne sait pas exprimer FOR UPDATE) : LIMIT 1 est placé AVANT FOR UPDATE
+                // (l'inverse est un rejet SQL), et surtout PAS passé par Db::getValue()/getRow(),
+                // qui ajoutent leur propre " LIMIT 1" en toute fin de requête (piège déjà documenté
+                // dans RateLimiterService pour la même raison) : "... FOR UPDATE LIMIT 1" serait
+                // rejeté par MySQL.
+                $lockSql = 'SELECT `quantity` FROM `' . _DB_PREFIX_ . 'stock_available`'
+                    . ' WHERE `id_stock_available` = ' . $idStockAvailable
+                    . ' LIMIT 1 FOR UPDATE';
+                $rows = $db->executeS($lockSql);
+                if (is_array($rows) && isset($rows[0]['quantity'])) {
+                    $currentQuantity = (int) $rows[0]['quantity'];
+                }
+            }
+            // $idStockAvailable === 0 : produit/déclinaison sans ligne stock_available existante,
+            // cas rare pour un produit déjà au catalogue (la ligne est créée à la création du
+            // produit). Rien à verrouiller dans ce cas : StockAvailable::setQuantity() ci-dessous
+            // l'insère lui-même, avec la même absence de protection contre une double insertion
+            // concurrente que le cœur PrestaShop lui-même sur cette branche.
+
+            $newQuantity = $currentQuantity + $delta;
+
+            StockAvailable::setQuantity($productId, $targetCombinationId, $newQuantity, $shopId > 0 ? $shopId : null);
+
+            if ($employeeIdentity !== null) {
+                if ($idStockAvailable <= 0) {
+                    // La ligne vient d'être créée par setQuantity() ci-dessus : la retrouver pour
+                    // que le mouvement référence la bonne ligne stock_available.
+                    $idStockAvailable = (int) StockAvailable::getStockAvailableIdByProductId(
+                        $productId,
+                        $targetCombinationId,
+                        $shopId > 0 ? $shopId : null
+                    );
+                }
+                $this->stockMovementService->recordIfNeeded($idStockAvailable, $delta, $employeeIdentity);
+            }
+
+            $db->execute('COMMIT');
+        } catch (\Throwable $exception) {
+            $db->execute('ROLLBACK');
+            throw $exception;
+        }
+
+        return $newQuantity;
     }
 
     /**

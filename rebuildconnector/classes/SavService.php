@@ -3,6 +3,7 @@
 defined('_PS_VERSION_') || exit;
 
 require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/SettingsService.php';
+require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/EmployeeResolverService.php';
 
 /**
  * SAV natif PrestaShop (`customer_thread` / `customer_message`). AUCUN module requis.
@@ -60,10 +61,12 @@ class SavService
     private const REPLY_MAX_LENGTH = 20000;
 
     private SettingsService $settingsService;
+    private EmployeeResolverService $employeeResolverService;
 
-    public function __construct(?SettingsService $settingsService = null)
+    public function __construct(?SettingsService $settingsService = null, ?EmployeeResolverService $employeeResolverService = null)
     {
         $this->settingsService = $settingsService ?: new SettingsService();
+        $this->employeeResolverService = $employeeResolverService ?: new EmployeeResolverService($this->settingsService);
     }
 
     /**
@@ -301,80 +304,7 @@ class SavService
      */
     private function resolveReplyEmployee(?int $tokenEmployeeId): array
     {
-        if ($tokenEmployeeId !== null && $tokenEmployeeId > 0) {
-            return $this->fetchEmployeeIdentity($tokenEmployeeId);
-        }
-
-        $configuredFallbackId = $this->settingsService->getSavFallbackEmployeeId();
-
-        return $this->fetchFallbackEmployeeIdentity($configuredFallbackId);
-    }
-
-    /**
-     * @return array{id: int, firstname: string, lastname: string}
-     */
-    private function fetchEmployeeIdentity(int $idEmployee): array
-    {
-        $query = new DbQuery();
-        $query->select('id_employee, firstname, lastname');
-        $query->from('employee');
-        $query->where('id_employee = ' . $idEmployee);
-
-        $rows = Db::getInstance()->executeS($query);
-        $rows = is_array($rows) ? $rows : [];
-
-        if ($rows === []) {
-            // Employé du jeton introuvable (supprimé entre-temps) : on garde son ID (comportement
-            // historique, l'auteur reste "employee") mais sans nom à afficher.
-            return ['id' => $idEmployee, 'firstname' => '', 'lastname' => ''];
-        }
-
-        return $this->rowToIdentity($rows[0]);
-    }
-
-    /**
-     * @return array{id: int, firstname: string, lastname: string}
-     */
-    private function fetchFallbackEmployeeIdentity(int $configuredFallbackId): array
-    {
-        $query = new DbQuery();
-        $query->select('id_employee, firstname, lastname');
-        $query->from('employee');
-        $query->where('active = 1');
-        if ($configuredFallbackId > 0) {
-            // Priorise l'employé configuré en BO s'il est toujours actif ; sinon, premier employé
-            // actif par ID croissant. Jamais une exception, jamais id_employee = 0 tant qu'il
-            // existe au moins un employé actif.
-            $query->orderBy('(id_employee = ' . $configuredFallbackId . ') DESC, id_employee ASC');
-        } else {
-            $query->orderBy('id_employee ASC');
-        }
-        $query->limit(1);
-
-        $rows = Db::getInstance()->executeS($query);
-        $rows = is_array($rows) ? $rows : [];
-
-        if ($rows === []) {
-            // Edge case extrême : aucun employé actif en base. Aucune attribution valide n'est
-            // matérialisable : dégradation vers id_employee = 0, uniquement dans ce cas limite,
-            // plus jamais atteint en usage normal.
-            return ['id' => 0, 'firstname' => '', 'lastname' => ''];
-        }
-
-        return $this->rowToIdentity($rows[0]);
-    }
-
-    /**
-     * @param array<string, mixed> $row
-     * @return array{id: int, firstname: string, lastname: string}
-     */
-    private function rowToIdentity(array $row): array
-    {
-        return [
-            'id' => isset($row['id_employee']) ? (int) $row['id_employee'] : 0,
-            'firstname' => isset($row['firstname']) ? trim((string) $row['firstname']) : '',
-            'lastname' => isset($row['lastname']) ? trim((string) $row['lastname']) : '',
-        ];
+        return $this->employeeResolverService->resolve($tokenEmployeeId);
     }
 
     /**

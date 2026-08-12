@@ -638,6 +638,17 @@ class Db
     }
 
     /**
+     * Bascule de test : lignes retournées par executeS() pour la lecture verrouillée du stock
+     * (chaîne SQL brute ciblant `stock_available`, cf. ProductsService::applyStockDelta()).
+     * Distincte de $testExecuteSResult (déjà utilisé par productBelongsToShop() via un objet
+     * DbQuery) pour pouvoir piloter indépendamment, dans un même test, « le produit appartient à
+     * la boutique » et « la quantité verrouillée lue avant application du delta ».
+     *
+     * @var array<int, array<string, mixed>>
+     */
+    public static array $testLockedStockRows = [];
+
+    /**
      * Retour élargi en union `|false` (au lieu d'un `array` natif strict) pour rester fidèle
      * au cœur PrestaShop (executeS() peut échouer et retourner false) et aux annotations
      * défensives déjà présentes dans le code métier.
@@ -649,6 +660,10 @@ class Db
     {
         if (is_string($query)) {
             self::$testLoggedSelectQueries[] = $query;
+
+            if (strpos($query, 'stock_available') !== false) {
+                return self::$testLockedStockRows;
+            }
         }
 
         return self::$testExecuteSResult;
@@ -1214,7 +1229,15 @@ class StockAvailable
      */
     public static int $testQuantityAvailableResult = 0;
 
-    public static function setQuantity(int $idProduct, int $idProductAttribute, int $quantity): void
+    /**
+     * Bascule de test : valeur retournée par getStockAvailableIdByProductId() (par défaut 0, simule
+     * un produit/déclinaison sans ligne stock_available existante = branche "insertion" côté cœur).
+     *
+     * @var int
+     */
+    public static int $testStockAvailableId = 0;
+
+    public static function setQuantity(int $idProduct, int $idProductAttribute, int $quantity, ?int $idShop = null, bool $addMovement = true): void
     {
         self::$setQuantityCalls[] = [$idProduct, $idProductAttribute, $quantity];
     }
@@ -1222,6 +1245,68 @@ class StockAvailable
     public static function getQuantityAvailableByProduct(int $idProduct, ?int $idProductAttribute = null, ?int $idShop = null): int
     {
         return self::$testQuantityAvailableResult;
+    }
+
+    public static function getStockAvailableIdByProductId(int $idProduct, ?int $idProductAttribute = null, ?int $idShop = null): int
+    {
+        return self::$testStockAvailableId;
+    }
+}
+
+class StockMvt
+{
+    /**
+     * Bascule de test : enregistre les appels reçus par add() pour permettre aux tests de vérifier
+     * le contenu exact d'un mouvement écrit par StockMovementService (motif, signe, quantité,
+     * employé) sans base réelle.
+     *
+     * @var array<int, array{id_stock: int, id_stock_mvt_reason: int, id_employee: int, employee_firstname: string, employee_lastname: string, physical_quantity: int, sign: int}>
+     */
+    public static array $addCalls = [];
+
+    /**
+     * Bascule de test : simule un échec d'écriture (ex. contrainte SQL), par défaut succès.
+     *
+     * @var bool
+     */
+    public static bool $addSucceeds = true;
+
+    /** @var int */
+    public $id_stock = 0;
+    /** @var int */
+    public $id_stock_mvt_reason = 0;
+    /** @var int */
+    public $id_employee = 0;
+    /** @var string */
+    public $employee_firstname = '';
+    /** @var string */
+    public $employee_lastname = '';
+    /** @var int */
+    public $physical_quantity = 0;
+    /** @var int */
+    public $sign = 1;
+    /** @var float */
+    public $price_te = 0.0;
+    /** @var string */
+    public $date_add = '';
+
+    public function add(): bool
+    {
+        if (!self::$addSucceeds) {
+            return false;
+        }
+
+        self::$addCalls[] = [
+            'id_stock' => $this->id_stock,
+            'id_stock_mvt_reason' => $this->id_stock_mvt_reason,
+            'id_employee' => $this->id_employee,
+            'employee_firstname' => $this->employee_firstname,
+            'employee_lastname' => $this->employee_lastname,
+            'physical_quantity' => $this->physical_quantity,
+            'sign' => $this->sign,
+        ];
+
+        return true;
     }
 }
 

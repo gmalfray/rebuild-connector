@@ -12,6 +12,7 @@ parameters:
   treatPhpDocTypesAsCertain: false
   bootstrapFiles:
     - phpstan-bootstrap.php
+    - phpstan-bootstrap-symfony-container.php
   excludePaths:
     - vendor/*
     - rebuildconnector/vendor/*

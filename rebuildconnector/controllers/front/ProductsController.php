@@ -4,10 +4,12 @@ defined('_PS_VERSION_') || exit;
 
 require_once __DIR__ . '/BaseApiController.php';
 require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/ProductsService.php';
+require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/EmployeeResolverService.php';
 
 class RebuildconnectorProductsModuleFrontController extends RebuildconnectorBaseApiModuleFrontController
 {
     private ?ProductsService $productsService = null;
+    private ?EmployeeResolverService $employeeResolverService = null;
 
     public function initContent(): void
     {
@@ -22,8 +24,15 @@ class RebuildconnectorProductsModuleFrontController extends RebuildconnectorBase
                     $this->handleGet();
                     break;
                 case 'PATCH':
-                    $authPayload = $this->requireAuth(['products.write']);
-                    $this->handlePatch($authPayload);
+                    // L'action (stock ou attributes) détermine le scope requis : `stock.write` pour
+                    // le stock, `products.write` pour le reste. Le corps est donc décodé UNE FOIS
+                    // ici, avant l'authentification, pour connaître l'action à autoriser ; handlePatch()
+                    // le reçoit déjà décodé plutôt que de le relire.
+                    $payload = $this->decodeRequestBody();
+                    $action = $this->resolvePatchAction($payload);
+                    $requiredScope = $action === 'stock' ? 'stock.write' : 'products.write';
+                    $authPayload = $this->requireAuth([$requiredScope]);
+                    $this->handlePatch($authPayload, $payload, $action);
                     break;
                 default:
                     // @ : header() peut émettre un warning "headers already sent" hors contexte HTTP réel
@@ -146,15 +155,15 @@ class RebuildconnectorProductsModuleFrontController extends RebuildconnectorBase
 
     /**
      * @param array<string, mixed> $authPayload
+     * @param array<string, mixed> $payload
      */
-    private function handlePatch(array $authPayload = []): void
+    private function handlePatch(array $authPayload, array $payload, string $action): void
     {
         $productId = (int) Tools::getValue('id_product', (int) Tools::getValue('id', 0));
         if ($productId <= 0) {
             throw new \InvalidArgumentException($this->t('products.error.not_found', [], 'Product not found.'));
         }
 
-        $payload = $this->decodeRequestBody();
         $product = $this->getProductsService()->getProductById($productId);
         if ($product === []) {
             $this->jsonError(
@@ -164,25 +173,27 @@ class RebuildconnectorProductsModuleFrontController extends RebuildconnectorBase
             );
             return;
         }
-        $action = Tools::getValue('action');
-        if ($action === null && isset($payload['action'])) {
-            $action = (string) $payload['action'];
-        }
-        $action = Tools::strtolower((string) $action);
-        if ($action === '') {
-            if (isset($payload['quantity'])) {
-                $action = 'stock';
-            } else {
-                $action = 'attributes';
-            }
-        }
+
+        $resultingQuantity = null;
 
         switch ($action) {
             case 'stock':
-                if (!isset($payload['quantity'])) {
+                $hasQuantity = array_key_exists('quantity', $payload) && $payload['quantity'] !== null;
+                $hasDelta = array_key_exists('delta', $payload) && $payload['delta'] !== null;
+
+                if ($hasQuantity && $hasDelta) {
+                    throw new \InvalidArgumentException(
+                        $this->t(
+                            'products.error.stock_quantity_and_delta',
+                            [],
+                            'Provide either quantity or delta, not both.'
+                        )
+                    );
+                }
+
+                if (!$hasQuantity && !$hasDelta) {
                     throw new \InvalidArgumentException($this->t('api.error.invalid_payload', [], 'The provided data is invalid.'));
                 }
-                $quantity = (int) $payload['quantity'];
 
                 $combinationId = 0;
                 if (array_key_exists('combination_id', $payload) && $payload['combination_id'] !== null) {
@@ -207,31 +218,70 @@ class RebuildconnectorProductsModuleFrontController extends RebuildconnectorBase
                     }
                 }
 
-                // updateStock() ne renvoie false ici que si combination_id est fourni (> 0) mais
-                // n'appartient pas au produit visé (le produit lui-même a déjà été validé plus haut) :
-                // il ne faut pas écraser le stock d'une déclinaison étrangère à cette commande PATCH.
-                if (!$this->getProductsService()->updateStock($productId, $quantity, $combinationId)) {
-                    $this->jsonError(
-                        'invalid_payload',
-                        $this->t(
-                            'products.error.invalid_combination',
-                            [],
-                            'The combination_id field does not belong to this product.'
-                        ),
-                        400
-                    );
-                    return;
+                // Même résolution que pour l'attribution d'une réponse SAV (EmployeeResolverService,
+                // extrait de SavService) : un utilisateur nommé porte son propre id_employee dans le
+                // JWT, une clé API globale retombe sur l'employé de repli configuré en BO (ou, à
+                // défaut, le premier employé actif). Sert à tracer QUI a fait ce mouvement de stock.
+                $idEmployee = isset($authPayload['id_employee']) ? (int) $authPayload['id_employee'] : null;
+                $employeeIdentity = $this->getEmployeeResolverService()->resolve($idEmployee);
+
+                if ($hasDelta) {
+                    if (!is_numeric($payload['delta'])) {
+                        throw new \InvalidArgumentException(
+                            $this->t('products.error.invalid_delta', [], 'The delta field must be numeric.')
+                        );
+                    }
+                    $delta = (int) $payload['delta'];
+
+                    // applyStockDelta() ne renvoie null ici que si combination_id est fourni (> 0)
+                    // mais n'appartient pas au produit visé (le produit lui-même a déjà été validé
+                    // plus haut) : il ne faut pas incrémenter le stock d'une déclinaison étrangère à
+                    // cette commande PATCH.
+                    $resultingQuantity = $this->getProductsService()->applyStockDelta($productId, $delta, $combinationId, $employeeIdentity);
+                    if ($resultingQuantity === null) {
+                        $this->jsonError(
+                            'invalid_payload',
+                            $this->t(
+                                'products.error.invalid_combination',
+                                [],
+                                'The combination_id field does not belong to this product.'
+                            ),
+                            400
+                        );
+                        return;
+                    }
+                } else {
+                    $quantity = (int) $payload['quantity'];
+
+                    // updateStock() ne renvoie false ici que si combination_id est fourni (> 0) mais
+                    // n'appartient pas au produit visé (le produit lui-même a déjà été validé plus haut) :
+                    // il ne faut pas écraser le stock d'une déclinaison étrangère à cette commande PATCH.
+                    if (!$this->getProductsService()->updateStock($productId, $quantity, $combinationId, $employeeIdentity)) {
+                        $this->jsonError(
+                            'invalid_payload',
+                            $this->t(
+                                'products.error.invalid_combination',
+                                [],
+                                'The combination_id field does not belong to this product.'
+                            ),
+                            400
+                        );
+                        return;
+                    }
+
+                    $resultingQuantity = $quantity;
                 }
 
                 $this->recordAuditEvent('products.stock.updated', [
                     'product_id' => $productId,
-                    'quantity' => $quantity,
+                    'quantity' => $resultingQuantity,
+                    'delta' => $hasDelta ? $delta : null,
                     'combination_id' => $combinationId > 0 ? $combinationId : null,
                     'token_subject' => $authPayload['sub'] ?? null,
                 ]);
                 $this->dispatchWebhookEvent('product.stock.updated', [
                     'product_id' => (string) $productId,
-                    'quantity' => $quantity,
+                    'quantity' => $resultingQuantity,
                     'combination_id' => $combinationId > 0 ? $combinationId : null,
                 ]);
                 break;
@@ -404,9 +454,46 @@ class RebuildconnectorProductsModuleFrontController extends RebuildconnectorBase
 
         $product = $this->getProductsService()->getProductById($productId);
 
-        $this->renderJson([
-            'product' => $product,
-        ]);
+        $responsePayload = ['product' => $product];
+        if ($action === 'stock') {
+            // Quantité résultante exposée explicitement : pour une déclinaison, la fiche produit
+            // rechargée ci-dessus n'expose que la quantité niveau produit (matched_combination est
+            // toujours null sur ce endpoint, résolu par id_product et non par barcode), donc pas
+            // fiable pour afficher le stock réel d'un id_product_attribute précis sans relire.
+            $responsePayload['quantity'] = $resultingQuantity;
+        }
+
+        $this->renderJson($responsePayload);
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     */
+    private function resolvePatchAction(array $payload): string
+    {
+        $action = Tools::getValue('action');
+        if ($action === false && isset($payload['action'])) {
+            $action = (string) $payload['action'];
+        }
+        $action = Tools::strtolower((string) $action);
+        if ($action === '') {
+            if (isset($payload['quantity']) || isset($payload['delta'])) {
+                $action = 'stock';
+            } else {
+                $action = 'attributes';
+            }
+        }
+
+        return $action;
+    }
+
+    private function getEmployeeResolverService(): EmployeeResolverService
+    {
+        if ($this->employeeResolverService === null) {
+            $this->employeeResolverService = new EmployeeResolverService();
+        }
+
+        return $this->employeeResolverService;
     }
 
     private function getProductsService(): ProductsService
