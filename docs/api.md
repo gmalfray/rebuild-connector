@@ -1087,6 +1087,27 @@ déclenche l'événement push `sav.message` (voir § Notifications / Appareils F
 `POST .../sav/{id}/reply` ci-dessous) ne déclenche jamais cette notification — seule l'arrivée d'un
 message client compte.
 
+**Depuis v1.20.0 — définition « à traiter » (`to_process`) et compteur dédié.**
+`customer_message.read` (base de l'ancien champ `unread`, toujours exposé ci-dessous pour compat)
+s'est révélé inexploitable comme signal d'action sur une boutique dont le SAV est en réalité traité
+par e-mail : PrestaShop ne le pose que quand un employé ouvre le fil dans la vue BO, ce qui n'arrive
+quasiment jamais dans ce flux — mesuré en prod, **449 fils « non lus »** au sens PrestaShop, dont
+**364 déjà fermés** et **190 déjà répondus par un employé**, avec un message « non lu » remontant à
+2021-07-14. Compter les `unread` d'une page de résultats (ce que faisait l'app avant cette version)
+ne produit donc rien de significatif.
+
+La définition utile, exposée par le nouveau champ `to_process` (par fil) et par
+`GET /sav/stats` (compteur global) :
+
+> fil `status <> "closed"` **ET** dernier message du fil émis par la cliente (`id_employee = 0`)
+> **ET** `date_upd` dans les 90 derniers jours (`SavService::TO_PROCESS_WINDOW_DAYS`).
+
+La fenêtre de fraîcheur de 90 jours est nécessaire en plus des deux premières conditions : sans
+elle, « non clos + dernier message client » remonte 83 fils en prod, mais 81 d'entre eux sont des
+fils dormants de 2021-2025 jamais fermés — du bruit historique, pas une file d'attente réelle. Avec
+la fenêtre, il n'en reste que 2. **C'est ce compteur-là que l'app doit afficher sur sa pastille SAV**
+(`GET /sav/stats`), plus jamais une approximation obtenue en scannant une page de `GET /sav`.
+
 > ⚠️ Ces libellés/rôles (`pending1`/`pending2`) sont documentés à partir du schéma natif
 > PrestaShop (stable depuis 1.6) et du comportement observé de `ps_customer_thread`, **sans accès à
 > une installation PS8 de référence locale au moment de l'écriture**. À confirmer contre le
@@ -1107,11 +1128,12 @@ message client compte.
 
 Scope requis : `sav.read`
 
-| Paramètre | Type   | Requis | Description                                              |
-|-----------|--------|--------|------------------------------------------------------------|
-| `limit`   | int    | non    | Défaut 20, max 100.                                        |
-| `offset`  | int    | non    | Défaut 0.                                                   |
-| `status`  | string | non    | Un des 4 statuts natifs ci-dessus. Sans filtre : tous statuts, non-clos d'abord. |
+| Paramètre     | Type   | Requis | Description                                              |
+|---------------|--------|--------|------------------------------------------------------------|
+| `limit`       | int    | non    | Défaut 20, max 100.                                        |
+| `offset`      | int    | non    | Défaut 0.                                                   |
+| `status`      | string | non    | Un des 4 statuts natifs ci-dessus. Sans filtre : tous statuts, non-clos d'abord. |
+| `to_process`  | string | non    | `"1"` ou `"true"` : ne renvoie que les fils « à traiter » (voir définition ci-dessus). Toute autre valeur (y compris absente) : pas de filtre. Cumulable avec `status`. Depuis v1.20.0. |
 
 **Réponse 200**
 
@@ -1122,6 +1144,7 @@ Scope requis : `sav.read`
       "id": 154,
       "status": "pending2",
       "unread": true,
+      "to_process": false,
       "customer": { "id": 88, "name": "Camille Martin", "email": "camille@example.com" },
       "order": { "id": 4021, "reference": "ABCDEF123" },
       "last_message_at": "2026-08-09 16:42:00",
@@ -1138,11 +1161,43 @@ commande (ex. contact anonyme via formulaire). **`customer` lui-même est toujou
 `null`), et **`customer.email` est toujours une chaîne** — **vide** (`""`, jamais `null`) quand le
 fil n'a pas d'adresse enregistrée. Un client doit donc tester « chaîne non vide », pas « non
 `null` » : c'est cette adresse qui décide de `email_sent` sur `POST .../sav/{id}/reply`.
-`unread` = au moins un message de la cliente
-(`id_employee = 0`) marqué non lu (`read = 0`) — convention du connecteur, documentée faute d'accès
-à une référence BO locale pour confirmer la définition exacte utilisée par l'admin natif.
+
+`unread` = au moins un message de la cliente (`id_employee = 0`) marqué non lu (`read = 0`) —
+convention du connecteur, documentée faute d'accès à une référence BO locale pour confirmer la
+définition exacte utilisée par l'admin natif. **Conservé pour compat ascendante** (l'app l'utilise
+dans le détail de fil) mais **ne représente pas** une file d'attente exploitable — voir la note
+« Depuis v1.20.0 » ci-dessus. `to_process` (depuis v1.20.0) = la définition « à traiter » exacte
+(non clos, dernier message client, `date_upd` < 90 jours) : c'est **ce champ** qui doit conditionner
+tout badge/mise en avant visuelle par fil dans l'app, `unread` ne devant plus servir qu'à un
+éventuel indicateur dans le détail du fil.
 
 **Erreurs** : `400 invalid_payload` si `status` ne correspond à aucune des 4 valeurs.
+
+---
+
+### GET `.../api/sav/stats`
+
+Scope requis : `sav.read`
+
+**Depuis v1.20.0.** Compteur exact de fils « à traiter » (voir définition ci-dessus), **indépendant
+de la pagination**, calculé entièrement en SQL — même principe que `GET /customers/stats`. C'est ce
+nombre que l'app doit afficher sur sa pastille SAV, plus jamais une approximation obtenue en
+comptant les résultats d'une page de `GET /sav`.
+
+**Réponse 200**
+
+```json
+{
+  "to_process": 2
+}
+```
+
+| Champ         | Type | Description                                                          |
+|---------------|------|------------------------------------------------------------------------|
+| `to_process`  | int  | Nombre de fils « à traiter » (non clos, dernier message client, `date_upd` < 90 jours) sur la boutique courante. |
+
+> La route `/sav/stats` est déclarée **avant** `/sav/{id}` dans les friendly URLs pour éviter toute
+> ambiguïté de routage (même convention que `/customers/stats` avant `/customers/{id}`).
 
 ---
 
@@ -1160,6 +1215,7 @@ Fil complet : métadonnées + tous les messages, ordre chronologique croissant.
     "id": 154,
     "status": "pending2",
     "unread": true,
+    "to_process": false,
     "customer": { "id": 88, "name": "Camille Martin", "email": "camille@example.com" },
     "order": { "id": 4021, "reference": "ABCDEF123" },
     "last_message_at": "2026-08-09 16:42:00",
@@ -2140,6 +2196,7 @@ curl -X POST "https://example.com/module/rebuildconnector/api/reviews/812/trash"
 | POST    | `.../api/notifications/devices`                 | notifications| `notifications.send`|
 | DELETE  | `.../api/notifications/devices/{token}`         | notifications| `notifications.send`|
 | GET     | `.../api/sav`                                   | sav          | `sav.read`          |
+| GET     | `.../api/sav/stats`                             | sav          | `sav.read`          |
 | GET     | `.../api/sav/{id}`                              | sav          | `sav.read`          |
 | PATCH   | `.../api/sav/{id}/status`                       | sav          | `sav.write`         |
 | POST    | `.../api/sav/{id}/reply`                        | sav          | `sav.write`         |

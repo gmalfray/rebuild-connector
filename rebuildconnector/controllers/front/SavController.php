@@ -74,6 +74,16 @@ class RebuildconnectorSavModuleFrontController extends RebuildconnectorBaseApiMo
 
     private function handleGet(): void
     {
+        // /sav/stats — déclarée avant /sav/{id} dans hookModuleRoutes() (même convention que
+        // /customers/stats), donc jamais atteinte avec un id numérique porté par l'URL. Compteur
+        // exact « à traiter » (voir SavService), indépendant de la pagination.
+        if (Tools::getValue('action') === 'stats') {
+            $this->renderJson([
+                'to_process' => $this->getSavService()->getToProcessCount(),
+            ]);
+            return;
+        }
+
         $idRaw = Tools::getValue('id_customer_thread', Tools::getValue('id', false));
         $hasIdSegment = ($idRaw !== false && $idRaw !== '' && $idRaw !== null);
         $threadId = (int) $idRaw;
@@ -108,6 +118,11 @@ class RebuildconnectorSavModuleFrontController extends RebuildconnectorBaseApiMo
                 );
             }
             $filters['status'] = $status;
+        }
+
+        $toProcess = Tools::getValue('to_process');
+        if (is_string($toProcess) && in_array($toProcess, ['1', 'true'], true)) {
+            $filters['to_process'] = true;
         }
 
         $result = $this->getSavService()->getThreads($filters);

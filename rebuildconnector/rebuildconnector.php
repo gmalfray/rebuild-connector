@@ -42,7 +42,7 @@ class RebuildConnector extends Module
     {
         $this->name = 'rebuildconnector';
         $this->tab = 'administration';
-        $this->version = '1.19.0';
+        $this->version = '1.20.0';
         $this->author = 'Rebuild IT';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -1561,6 +1561,16 @@ class RebuildConnector extends Module
                 'params' => [
                     'fc' => 'module',
                     'module' => $module,
+                ],
+            ],
+            'module-' . $module . '-api-sav-stats' => [
+                'controller' => 'sav',
+                'rule' => $baseRule . '/sav/stats',
+                'keywords' => [],
+                'params' => [
+                    'fc' => 'module',
+                    'module' => $module,
+                    'action' => 'stats',
                 ],
             ],
             'module-' . $module . '-api-sav-id' => [
