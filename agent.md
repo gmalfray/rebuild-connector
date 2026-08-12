@@ -1,12 +1,12 @@
-# agent.md — PrestaFlow & Rebuild Connector
+# agent.md : PrestaFlow & Rebuild Connector
 
 ## 1. Objectifs, périmètre et non-objectifs
-- Objectif global : fournir une application Android (PrestaFlow) et un module PrestaShop (Rebuild Connector) permettant la gestion complète d’une boutique ≥ 1.7 via une API REST sécurisée.
+- Objectif global : fournir une application Android (PrestaFlow) et un module PrestaShop (Rebuild Connector) pour gérer complètement une boutique ≥ 1.7 via une API REST sécurisée.
 - Périmètre MVP : authentification par clé API, commandes, clients, produits, stocks, dashboard temps réel, notifications FCM, mode hors ligne, FR/EN.
 - Extensions prévues : compatibilité PrestaShop 9, thèmes personnalisables, analytics avancés.
 - Hors périmètre initial : multi-boutiques, relance de paniers, automatisations marketing tant que le module dédié n’est pas disponible.
 - Objectifs de l’assistant : conserver la cohérence entre cahier des charges et implémentations, documenter les dépendances, tracer les questions en suspens (section 13 du cahier), garantir que tout contenu (texte, notifications, e-mails, écrans) soit disponible en français et en anglais.
-- Version courante : **Rebuild Connector 1.1.2** (avril 2025) — payloads REST plats compatibles avec l’app PrestaFlow `main`.
+- Version courante : **Rebuild Connector 1.1.2** (avril 2025), payloads REST plats compatibles avec l’app PrestaFlow `main`.
 
 ## 2. Arborescence du dépôt
 ```
@@ -28,24 +28,24 @@ repo-root/
 > Noter la présence éventuelle d’un répertoire `docs/` pour stocker diagrammes et spécifications complémentaires.
 
 ## 3. Environnements & secrets
-- **Boutique PrestaShop** : environnements `preprod` et `prod`, HTTPS obligatoire avec certificat valide et HSTS.
-- **Module Rebuild Connector** :
+- Boutique PrestaShop : environnements `preprod` et `prod`, HTTPS obligatoire avec certificat valide et HSTS.
+- Module Rebuild Connector :
   - Variables config : URL service FCM, JSON du compte de service Firebase (stocké chiffré), clé secrète JWT (HS256) ou paire RSA (RS256), URL webhook + secret HMAC, liste blanche IP/CIDR, limite de requêtes par minute, overrides d’environnement (`KEY=VALUE`).
   - Table `ps_configuration` pour conserver `REBUILDCONNECTOR_FCM_SERVICE_ACCOUNT`, `REBUILDCONNECTOR_API_SCOPES`, `REBUILDCONNECTOR_RATE_LIMIT`, `REBUILDCONNECTOR_ALLOWED_IPS`, `REBUILDCONNECTOR_ENV_OVERRIDES`, etc.
-- **Module PrestaShot** :
-  - Code situé dans `prestashot/`. Fournit une page BO (Modules > PrestaShot) permettant d’enregistrer la clé API dédiée à l’app mobile et de générer un QR code.
+- Module PrestaShot :
+  - Code situé dans `prestashot/`. Fournit une page BO (Modules > PrestaShot) où l’on enregistre la clé API dédiée à l’app mobile et où l’on génère un QR code.
   - Payload QR : `{"version":1,"shopUrl":"<https://.../>","apiKey":"<clé>"}` encodé en Base64 et exposé via l’URL schéma `prestaflow://setup?data=<base64Payload>`.
   - Boutons d’aide : rafraîchir le QR, copier le JSON ou le lien deep-link. Les QR sont servis via `https://api.qrserver.com/v1/create-qr-code/` (dépendance externe sans clé).
-  - Après modification de la clé, recommander de rescanner côté mobile; pas de signature pour l’instant, la rotation de clé reste manuelle.
-- **Application Android** :
+  - Après modification de la clé, recommander de rescanner côté mobile ; pas de signature pour l’instant, la rotation de clé reste manuelle.
+- Application Android :
   - `google-services.json` (Firebase), `prestaservice.keystore` pour signature, `gradle.properties` contenant `REBUILDCONNECTOR_BASE_URL`, `CLIENT_ID`, `CLIENT_SECRET`.
   - Utiliser EncryptedSharedPrefs + Android Keystore pour stocker la clé API et le token JWT.
-- **CI/CD** :
+- CI/CD :
   - Variables masquées : `FIREBASE_SERVICE_ACCOUNT`, `PRESTASHOP_DEPLOY_SSH_KEY`, `PLAY_STORE_JSON`.
 - Politique : aucune clé en clair dans Git, secrets injectés via vault ou CI, traductions maintenues dans `TranslationService` (FR & EN obligatoires).
 
 ## 4. Endpoints PrestaShop (REST JSON)
-Base URL : `https://<boutique>/module/rebuildconnector/api` — module **1.1.2** renvoie des payloads plats (pas de clé `data`).
+Base URL : `https://<boutique>/module/rebuildconnector/api`. Le module **1.1.2** renvoie des payloads plats (pas de clé `data`).
 
 | Méthode | Endpoint | Description | Payload |
 |---------|----------|-------------|---------|
@@ -64,7 +64,7 @@ Base URL : `https://<boutique>/module/rebuildconnector/api` — module **1.1.2**
 | GET | `/reports?resource=bestsellers` | Top ventes | `{ "products": [ { "product_id", "quantity", "total_tax_incl", ... } ] }`. |
 | GET | `/reports?resource=bestcustomers` | Top clients | `{ "customers": [ { "id", "firstname", "lastname", "total_spent", "last_order_at" } ] }`. |
 | GET | `/dashboard/metrics` | KPI | `{ "turnover", "orders_count", "customers_count", "products_count", "currency", "chart": [{ "label", "turnover", "orders", "customers" }] }`. |
-| GET | `/baskets` | Paniers (lecture) | `{ "baskets": [...] }` – **implémenté** (écran Paniers + détail panier dans l'app). |
+| GET | `/baskets` | Paniers (lecture) | `{ "baskets": [...] }`, **implémenté** (écran Paniers + détail panier dans l'app). |
 
 Exemple `curl` :
 ```bash
@@ -176,26 +176,26 @@ curl -X PATCH "https://example.com/module/rebuildconnector/api/orders/123/shippi
 ```
 
 ## 6. Flux fonctionnels (résumé)
-- **Commande → Notification** : création commande → hook `actionValidateOrder` → OrdersService prépare payload → FcmService envoie `order.created` → app reçoit push → deep link vers détail commande.
-- **Changement d’état** : utilisateur mobile modifie statut → PATCH `/orders/{id}/status` → PrestaShop met à jour `order_history` et déclenche `actionOrderStatusPostUpdate` → FcmService notifie les profils abonnés.
-- **Scan numéro de suivi** : app scanne/encode tracking → PATCH `/orders/{id}/shipping` → mise à jour `order_carrier` (fallback `orders`) → option notification `order.shipped`.
-- **MAJ stock hors ligne** : saisie en mode offline → ajout dans file d’attente → synchro automatique dès réseau + confirmation visuelle (badge) → en cas d’échec 409 (conflit), invite à recharger la fiche.
-- **Dashboard** : app requête `/dashboard/metrics?period=` → module calcule agrégats (CA TTC/HT, TVA collectée, panier moyen, #retours, top ventes à venir) → cache 5 min pour éviter surcharge.
+- Commande → notification : création commande → hook `actionValidateOrder` → OrdersService prépare payload → FcmService envoie `order.created` → app reçoit push → deep link vers détail commande.
+- Changement d’état : utilisateur mobile modifie statut → PATCH `/orders/{id}/status` → PrestaShop met à jour `order_history` et déclenche `actionOrderStatusPostUpdate` → FcmService notifie les profils abonnés.
+- Scan numéro de suivi : app scanne/encode tracking → PATCH `/orders/{id}/shipping` → mise à jour `order_carrier` (fallback `orders`) → option notification `order.shipped`.
+- MAJ stock hors ligne : saisie en mode offline → ajout dans file d’attente → synchro automatique dès réseau + confirmation visuelle (badge) → en cas d’échec 409 (conflit), invite à recharger la fiche.
+- Dashboard : app requête `/dashboard/metrics?period=` → module calcule agrégats (CA TTC/HT, TVA collectée, panier moyen, #retours, top ventes à venir) → cache 5 min pour éviter surcharge.
 
 ## 7. Guides build & qualité
-- **Android (dossier `android/`)** :
+- Android (dossier `android/`) :
   - `./gradlew assemblePreprod` / `assembleProd`.
   - Flavors : `preprod`, `prod`, minSdk 26, targetSdk dernière stable.
   - Lint : `./gradlew lint` ; tests instrumentés `./gradlew connectedCheck`.
   - Distribution : GitHub Actions → APK (preprod) puis bundle AAB (prod).
-- **Module PrestaShop (`rebuildconnector/`)** :
+- Module PrestaShop (`rebuildconnector/`) :
   - Tests : `composer install` (si nécessaire), `vendor/bin/phpunit`, `vendor/bin/phpstan analyse`.
   - Smoke test HTTP : `scripts/test_preprod.sh --base-url https://shop --api-key XXX` (login + GET orders/products/dashboard/clients).
   - Packaging : `zip -r rebuildconnector.zip rebuildconnector/`.
   - Déploiement : upload dans `/modules/`, installation via back-office.
   - Configuration BO : QR code JSON (`{"version":1,"shopUrl":"https://…","apiKey":"…"}`) pour renseigner automatiquement URL API + clé dans PrestaFlow (HTTPS forcé, legacy URL encore exposée en secours).
-- **Documentation/diagrammes** : stocker dans `docs/` + exporter version PNG/PDF pour les diagrammes Mermaid.
-- **Internationalisation** : tout nouveau texte doit passer par `TranslationService` avec variantes FR/EN ; vérifier la présence des deux langues dans les revues.
+- Documentation et diagrammes : stocker dans `docs/` + exporter version PNG/PDF pour les diagrammes Mermaid.
+- Internationalisation : tout nouveau texte doit passer par `TranslationService` avec variantes FR/EN ; vérifier la présence des deux langues dans les revues.
 
 ## 8. Gestion des erreurs & retries
 - HTTP 401/403 : rafraîchir le token via `/connector/login`, notifier l’utilisateur si échec répété.
@@ -208,12 +208,12 @@ curl -X PATCH "https://example.com/module/rebuildconnector/api/orders/123/shippi
 
 ## 9. Sécurité
 - HTTPS obligatoire + HSTS ; refuser HTTP dans l’app (Network Security Config).
-- Authentification : clé API PrestaFlow → JWT court (60–90 min) avec scopes (`orders.read`, `stock.write`, etc.).
+- Authentification : clé API PrestaFlow → JWT court (60 à 90 min) avec scopes (`orders.read`, `stock.write`, etc.).
 - Rotation des tokens et révocation depuis back-office module.
 - Stockage sécurisé : EncryptedSharedPrefs + Keystore (Android), configuration module chiffrée côté PrestaShop.
 - Permissions Android minimales (CAMERA pour scan, POST_NOTIFICATIONS).
 - Audit trail : journaliser (UserID, action, endpoint, timestamp, IP).
-- Audit trail : journaliser (UserID, action, endpoint, timestamp, IP) — aujourd’hui couverts : `orders.status.updated`, `orders.shipping.updated`, `products.stock.updated`, `products.attributes.updated`.
+- Audit trail : journaliser (UserID, action, endpoint, timestamp, IP). Aujourd’hui couverts : `orders.status.updated`, `orders.shipping.updated`, `products.stock.updated`, `products.attributes.updated`.
 - Rate limiting configurable (par défaut 60 req/min/IP) avec stockage `rebuildconnector_rate_limit` (IP + jeton) et audit des dépassements 429.
 - Allowlist IP appliquée côté API (403 si l’adresse ne correspond pas aux plages autorisées).
 - Webhooks HTTPS signés HMAC (`WebhookService`) déclenchés sur `order.created`, `order.status.changed`, `order.shipping.updated`, `product.stock.updated`, `product.attributes.updated`.
@@ -221,36 +221,36 @@ curl -X PATCH "https://example.com/module/rebuildconnector/api/orders/123/shippi
 - Conformité RGPD : minimiser les données, purger logs sensibles, masquage automatique des emails/phones non nécessaires.
 
 ## 10. Checklists
-- **Pré-release Android** :
+- Pré-release Android :
   - Vérifier numéros de version (codeName + versionCode).
   - Générer changelog, tester scénarios critiques (auth, commande, stock, notif).
   - Lancer lint + tests unitaires/instrumentés.
   - Valider Crashlytics et FCM (token enregistré).
-- **Pré-release module** :
+- Pré-release module :
   - PHPStan, PHPUnit, tests Postman sur endpoints critiques.
   - Vérifier configuration hooks, traductions FR/EN, droits d’écriture.
-  - Mettre à jour `config.xml` (version, compatibilité 1.7–8.x).
+  - Mettre à jour `config.xml` (version, compatibilité 1.7 à 8.x).
   - `vendor/bin/phpunit --bootstrap tests/bootstrap.php --testdox` (couverture FCM + filtres + endpoints).
-- **Post-release** :
+- Post-release :
   - Monitorer Crashlytics, logs PrestaShop, métriques d’adoption.
   - Collecter feedback utilisateurs (via formulaire in-app).
-- **Rollback** :
+- Rollback :
   - Android : conserver dernière APK stable (internal track).
   - PrestaShop : prévoir zip version N-1, script SQL de rollback si migrations.
   - Restaurer clés API révoquées si retour arrière.
 
 ## 11. Règles de développement & qualité continue
-- **Lint & analyse systématiques** : exécuter `find rebuildconnector -type f -name "*.php" -print0 | xargs -0 -n1 -P4 php -l` puis `phpstan analyse -l 6 rebuildconnector` avant chaque PR/commit.
-- **Stubs PrestaShop** : tout nouvel usage d’une classe/constante PrestaShop doit être stubé immédiatement dans `phpstan-bootstrap.php` (`Db`, `DbQuery`, `_PS_MODE_DEV_`, etc.). Ajoutez systématiquement les méthodes CRUD (`Db::insert`, `Db::update`, `Db::delete`, `Db::execute`) et les constantes comme `_MYSQL_ENGINE_` dès que vous les consommez pour éviter des régressions PHPStan. Pensez aussi à ajouter les méthodes manquantes (`ModuleFrontController::init()`, `Tools::getRemoteAddr()`, etc.) dès qu’elles sont invoquées dans le code.
-- **Typage des itérables** : documentez les tableaux passés aux services (`@param array<int, string> $topics`, etc.) pour éviter les erreurs `missingType.iterableValue` et simplifier la lecture des reviewers.
-- **Paramètres non typés** : lorsqu’un argument reste volontairement `mixed`, ajoutez un `@param mixed ...` explicite dans la PHPDoc (ex. parseurs de filtres) afin d’éviter les erreurs PHPStan `missingType.parameter`.
-- **Contrôle de type redondant** : n’ajoutez pas de `is_string()`/`is_int()` lorsque la variable est déjà typée ou castée ; PHPStan remontera une alerte `function.alreadyNarrowedType`. Exemple : `Tools::getRemoteAddr()` est stubé pour retourner une string, donc un simple test `=== ''` suffit.
-- **Contrôle de type redondant** : n’ajoutez pas de `is_string()`/`is_int()` lorsque la variable est déjà typée ou castée ; PHPStan remontera une alerte `function.alreadyNarrowedType`. Exemple : `Tools::getRemoteAddr()` est stubé pour retourner une string, donc un simple test `=== ''` suffit.
-- **Stubs d’API** : si l’on consomme des méthodes PrestaShop susceptibles de renvoyer `false` ou des propriétés optionnelles (`Image::getImages()`, `Context::$link`, `Product::$link_rewrite`), mettre à jour `phpstan-bootstrap.php` pour refléter le contrat réel plutôt que d’ajouter des gardes redondants que PHPStan signalera comme impossibles.
-- **Typage strict** : typer explicitement les tableaux (`array<string, mixed>`, `array<int, array<string, mixed>>`), ajouter des annotations `/** @var … */` après un cast `(array)` et éviter les `is_array()` redondants.
-- **Contrôleurs REST** : centraliser la logique commune (`requireAuth`, `isDevMode`, `jsonError`) via `BaseApiController` et réutiliser les helpers plutôt que re-tester les constantes.
-- **Dev mode** : passer systématiquement par `isDevMode()` (ou équivalent) au lieu d’expressions `defined('_PS_MODE_DEV_') && ...` pour éviter les avertissements statiques.
-- **Internationalisation** : toute nouvelle chaîne (erreur, succès, notifications) doit être ajoutée en FR et EN dans `TranslationService`.
-- **Paramètres BO** : toute nouvelle option de configuration doit passer par `SettingsService` (get/set/export + validations), être exposée dans le template BO, documentée dans `README.md` et `agent.md`, et accompagnée de traductions FR/EN + messages d’erreur cohérents.
-- **Documentation API** : maintenir `docs/api.md` à jour (auth, entrées/sorties, exemples). Toute évolution d’endpoint doit y figurer avant la revue.
-- **Workflows CI** : conserver `php_ci.yml` comme référence ; ne pousser que lorsque lint et PHPStan sont verts localement.
+- Lint et analyse systématiques : exécuter `find rebuildconnector -type f -name "*.php" -print0 | xargs -0 -n1 -P4 php -l` puis `phpstan analyse -l 6 rebuildconnector` avant chaque PR/commit.
+- Stubs PrestaShop : tout nouvel usage d’une classe/constante PrestaShop doit être stubé immédiatement dans `phpstan-bootstrap.php` (`Db`, `DbQuery`, `_PS_MODE_DEV_`, etc.). Ajoutez systématiquement les méthodes CRUD (`Db::insert`, `Db::update`, `Db::delete`, `Db::execute`) et les constantes comme `_MYSQL_ENGINE_` dès que vous les consommez pour éviter des régressions PHPStan. Pensez aussi à ajouter les méthodes manquantes (`ModuleFrontController::init()`, `Tools::getRemoteAddr()`, etc.) dès qu’elles sont invoquées dans le code.
+- Typage des itérables : documentez les tableaux passés aux services (`@param array<int, string> $topics`, etc.) pour éviter les erreurs `missingType.iterableValue` et faciliter la lecture des reviewers.
+- Paramètres non typés : lorsqu’un argument reste volontairement `mixed`, ajoutez un `@param mixed ...` explicite dans la PHPDoc (ex. parseurs de filtres) afin d’éviter les erreurs PHPStan `missingType.parameter`.
+- Contrôle de type redondant : n’ajoutez pas de `is_string()`/`is_int()` lorsque la variable est déjà typée ou castée ; PHPStan remontera une alerte `function.alreadyNarrowedType`. Exemple : `Tools::getRemoteAddr()` est stubé pour retourner une string, donc un simple test `=== ''` suffit.
+- Contrôle de type redondant : n’ajoutez pas de `is_string()`/`is_int()` lorsque la variable est déjà typée ou castée ; PHPStan remontera une alerte `function.alreadyNarrowedType`. Exemple : `Tools::getRemoteAddr()` est stubé pour retourner une string, donc un simple test `=== ''` suffit.
+- Stubs d’API : si l’on consomme des méthodes PrestaShop susceptibles de renvoyer `false` ou des propriétés optionnelles (`Image::getImages()`, `Context::$link`, `Product::$link_rewrite`), mettre à jour `phpstan-bootstrap.php` pour refléter le contrat réel plutôt que d’ajouter des gardes redondants que PHPStan signalera comme impossibles.
+- Typage strict : typer explicitement les tableaux (`array<string, mixed>`, `array<int, array<string, mixed>>`), ajouter des annotations `/** @var … */` après un cast `(array)` et éviter les `is_array()` redondants.
+- Contrôleurs REST : centraliser la logique commune (`requireAuth`, `isDevMode`, `jsonError`) via `BaseApiController` et réutiliser les helpers plutôt que re-tester les constantes.
+- Dev mode : passer systématiquement par `isDevMode()` (ou équivalent) au lieu d’expressions `defined('_PS_MODE_DEV_') && ...` pour éviter les avertissements statiques.
+- Internationalisation : toute nouvelle chaîne (erreur, succès, notifications) doit être ajoutée en FR et EN dans `TranslationService`.
+- Paramètres BO : toute nouvelle option de configuration doit passer par `SettingsService` (get/set/export + validations), être exposée dans le template BO, documentée dans `README.md` et `agent.md`, et accompagnée de traductions FR/EN + messages d’erreur cohérents.
+- Documentation API : maintenir `docs/api.md` à jour (auth, entrées/sorties, exemples). Toute évolution d’endpoint doit y figurer avant la revue.
+- Workflows CI : conserver `php_ci.yml` comme référence ; ne pousser que lorsque lint et PHPStan sont verts localement.

@@ -1,4 +1,4 @@
-# Rebuild Connector — Référence API
+# Rebuild Connector : référence API
 
 Toutes les routes sont exposées sous `https://<boutique>/module/rebuildconnector/api/...`.
 L'API accepte et retourne du JSON UTF-8.
@@ -42,19 +42,18 @@ Corps JSON :
 | `expires_at` | string   | Date d'expiration ISO 8601.                                        |
 | `scopes`     | string[] | **Scopes réels du jeton émis** (voir ci-dessous).                  |
 
-**Scopes dynamiques (depuis v1.2.0, multi-utilisateur)** — la structure de la réponse est inchangée,
-mais `scopes` contient désormais les scopes **réellement portés par le jeton** :
+**Scopes dynamiques (depuis v1.2.0, multi-utilisateur).** La structure de la réponse est inchangée,
+mais `scopes` contient désormais les scopes **réellement portés par le jeton**. Une clé globale
+legacy porte tous les scopes globaux configurés en back-office (rétrocompatibilité totale). La clé
+d'un utilisateur nommé ne porte que le sous-ensemble de scopes attribués à cet utilisateur.
 
-- **Clé globale legacy** : tous les scopes globaux configurés en back-office (rétrocompatibilité totale).
-- **Clé d'un utilisateur nommé** : uniquement le sous-ensemble de scopes attribués à cet utilisateur.
-
-> ⚠️ Côté client : ne **jamais** supposer qu'un scope précis est toujours présent. Le tableau peut
-> être un sous-ensemble. L'app PrestaFlow stocke `scopes` mais ne gate aucune fonctionnalité dessus
+> Attention, côté client : ne **jamais** supposer qu'un scope précis est toujours présent. Le
+> tableau peut être un sous-ensemble. L'app PrestaFlow stocke `scopes` mais ne gate aucune fonctionnalité dessus
 > (aucun risque de désérialisation : `scopes` reste un `List<String>` non-nullable, toujours présent).
 
 Ajouter ensuite l'en-tête `Authorization: Bearer <access_token>` sur chaque requête protégée.
 
-**Payload du JWT (informatif — opaque côté client)**
+**Payload du JWT (informatif, opaque côté client)**
 
 Le JWT encode les claims suivants. L'app ne décode pas ce payload (le jeton est traité comme une chaîne
 opaque) ; ces champs sont documentés à titre de référence serveur. Depuis v1.2.0, le payload contient
@@ -92,7 +91,7 @@ Deux formats de QR coexistent. Tous deux portent les mêmes champs de base (`mod
 }
 ```
 
-**QR utilisateur nommé** (depuis v1.2.0) — ajoute `user_id` et `label` :
+**QR utilisateur nommé** (depuis v1.2.0), avec `user_id` et `label` en plus :
 
 ```json
 {
@@ -107,7 +106,7 @@ Deux formats de QR coexistent. Tous deux portent les mêmes champs de base (`mod
 ```
 
 > L'app PrestaFlow ne lit que `shopUrl` et `apiKey` (parsing `JSONObject.optString`) et ignore tout
-> autre champ — les champs `module`, `version`, `api_base_url`, `user_id`, `label` sont tolérés sans
+> autre champ : `module`, `version`, `api_base_url`, `user_id` et `label` sont tolérés sans
 > erreur. Aucune mise à jour applicative requise pour accepter le QR utilisateur.
 
 **Erreurs**
@@ -126,11 +125,11 @@ Deux formats de QR coexistent. Tous deux portent les mêmes champs de base (`mod
 
 ### GET `.../api/connector/capabilities`
 
-Scope requis : **aucun** — un jeton valide suffit (n'importe quel scope). Voir justification ci-dessous.
+Scope requis : **aucun**. Un jeton valide suffit (n'importe quel scope). Voir justification ci-dessous.
 
 Ce que **cette boutique** sait faire, indépendamment des scopes portés par le jeton qui appelle
 cette route. À NE PAS confondre avec les scopes : un jeton peut porter le scope `reviews.moderate`
-sur une boutique où le module d'avis n'est pas installé — l'app doit alors masquer la section avis,
+sur une boutique où le module d'avis n'est pas installé. L'app doit alors masquer la section avis,
 pas afficher un écran vide. Voir `docs/app-avis-sav.md` (§ « Capacité ≠ droit ») pour le
 raisonnement complet.
 
@@ -141,16 +140,16 @@ raisonnement complet.
 > boutique désinstalle `rbreviews` en cours de jeton valide, alors que la capacité `reviews` doit
 > être vue **à chaud** (contrainte explicite de l'étude préalable). Un endpoint séparé, que l'app
 > peut rappeler à volonté (ouverture d'app, pull-to-refresh, etc.), sans dépendre du cycle de vie
-> du jeton, répond à cette contrainte — un bloc de login ne le peut pas structurellement.
+> du jeton, répond à cette contrainte ; un bloc de login ne le peut pas structurellement.
 
 **Pourquoi aucun scope requis** (et pas `dashboard.read` ou un scope « lecture de base » existant) :
-une capacité n'est pas une donnée métier à garder derrière un scope précis — c'est un pré-requis
+une capacité n'est pas une donnée métier à garder derrière un scope précis. C'est un pré-requis
 que l'app doit pouvoir lire **quels que soient** les scopes du jeton, précisément pour décider
 quelles sections gardées par un scope proposer. La gater derrière un scope forcerait toute
 installation à accorder un scope arbitraire juste pour savoir ce qui existe (circulaire). Un jeton
 valide (n'importe lequel) reste néanmoins requis : cette information n'est pas publique.
 
-**Réponse 200** — objet plat, pas d'enveloppe (même convention que `GET /dashboard/metrics`) :
+**Réponse 200**, objet plat sans enveloppe (même convention que `GET /dashboard/metrics`) :
 
 ```json
 {
@@ -162,16 +161,16 @@ valide (n'importe lequel) reste néanmoins requis : cette information n'est pas 
 
 | Champ              | Type | Description                                                                 |
 |--------------------|------|-------------------------------------------------------------------------------|
-| `sav`              | bool | **Toujours `true`** — fils clients natifs PrestaShop, aucun module requis.   |
+| `sav`              | bool | **Toujours `true`** : fils clients natifs PrestaShop, aucun module requis.   |
 | `reviews`          | bool | `Module::isInstalled('rbreviews') && Module::isEnabled('rbreviews')`, évalué **à chaud à chaque appel** (aucun cache au-delà de la requête HTTP courante). |
-| `shipping_labels`  | bool | Module Colissimo installé **et** actif, **et** des credentials exploitables configurés (`COLISSIMO_CONNEXION_KEY` + `COLISSIMO_ACCOUNT_KEY`, **ou** `COLISSIMO_ACCOUNT_LOGIN` + `COLISSIMO_ACCOUNT_PASSWORD`) — `ColissimoLabelService::isConfigured()`, évalué **à chaud à chaque appel**. |
+| `shipping_labels`  | bool | Module Colissimo installé **et** actif, **et** des credentials exploitables configurés (`COLISSIMO_CONNEXION_KEY` + `COLISSIMO_ACCOUNT_KEY`, **ou** `COLISSIMO_ACCOUNT_LOGIN` + `COLISSIMO_ACCOUNT_PASSWORD`), via `ColissimoLabelService::isConfigured()`, évalué **à chaud à chaque appel**. |
 
 `shipping_labels` reflète **exactement** la condition qui fait répondre `POST /orders/{id}/shipping-label`
-par `501 generation_not_configured` (même code, mêmes deux vérifications, cf. § Commandes) — jamais
+par `501 generation_not_configured` (même code, mêmes deux vérifications, cf. § Commandes), jamais
 une approximation : ce champ ne vaut `true` que si cet endpoint répondrait effectivement. Ne
 contient aucun secret ; les credentials eux-mêmes ne sont jamais lus en clair ni exposés.
 
-> D'autres capacités pourront s'ajouter ici plus tard sans changer le contrat existant — traiter cet
+> D'autres capacités pourront s'ajouter ici plus tard sans changer le contrat existant. Traiter cet
 > objet comme extensible côté app (ignorer les clés inconnues).
 
 **Erreurs**
@@ -199,22 +198,22 @@ Accept-Language: de
   (`de-DE,de;q=0.9`) sont également acceptés : seul le 1ᵉʳ sous-tag primaire (avant `-`, `;` ou `,`)
   est retenu, normalisé en ISO 639-1 minuscule.
 - Le connecteur résout ce tag vers un `id_lang` **installé ET actif pour la boutique courante**.
-- **Fallback** : si la langue demandée n'est pas installée/active (ou si l'en-tête est absent), le
-  connecteur retombe sur la langue par défaut de la boutique (`PS_LANG_DEFAULT`) — le comportement
-  historique, inchangé. Une boutique n'ayant qu'une seule langue installée (ex. FR uniquement) ne
+- Si la langue demandée n'est pas installée/active (ou si l'en-tête est absent), le connecteur
+  retombe sur la langue par défaut de la boutique (`PS_LANG_DEFAULT`), le comportement historique
+  inchangé. Une boutique n'ayant qu'une seule langue installée (ex. FR uniquement) ne
   voit donc **aucun changement** quel que soit l'en-tête envoyé.
 
 **Endpoints concernés** (tout contenu qui dépend d'un `id_lang` en base) :
 
-- `GET .../api/orders/statuses` et le champ `status` des commandes (liste + détail) — c'était le
-  besoin remonté : les badges de statut restaient en FR même app en allemand.
-- `GET .../api/orders` / `GET .../api/orders/{id}` — libellé de statut, nom du transporteur.
-- `PATCH .../api/orders/{id}` — la résolution nom → id de statut (quand l'app envoie un nom plutôt
+- `GET .../api/orders/statuses` et le champ `status` des commandes (liste + détail) : c'était le
+  besoin remonté, les badges de statut restaient en FR même avec l'app en allemand.
+- `GET .../api/orders` / `GET .../api/orders/{id}` : libellé de statut, nom du transporteur.
+- `PATCH .../api/orders/{id}` : la résolution nom → id de statut (quand l'app envoie un nom plutôt
   qu'un id) utilise la même langue.
-- `GET .../api/products`, `GET .../api/products/{id}` — noms/descriptions produits, libellés de
+- `GET .../api/products`, `GET .../api/products/{id}` : noms/descriptions produits, libellés de
   déclinaisons.
-- `GET .../api/dashboard` — libellés produits en stock bas.
-- `GET .../api/reports/bestsellers` — noms produits.
+- `GET .../api/dashboard` : libellés produits en stock bas.
+- `GET .../api/reports/bestsellers` : noms produits.
 
 Les endpoints sans dimension langue (`customers`, `baskets`, `notifications`…) ne sont pas concernés
 et ne changent pas de comportement.
@@ -260,7 +259,7 @@ Liste paginée des commandes.
 | `limit`       | int        | Nombre max de résultats (défaut 20, min 1, max 100)                                                                                          |
 | `offset`      | int        | Décalage de pagination (défaut 0)                                                                                                            |
 | `customer_id` | int        | Filtre par ID client                                                                                                                         |
-| `status`      | int/string | ID d'état numérique ou libellé partiel (LIKE) — ignoré si `statuses` est fourni                                                             |
+| `status`      | int/string | ID d'état numérique ou libellé partiel (LIKE). Ignoré si `statuses` est fourni                                                              |
 | `statuses`    | string/array | Liste CSV d'IDs d'état : `statuses=2,3,4,5` ou tableau `statuses[]=2&statuses[]=3`. Prime sur `status`. Valeurs non-entières ignorées silencieusement. |
 | `sort`        | string     | Ordre de tri. Valeurs acceptées : `date_desc` (défaut), `date_asc`, `total_desc`, `total_asc`, `status`, `reference`. Valeur inconnue → défaut `date_desc`. |
 | `date_from`   | datetime   | Filtre `date_add >=` (format Y-m-d ou Y-m-d H:i:s)                                                                                          |
@@ -303,7 +302,7 @@ Liste paginée des commandes.
 }
 ```
 
-> Note : dans la liste (`getOrders`), `status` est une chaîne (le libellé d'état). Ce n'est **pas** `{id, name}` — cette structure enrichie n'existe que sur l'endpoint de détail. La liste est volontairement allégée (pas de `shipping`/`items`/`history`).
+> Note : dans la liste (`getOrders`), `status` est une chaîne (le libellé d'état). Ce n'est **pas** `{id, name}` : cette structure enrichie n'existe que sur l'endpoint de détail. La liste est volontairement allégée (pas de `shipping`/`items`/`history`).
 > `date_add` (date de création de la commande) et `date_upd` (dernière mise à jour) sont tous deux exposés ; pour l'affichage « date de commande », utiliser **`date_add`**.
 > `status_color` est la couleur hexadécimale de l'état telle que configurée dans le BO PrestaShop (ex. `#3498D8`). Chaîne vide si non définie.
 
@@ -378,9 +377,9 @@ Détail d'une commande avec historique et lignes de produits.
 }
 ```
 
-`customer_id` (nouveau **v1.9.1**) : alias de premier niveau de `customer.id` — l'ID du client (`id_customer` PrestaShop). Permet à l'app d'ouvrir la fiche client directement depuis le détail commande sans désimbriquer `customer.id`.
+`customer_id` (nouveau **v1.9.1**) : alias de premier niveau de `customer.id`, l'ID du client (`id_customer` PrestaShop). L'app ouvre ainsi la fiche client directement depuis le détail commande sans désimbriquer `customer.id`.
 
-`shipping` (**v1.9.2**) : peut être `null` pour une commande **virtuelle** (sans transporteur — produit dématérialisé). Critère : `carrier_id <= 0`. En pratique, une commande physique a toujours un transporteur assigné ; l'absence de transporteur signale donc une commande virtuelle plutôt qu'un bloc `shipping` vide (`carrier_id: 0, carrier_name: ""`).
+`shipping` (**v1.9.2**) : peut être `null` pour une commande **virtuelle** (sans transporteur, produit dématérialisé). Critère : `carrier_id <= 0`. En pratique, une commande physique a toujours un transporteur assigné ; l'absence de transporteur signale donc une commande virtuelle plutôt qu'un bloc `shipping` vide (`carrier_id: 0, carrier_name: ""`).
 
 ```json
 "shipping": null
@@ -421,21 +420,21 @@ Content-Disposition: attachment; filename="bordereau-colissimo-6120-6A0552833389
 
 ---
 
-### POST `.../api/orders/{id}/shipping-label`  — Générer une étiquette Colissimo
+### POST `.../api/orders/{id}/shipping-label` : générer une étiquette Colissimo
 
 Scope requis : `orders.write`
 
 Génère une étiquette Colissimo via le webservice La Poste (`ws.colissimo.fr`), la stocke sur disque dans
 `modules/colissimo/documents/labels/` et enregistre le numéro de suivi sur la commande
-(`order_carrier.tracking_number` **et** `orders.shipping_number` — les deux champs standard
+(`order_carrier.tracking_number` **et** `orders.shipping_number`, les deux champs standard
 PrestaShop, pour couvrir le BO et les éventuels crons de suivi tiers).
 
-**Effet de bord — changement de statut** : si la génération réussit, la commande est automatiquement
+**Effet de bord, changement de statut** : si la génération réussit, la commande est automatiquement
 passée à l'état « En cours d'expédition » (ID configurable dans le BO du module, réglage
-`REBUILDCONNECTOR_LABEL_SHIPPED_STATE_ID`, défaut `20`), via `OrderHistory` — l'email associé à cet
+`REBUILDCONNECTOR_LABEL_SHIPPED_STATE_ID`, défaut `20`), via `OrderHistory`. L'email associé à cet
 état n'est envoyé que si l'état est lui-même configuré pour le faire (BO PrestaShop standard). Ce
 changement n'est **jamais** appliqué si la commande est déjà dans un état plus avancé (Expédiée,
-Livrée, Remise au transporteur, Terminée, Annulée) — pas de rétrogradation. Un consommateur de l'API
+Livrée, Remise au transporteur, Terminée, Annulée) : pas de rétrogradation. Un consommateur de l'API
 peut donc voir `PATCH .../orders/{id}` / le statut renvoyé par `GET .../orders/{id}` changer après un
 `POST .../shipping-label` réussi, sans appel PATCH explicite.
 
@@ -447,7 +446,7 @@ peut donc voir `PATCH .../orders/{id}` / le statut renvoyé par `GET .../orders/
 **Corps JSON** : aucun corps requis. L'action est portée par le path `/orders/{id}/shipping-label`.
 
 **Idempotence** : si une étiquette Colissimo avec fichier PDF existe déjà pour cette commande,
-le webservice n'est PAS rappelé — la réponse retourne l'étiquette existante avec `generated: false`
+le webservice n'est PAS rappelé : la réponse retourne l'étiquette existante avec `generated: false`
 et HTTP 200.
 
 **Réponse 201** (nouvelle étiquette générée)
@@ -495,7 +494,7 @@ et HTTP 200.
 
 ---
 
-### PATCH `.../api/orders/{id}`  — Changer le statut
+### PATCH `.../api/orders/{id}` : changer le statut
 
 Scope requis : `orders.write`
 
@@ -528,7 +527,7 @@ ou
 
 ---
 
-### PATCH `.../api/orders/{id}`  — Mettre à jour l'expédition
+### PATCH `.../api/orders/{id}` : mettre à jour l'expédition
 
 Scope requis : `orders.write`
 
@@ -627,13 +626,13 @@ Liste paginée de produits.
 
 | Champ   | Type | Description                                                                        |
 |---------|------|------------------------------------------------------------------------------------|
-| `total` | int  | Nombre total de produits correspondant aux filtres actifs, indépendamment de la pagination (`limit`/`offset` ignorés). Permet à l'app d'afficher un compteur global et de calculer le nombre de pages. |
+| `total` | int  | Nombre total de produits correspondant aux filtres actifs, indépendamment de la pagination (`limit`/`offset` ignorés). L'app s'en sert pour afficher un compteur global et calculer le nombre de pages. |
 
 **Champs `matched_combination` (v1.10.5) et `combinations` (v1.10.7)**
 
 Certaines boutiques (ex. pensebonheur, pelotes de laine) portent le stock vendable et l'EAN13 sur une
-**combinaison/déclinaison** (`product_attribute`, ex. « Coloris - Bleu ») plutôt que sur le produit — et
-l'EAN13 peut être posé **soit sur la déclinaison, soit sur le produit lui-même** (cas fréquent :
+**combinaison/déclinaison** (`product_attribute`, ex. « Coloris - Bleu ») plutôt que sur le produit.
+L'EAN13 peut d'ailleurs être posé **soit sur la déclinaison, soit sur le produit lui-même** (cas fréquent :
 l'auto-association `PATCH /products/{id} { "ean13": ... }` d'une ancienne version l'a posé sur le produit).
 Sur `GET /products?barcode=...` uniquement (pas sur la liste paginée générale, pour ne pas l'alourdir),
 chaque item retourne :
@@ -673,7 +672,7 @@ chaque item retourne :
 
 1. Le code matche directement l'EAN13/référence d'**une déclinaison** → cette déclinaison.
 2. Sinon, le code matche l'EAN13/référence **du produit** ET le produit a **exactement une** déclinaison
-   (`combinations` de taille 1) → cette unique déclinaison (v1.10.7 — évite un clic supplémentaire côté
+   (`combinations` de taille 1) → cette unique déclinaison (v1.10.7 : évite un clic supplémentaire côté
    app quand il n'y a aucune ambiguïté possible, cas pelotes).
 3. Sinon (produit sans déclinaison, ou match produit avec **2 déclinaisons ou plus** = ambigu) →
    `matched_combination` = `null`. L'app doit alors utiliser `combinations` pour laisser l'utilisateur
@@ -681,10 +680,10 @@ chaque item retourne :
 
 > `price` est le prix TTC (`Product::getPriceStatic($id, true)`). `price_tax_excl` (prix HT brut) est exposé en lecture depuis **v1.10.3** (liste + détail).
 > Toute valeur du filtre `stock` autre que les trois valeurs listées retourne `400 invalid_payload`.
-> **v1.4.3** — Corrige un bug où l'absence du paramètre `active` appliquait un filtre `p.active = 0` non désiré, causant le retour de produits inactifs uniquement et une liste tronquée.
-> **v1.10.0** — Ajoute le champ `ean13` (liste + détail) et le filtre `barcode` pour la mise en stock par scan de code-barres. `barcode` fait une correspondance exacte sur `ean13` OU `reference` ; `search` reste un LIKE partiel sur `name`/`reference`. Si `ean13` n'est pas renseigné en base, la valeur retournée est `""`.
-> **v1.10.5** — Le filtre `barcode` matche désormais aussi `product_attribute.ean13`/`.reference` (combinaisons), via un `LEFT JOIN product_attribute` restreint aux lignes qui matchent déjà le code (donc pas de duplication de lignes produit) et `product_attribute_shop` pour restreindre à la boutique courante. Ajoute le champ `matched_combination` (liste + détail) quand le match porte sur une déclinaison.
-> **v1.10.7** — Ajoute le champ `combinations` (liste complète des déclinaisons, résultats `barcode` uniquement). `matched_combination` cible désormais aussi la déclinaison unique d'un produit dont l'EAN13/référence est posé sur le produit (plus de clic superflu côté app quand il n'y a qu'une déclinaison), reste `null` si ambigu (≥ 2 déclinaisons).
+> **v1.4.3.** Corrige un bug où l'absence du paramètre `active` appliquait un filtre `p.active = 0` non désiré, causant le retour de produits inactifs uniquement et une liste tronquée.
+> **v1.10.0.** Ajoute le champ `ean13` (liste + détail) et le filtre `barcode` pour la mise en stock par scan de code-barres. `barcode` fait une correspondance exacte sur `ean13` OU `reference` ; `search` reste un LIKE partiel sur `name`/`reference`. Si `ean13` n'est pas renseigné en base, la valeur retournée est `""`.
+> **v1.10.5.** Le filtre `barcode` matche désormais aussi `product_attribute.ean13`/`.reference` (combinaisons), via un `LEFT JOIN product_attribute` restreint aux lignes qui matchent déjà le code (donc pas de duplication de lignes produit) et `product_attribute_shop` pour restreindre à la boutique courante. Ajoute le champ `matched_combination` (liste + détail) quand le match porte sur une déclinaison.
+> **v1.10.7.** Ajoute le champ `combinations` (liste complète des déclinaisons, résultats `barcode` uniquement). `matched_combination` cible désormais aussi la déclinaison unique d'un produit dont l'EAN13/référence est posé sur le produit (plus de clic superflu côté app quand il n'y a qu'une déclinaison), reste `null` si ambigu (≥ 2 déclinaisons).
 
 ---
 
@@ -752,7 +751,7 @@ Alias de `GET .../api/products/{id}` (même controller, paramètre `action=stock
 
 ---
 
-### PATCH `.../api/products/{id}`  — Mettre à jour le stock
+### PATCH `.../api/products/{id}` : mettre à jour le stock
 
 Scope requis : `products.write`
 
@@ -764,8 +763,8 @@ Corps JSON :
 |-------------------|------|------------------------------------------|
 | `quantity`        | int  | Nouvelle quantité absolue en stock       |
 | `combination_id`  | int  | **Optionnel (v1.10.5)**. `id_product_attribute` de la déclinaison ciblée. Doit appartenir au produit `{id}` de l'URL. Absent ou `0` = niveau produit (comportement historique, `id_product_attribute = 0`). |
-| `warehouse_id`    | int  | Réservé (non traité actuellement — accepté et ignoré sans erreur). |
-| `reason`          | string | Réservé (non traité actuellement — accepté et ignoré sans erreur). |
+| `warehouse_id`    | int  | Réservé (non traité actuellement, accepté et ignoré sans erreur). |
+| `reason`          | string | Réservé (non traité actuellement, accepté et ignoré sans erreur). |
 
 ```json
 { "quantity": 15 }
@@ -775,7 +774,7 @@ Corps JSON :
 { "quantity": 12, "combination_id": 7 }
 ```
 
-**Réponse 200** — retourne la fiche produit mise à jour (même format que `GET /products/{id}`).
+**Réponse 200** : retourne la fiche produit mise à jour (même format que `GET /products/{id}`).
 
 **Erreurs** :
 
@@ -788,7 +787,7 @@ Corps JSON :
 
 ---
 
-### PATCH `.../api/products/{id}`  — Mettre à jour les attributs
+### PATCH `.../api/products/{id}` : mettre à jour les attributs
 
 Scope requis : `products.write`
 
@@ -828,7 +827,7 @@ Corps JSON (tous les champs sont optionnels, au moins un requis) :
 }
 ```
 
-**Réponse 200** — retourne la fiche produit mise à jour (même format que `GET /products/{id}`, qui expose depuis **v1.10.3** `price_tax_excl`, `description` et `description_short` en lecture sur le détail).
+**Réponse 200** : retourne la fiche produit mise à jour (même format que `GET /products/{id}`, qui expose depuis **v1.10.3** `price_tax_excl`, `description` et `description_short` en lecture sur le détail).
 
 **Erreurs** :
 
@@ -843,15 +842,15 @@ Corps JSON (tous les champs sont optionnels, au moins un requis) :
 | 400  | `invalid_payload` | `reference` n'est pas une chaîne, dépasse 64 caractères, ou contient des caractères interdits (`Validate::isReference`) |
 | 404  | `not_found`       | Produit introuvable                            |
 
-> **v1.10.1** — Ajoute `ean13` aux champs modifiables via `PATCH /products/{id}` (action `attributes`). Permet à l'app d'associer un code-barres scanné à un produit existant (auto-association lors d'une réception sans EAN13 connu). Usage typique : `GET /products?barcode=<code>` ne retourne rien → l'utilisateur choisit le produit dans la liste → `PATCH /products/{id} { "ean13": "<code>" }`.
+> **v1.10.1.** Ajoute `ean13` aux champs modifiables via `PATCH /products/{id}` (action `attributes`). L'app peut ainsi associer un code-barres scanné à un produit existant (auto-association lors d'une réception sans EAN13 connu). Usage typique : `GET /products?barcode=<code>` ne retourne rien → l'utilisateur choisit le produit dans la liste → `PATCH /products/{id} { "ean13": "<code>" }`.
 
-> **v1.10.2** — Ajoute `name`, `description`, `description_short` et `reference` aux champs modifiables via `PATCH /products/{id}` (action `attributes`), pour l'édition des champs simples de la fiche produit côté app. `name`, `description` et `description_short` sont des champs multilang PrestaShop : le module applique la même valeur reçue à toutes les langues installées de la boutique (`Language::getLanguages(false)`), l'app n'a pas à gérer le multilang côté client.
-> **v1.10.3** — Expose en **lecture** `price_tax_excl` (liste + détail) et `description` / `description_short` (détail uniquement, pour ne pas gonfler la liste paginée). Permet à l'écran d'édition de fiche de préremplir fidèlement le prix HT et les descriptions (avant v1.10.3, le prix HT n'était pas lisible et les descriptions n'étaient pas retournées).
-> **v1.10.7** — Ajoute `combination_id` (optionnel) : quand fourni avec `ean13`, l'auto-association écrit le code-barres sur la déclinaison ciblée plutôt que sur le produit. Usage typique : `GET /products?barcode=<code>` retourne un produit avec plusieurs `combinations` sans `matched_combination` (ambigu) → l'utilisateur choisit la déclinaison dans la liste → `PATCH /products/{id} { "ean13": "<code>", "combination_id": <id> }`.
+> **v1.10.2.** Ajoute `name`, `description`, `description_short` et `reference` aux champs modifiables via `PATCH /products/{id}` (action `attributes`), pour l'édition des champs simples de la fiche produit côté app. `name`, `description` et `description_short` sont des champs multilang PrestaShop : le module applique la même valeur reçue à toutes les langues installées de la boutique (`Language::getLanguages(false)`), l'app n'a pas à gérer le multilang côté client.
+> **v1.10.3.** Expose en **lecture** `price_tax_excl` (liste + détail) et `description` / `description_short` (détail uniquement, pour ne pas gonfler la liste paginée). L'écran d'édition de fiche préremplit ainsi fidèlement le prix HT et les descriptions (avant v1.10.3, le prix HT n'était pas lisible et les descriptions n'étaient pas retournées).
+> **v1.10.7.** Ajoute `combination_id` (optionnel) : quand fourni avec `ean13`, l'auto-association écrit le code-barres sur la déclinaison ciblée plutôt que sur le produit. Usage typique : `GET /products?barcode=<code>` retourne un produit avec plusieurs `combinations` sans `matched_combination` (ambigu) → l'utilisateur choisit la déclinaison dans la liste → `PATCH /products/{id} { "ean13": "<code>", "combination_id": <id> }`.
 
 ---
 
-### POST `.../api/products/{id}/images`  — Ajouter une image
+### POST `.../api/products/{id}/images` : ajouter une image
 
 Scope requis : `products.write`
 
@@ -875,7 +874,7 @@ curl -X POST '.../api/products/42/images' \
   -F "image=@photo.jpg;type=image/jpeg"
 ```
 
-**Réponse 201** — retourne la fiche produit mise à jour (même format que `GET /products/{id}`, donc `images[]` à jour).
+**Réponse 201** : retourne la fiche produit mise à jour (même format que `GET /products/{id}`, donc `images[]` à jour).
 
 ```json
 {
@@ -900,7 +899,7 @@ curl -X POST '.../api/products/42/images' \
 
 ---
 
-### DELETE `.../api/products/{id}/images/{imageId}`  — Supprimer une image
+### DELETE `.../api/products/{id}/images/{imageId}` : supprimer une image
 
 Scope requis : `products.write`
 
@@ -913,7 +912,7 @@ curl -X DELETE '.../api/products/42/images/512' \
   -H "Authorization: Bearer <token>"
 ```
 
-**Réponse 200** — retourne la fiche produit mise à jour (même format que `GET /products/{id}`).
+**Réponse 200** : retourne la fiche produit mise à jour (même format que `GET /products/{id}`).
 
 **Erreurs** :
 
@@ -921,7 +920,7 @@ curl -X DELETE '.../api/products/42/images/512' \
 |------|-------------|----------------------------------------------------------------|
 | 404  | `not_found` | Produit introuvable, image introuvable, ou image n'appartenant pas à ce produit |
 
-> **v1.10.4** — Ajoute l'upload (`POST /products/{id}/images`) et la suppression (`DELETE /products/{id}/images/{imageId}`) d'images produit, pour l'écran d'édition de fiche côté app (étape « images de la fiche produit »). Nouveau controller dédié `ProductImagesController` (scope `products.write`, réutilise `ProductsService::getProductById` pour la fiche à jour en réponse).
+> **v1.10.4.** Ajoute l'upload (`POST /products/{id}/images`) et la suppression (`DELETE /products/{id}/images/{imageId}`) d'images produit, pour l'écran d'édition de fiche côté app (étape « images de la fiche produit »). Nouveau controller dédié `ProductImagesController` (scope `products.write`, réutilise `ProductsService::getProductById` pour la fiche à jour en réponse).
 
 ---
 
@@ -988,7 +987,7 @@ Liste paginée de clients avec pagination par offset et filtres avancés.
 | Champ          | Type          | Description                                                         |
 |----------------|---------------|---------------------------------------------------------------------|
 | `last_order_at`| string\|null  | Date de la dernière commande (`null` si aucune commande).           |
-| `date_add`     | string\|null  | Date d'inscription du client (`ps_customer.date_add`, format `YYYY-MM-DD HH:MM:SS`). Permet de filtrer les nouveaux clients du mois côté app. |
+| `date_add`     | string\|null  | Date d'inscription du client (`ps_customer.date_add`, format `YYYY-MM-DD HH:MM:SS`). L'app s'en sert pour filtrer les nouveaux clients du mois. |
 
 > `last_order_at` et `date_add` sont `null` s'ils sont absents en base. `next_offset` est `null` quand il n'y a pas de page suivante.
 
@@ -1062,8 +1061,8 @@ Fiche client détaillée avec les 10 dernières commandes (format liste, voir `G
 
 ## SAV
 
-**Depuis v1.18.0.** SAV natif PrestaShop (`ps_customer_thread` / `ps_customer_message`) — **aucun
-module requis**, capacité `sav` toujours `true` (voir § Capacités). Toute lecture porte le filtre
+**Depuis v1.18.0.** SAV natif PrestaShop (`ps_customer_thread` / `ps_customer_message`), **aucun
+module requis** : la capacité `sav` vaut toujours `true` (voir § Capacités). Toute lecture porte le filtre
 `id_shop` (protection IDOR multiboutique) : un fil d'une autre boutique répond `404`, jamais `403`
 (pour ne pas confirmer son existence).
 
@@ -1078,20 +1077,20 @@ module requis**, capacité `sav` toujours `true` (voir § Capacités). Toute lec
 | `closed`   | Fil clos.                                                               |
 
 « Ouvert » au sens de l'app/étude préalable = tout ce qui n'est **pas** `closed` (les 3 autres
-valeurs) — c'est ce qui correspond aux « 97 fils ouverts » mesurés. La liste par défaut trie donc
+valeurs), ce qui correspond aux « 97 fils ouverts » mesurés. La liste par défaut trie donc
 les fils non-clos en premier.
 
-**Depuis v1.19.0 — notification push `sav.message`.** Un nouveau message **client** sur un fil
+**Depuis v1.19.0 : notification push `sav.message`.** Un nouveau message **client** sur un fil
 déclenche l'événement push `sav.message` (voir § Notifications / Appareils FCM). Réglage BO
 `sav_message_alerts_enabled`, **actif par défaut**. Une réponse d'employé (BO natif PrestaShop ou
-`POST .../sav/{id}/reply` ci-dessous) ne déclenche jamais cette notification — seule l'arrivée d'un
+`POST .../sav/{id}/reply` ci-dessous) ne déclenche jamais cette notification : seule l'arrivée d'un
 message client compte.
 
-**Depuis v1.20.0 — définition « à traiter » (`to_process`) et compteur dédié.**
+**Depuis v1.20.0 : définition « à traiter » (`to_process`) et compteur dédié.**
 `customer_message.read` (base de l'ancien champ `unread`, toujours exposé ci-dessous pour compat)
 s'est révélé inexploitable comme signal d'action sur une boutique dont le SAV est en réalité traité
 par e-mail : PrestaShop ne le pose que quand un employé ouvre le fil dans la vue BO, ce qui n'arrive
-quasiment jamais dans ce flux — mesuré en prod, **449 fils « non lus »** au sens PrestaShop, dont
+quasiment jamais dans ce flux. Mesuré en prod : **449 fils « non lus »** au sens PrestaShop, dont
 **364 déjà fermés** et **190 déjà répondus par un employé**, avec un message « non lu » remontant à
 2021-07-14. Compter les `unread` d'une page de résultats (ce que faisait l'app avant cette version)
 ne produit donc rien de significatif.
@@ -1104,18 +1103,18 @@ La définition utile, exposée par le nouveau champ `to_process` (par fil) et pa
 
 La fenêtre de fraîcheur de 90 jours est nécessaire en plus des deux premières conditions : sans
 elle, « non clos + dernier message client » remonte 83 fils en prod, mais 81 d'entre eux sont des
-fils dormants de 2021-2025 jamais fermés — du bruit historique, pas une file d'attente réelle. Avec
+fils dormants de 2021-2025 jamais fermés, du bruit historique et pas une file d'attente réelle. Avec
 la fenêtre, il n'en reste que 2. **C'est ce compteur-là que l'app doit afficher sur sa pastille SAV**
 (`GET /sav/stats`), plus jamais une approximation obtenue en scannant une page de `GET /sav`.
 
-> ⚠️ Ces libellés/rôles (`pending1`/`pending2`) sont documentés à partir du schéma natif
+> Attention : ces libellés/rôles (`pending1`/`pending2`) sont documentés à partir du schéma natif
 > PrestaShop (stable depuis 1.6) et du comportement observé de `ps_customer_thread`, **sans accès à
 > une installation PS8 de référence locale au moment de l'écriture**. À confirmer contre le
-> back-office réel de pensebonheur.fr avant déploiement — cf. rapport de tâche.
+> back-office réel de pensebonheur.fr avant déploiement, cf. rapport de tâche.
 
 > **Migration depuis < v1.18.0 : utilisateurs nommés existants.** La v1.18.0 a ajouté les scopes
 > `sav.read`/`sav.write`/`reviews.moderate` aux **scopes globaux** (clé API Admin), mais **pas**
-> aux utilisateurs nommés créés avant cette version (table `rebuildconnector_user`) — chacun garde
+> aux utilisateurs nommés créés avant cette version (table `rebuildconnector_user`) : chacun garde
 > exactement les scopes qui lui avaient été attribués, c'est le principe de moindre privilège. Ce
 > n'est **pas automatisable** : `sav.write` permet d'envoyer de vrais e-mails à de vraies clientes,
 > l'accorder en silence à une montée de version serait une élévation de privilège. Depuis v1.18.1,
@@ -1158,16 +1157,16 @@ Scope requis : `sav.read`
 
 `customer.id`/`order` sont `null` quand le fil n'est rattaché à aucun client PrestaShop / aucune
 commande (ex. contact anonyme via formulaire). **`customer` lui-même est toujours présent** (jamais
-`null`), et **`customer.email` est toujours une chaîne** — **vide** (`""`, jamais `null`) quand le
+`null`), et **`customer.email` est toujours une chaîne**, **vide** (`""`, jamais `null`) quand le
 fil n'a pas d'adresse enregistrée. Un client doit donc tester « chaîne non vide », pas « non
 `null` » : c'est cette adresse qui décide de `email_sent` sur `POST .../sav/{id}/reply`.
 
-`unread` = au moins un message de la cliente (`id_employee = 0`) marqué non lu (`read = 0`) —
+`unread` = au moins un message de la cliente (`id_employee = 0`) marqué non lu (`read = 0`),
 convention du connecteur, documentée faute d'accès à une référence BO locale pour confirmer la
 définition exacte utilisée par l'admin natif. **Conservé pour compat ascendante** (l'app l'utilise
-dans le détail de fil) mais **ne représente pas** une file d'attente exploitable — voir la note
+dans le détail de fil) mais **ne représente pas** une file d'attente exploitable : voir la note
 « Depuis v1.20.0 » ci-dessus. `to_process` (depuis v1.20.0) = la définition « à traiter » exacte
-(non clos, dernier message client, `date_upd` < 90 jours) : c'est **ce champ** qui doit conditionner
+(non clos, dernier message client, `date_upd` < 90 jours) ; c'est **ce champ** qui doit conditionner
 tout badge/mise en avant visuelle par fil dans l'app, `unread` ne devant plus servir qu'à un
 éventuel indicateur dans le détail du fil.
 
@@ -1180,7 +1179,7 @@ tout badge/mise en avant visuelle par fil dans l'app, `unread` ne devant plus se
 Scope requis : `sav.read`
 
 **Depuis v1.20.0.** Compteur exact de fils « à traiter » (voir définition ci-dessus), **indépendant
-de la pagination**, calculé entièrement en SQL — même principe que `GET /customers/stats`. C'est ce
+de la pagination**, calculé entièrement en SQL, même principe que `GET /customers/stats`. C'est ce
 nombre que l'app doit afficher sur sa pastille SAV, plus jamais une approximation obtenue en
 comptant les résultats d'une page de `GET /sav`.
 
@@ -1251,12 +1250,12 @@ Fil complet : métadonnées + tous les messages, ordre chronologique croissant.
 
 ---
 
-### PATCH `.../api/sav/{id}/status`  — Changer le statut
+### PATCH `.../api/sav/{id}/status` : changer le statut
 
 Scope requis : `sav.write`
 
 Corps JSON : `{"status": "closed"}` (une des 4 valeurs natives). Aucun message ajouté, **aucun
-e-mail envoyé** — uniquement une mise à jour de statut (ex. clore un fil, ou le rouvrir).
+e-mail envoyé** : uniquement une mise à jour de statut (ex. clore un fil, ou le rouvrir).
 
 **Réponse : `204 No Content`** (même convention que `PATCH /orders/{id}?action=status`).
 
@@ -1269,15 +1268,15 @@ e-mail envoyé** — uniquement une mise à jour de statut (ex. clore un fil, ou
 
 ---
 
-### POST `.../api/sav/{id}/reply`  — Répondre (⚠️ envoie un VRAI e-mail)
+### POST `.../api/sav/{id}/reply` : répondre (envoie un VRAI e-mail)
 
 Scope requis : `sav.write`
 
-> ⚠️⚠️ **Cet endpoint envoie un e-mail RÉEL à la cliente**, à l'adresse enregistrée sur le fil
+> DANGER : **cet endpoint envoie un e-mail RÉEL à la cliente**, à l'adresse enregistrée sur le fil
 > (`ps_customer_thread.email`). Aucun brouillon, aucune confirmation supplémentaire côté API : c'est
-> l'appel HTTP lui-même qui constitue l'acte d'envoi (l'app doit demander confirmation à
-> l'utilisatrice AVANT d'appeler cette route, jamais après). **Ne jamais appeler cette route en
-> test/recette contre un fil réel** — utiliser un fil de test dédié.
+> l'appel HTTP lui-même qui est l'acte d'envoi (l'app doit demander confirmation à l'utilisatrice
+> AVANT d'appeler cette route, jamais après). **Ne jamais appeler cette route en test/recette contre
+> un fil réel**, utiliser un fil de test dédié.
 
 Corps JSON : `{"message": "Votre colis est en cours de préparation."}` (requis, non vide, 20 000
 caractères max).
@@ -1285,29 +1284,29 @@ caractères max).
 Effets, dans cet ordre :
 1. Insertion d'un `ps_customer_message` (`private = 0` ; `read = 1`), attribué à un employé
    déterminé par `SavService::resolveReplyEmployee()` :
-   - **Utilisateur nommé** (jeton porteur d'un `id_employee`) : c'est lui l'auteur — `id_employee`
-     = celui du jeton, `author: "employee"`.
-   - **Clé API globale** (`AuthService` mode 1, aucun `id_employee` porté par le JWT) : **jamais**
-     `id_employee = 0` — un message écrit par la boutique ne doit jamais ressortir comme un message
+   - Avec un utilisateur nommé (jeton porteur d'un `id_employee`), c'est lui l'auteur :
+     `id_employee` = celui du jeton, `author: "employee"`.
+   - Avec la clé API globale (`AuthService` mode 1, aucun `id_employee` porté par le JWT), **jamais**
+     `id_employee = 0` : un message écrit par la boutique ne doit jamais ressortir comme un message
      de la cliente, y compris dans le back-office natif qui lit la même table. Repli sur l'employé
      configuré en BO (réglage « Employé de repli SAV », `sav_fallback_employee_id`) s'il est
      toujours actif, sinon sur le **premier employé actif** par ID croissant. Cas limite extrême
      (aucun employé actif en base) : dégradation vers `id_employee = 0`, seul cas où `author` peut
      encore valoir `"customer"` pour un message envoyé par cette route.
-   Dans tous les cas non dégradés, `employee_name` (prénom + nom) est renseigné dans la réponse —
-   dès ce premier appel, pas seulement au rafraîchissement suivant.
+   Dans tous les cas non dégradés, `employee_name` (prénom + nom) est renseigné dans la réponse dès
+   ce premier appel, pas seulement au rafraîchissement suivant.
 2. Le fil passe au statut `pending1` (en attente d'une réponse de la cliente).
 3. Envoi d'un e-mail via le mécanisme natif PrestaShop `Mail::Send()`, avec un gabarit **propre au
-   connecteur** (`rebuildconnector/mails/fr/sav_reply.html`/`.txt`) — voir note de conception
+   connecteur** (`rebuildconnector/mails/fr/sav_reply.html`/`.txt`), voir note de conception
    ci-dessous. Silencieusement ignoré (`email_sent: false`) si le fil n'a pas d'adresse exploitable
    (`Validate::isEmail()` invalide), sans faire échouer la réponse elle-même.
 
-> **Note de conception — mécanisme d'envoi.** Le cœur PrestaShop possède son propre flux de réponse
+> **Note de conception : mécanisme d'envoi.** Le cœur PrestaShop possède son propre flux de réponse
 > SAV en back-office (`AdminCustomerThreadsController`), mais son gabarit mail exact et son
 > emplacement n'ont pas pu être vérifiés contre une installation PS8 de référence (aucune disponible
 > localement au moment de l'écriture). Plutôt que de reproduire un comportement non vérifiable, le
 > connecteur envoie via `Mail::Send()` avec **son propre gabarit** dans son propre dossier
-> (`_PS_MODULE_DIR_ . 'rebuildconnector/mails/'`) — exactement le mécanisme déjà utilisé par
+> (`_PS_MODULE_DIR_ . 'rebuildconnector/mails/'`), exactement le mécanisme déjà utilisé par
 > `rbreviews` pour `RbReview::notifyRejection()` (gabarit `review_rejected` dans
 > `rbreviews/mails/fr/`). Comportement fonctionnel identique pour la cliente (elle reçoit un
 > e-mail), zéro dépendance à un détail d'implémentation core non vérifié.
@@ -1343,19 +1342,19 @@ Effets, dans cet ordre :
 
 ## Avis
 
-**Depuis v1.18.0.** PONT vers le module tiers `rbreviews` — le connecteur n'accède **jamais**
+**Depuis v1.18.0.** PONT vers le module tiers `rbreviews` : le connecteur n'accède **jamais**
 directement aux tables `rbreviews_*` depuis une route publique, uniquement via un pont interne
 (`ReviewsBridgeInterface`). Si `rbreviews` n'est pas installé/actif sur la boutique : **toutes**
 les routes ci-dessous répondent `409 reviews_unavailable`, jamais une erreur SQL sur une table
 absente. Vérifier la capacité `reviews` (§ Capacités) avant d'afficher cette section dans l'app.
 
-**Depuis v1.19.0 — notification push `review.pending`.** Un nouvel avis **natif** (pas un import
+**Depuis v1.19.0 : notification push `review.pending`.** Un nouvel avis **natif** (pas un import
 Etsy) entrant en file de modération déclenche l'événement push `review.pending` (voir §
 Notifications / Appareils FCM). Réglage BO `review_pending_alerts_enabled`, **désactivé par
-défaut** (volume faible — cf. `docs/app-avis-sav.md`). Les avis importés depuis Etsy n'entrent
+défaut** (volume faible, cf. `docs/app-avis-sav.md`). Les avis importés depuis Etsy n'entrent
 jamais en modération (ils arrivent déjà publiés) et ne déclenchent donc jamais cet événement.
 
-### GET `.../api/reviews`  — File de modération
+### GET `.../api/reviews` : file de modération
 
 Scope requis : `reviews.moderate`
 
@@ -1398,7 +1397,7 @@ Avis en attente (`validated = 0, deleted = 0`), plus récents d'abord.
 
 ---
 
-### POST `.../api/reviews/{id}/publish`  — Publier
+### POST `.../api/reviews/{id}/publish` : publier
 
 Scope requis : `reviews.moderate`
 
@@ -1429,15 +1428,15 @@ Pose `validated = 1`. Pas de corps requis.
 
 ---
 
-### POST `.../api/reviews/{id}/trash`  — Mettre à la corbeille (⚠️ motif OBLIGATOIRE, envoie un e-mail)
+### POST `.../api/reviews/{id}/trash` : mettre à la corbeille (motif OBLIGATOIRE, envoie un e-mail)
 
 Scope requis : `reviews.moderate`
 
-> ⚠️ **Obligation légale (article L111-7-2)** : l'auteur d'un avis non publié doit être informé du
-> motif. **Aucune route ne permet un rejet sans motif** — validé ICI, **avant toute écriture en
-> base**, avant même d'appeler le pont.
+> **Obligation légale (article L111-7-2)** : l'auteur d'un avis non publié doit être informé du
+> motif. **Aucune route ne permet un rejet sans motif**, et c'est validé ICI, **avant toute écriture
+> en base**, avant même d'appeler le pont.
 
-Corps JSON : `{"reason": "Contenu hors sujet, sans rapport avec le produit vendu."}` — motif
+Corps JSON : `{"reason": "Contenu hors sujet, sans rapport avec le produit vendu."}`. Motif
 **obligatoire, 10 caractères minimum** (aligné sur la validation déjà en place côté back-office
 `rbreviews`).
 
@@ -1446,7 +1445,7 @@ Effets, dans cet ordre (même ordre que la mise en corbeille en BO) :
 2. Appel de `RbReview::notifyRejection()` sur une instance chargée du module `rbreviews` → envoie
    l'e-mail de motif à l'auteur (si celui-ci a une adresse exploitable et n'a pas déjà été notifié).
    Un échec de notification (exception, adresse absente) **ne fait jamais échouer** la mise en
-   corbeille elle-même — reflété par `author_notified: false` dans la réponse.
+   corbeille elle-même ; c'est reflété par `author_notified: false` dans la réponse.
 
 **Réponse 200**
 
@@ -1467,13 +1466,13 @@ Effets, dans cet ordre (même ordre que la mise en corbeille en BO) :
 
 | Code | `error`                      | Raison                                                    |
 |------|------------------------------|--------------------------------------------------------------|
-| 422  | `invalid_rejection_reason`   | Motif absent ou < 10 caractères — **aucune écriture tentée** |
+| 422  | `invalid_rejection_reason`   | Motif absent ou < 10 caractères, **aucune écriture tentée** |
 | 404  | `not_found`                  | Avis introuvable / autre boutique                          |
 | 409  | `reviews_unavailable`        | `rbreviews` non installé/actif                              |
 
 ---
 
-### POST `.../api/reviews/{id}/reply`  — Répondre publiquement
+### POST `.../api/reviews/{id}/reply` : répondre publiquement
 
 Scope requis : `reviews.moderate`
 
@@ -1515,7 +1514,7 @@ Métriques agrégées sur une période. Deux modes exclusifs :
 
 **Périodes CIVILES (depuis v1.15.0).** Les clés `period` sont inchangées, mais leur résolution
 l'est : chaque preset part désormais du **début de la période civile en cours** (fuseau boutique
-`PS_TIMEZONE`) et court jusqu'à **maintenant** — la période courante est donc potentiellement
+`PS_TIMEZONE`) et court jusqu'à **maintenant**. La période courante est donc potentiellement
 **partielle** (ex. `month` consulté un 13 = du 1er au 13, plus « les 30 derniers jours »
 glissants) :
 
@@ -1552,7 +1551,7 @@ En mode plage libre, `period.label` vaut `"custom"`. `previous_turnover` compare
 **Comparaison N-1 des presets civils (depuis v1.15.0).** Pour `today`/`week`/`month`/`quarter`/`year`,
 `previous_turnover` compare désormais à la **même période civile l'an dernier, tronquée à la durée
 déjà écoulée depuis le début de la période courante** (comparaison « à date », pratique standard de
-contrôle de gestion) — et non plus à la fenêtre glissante précédente. Exemple : `month` consulté le
+contrôle de gestion), et non plus à la fenêtre glissante précédente. Exemple : `month` consulté le
 13 juillet compare au 1-13 juillet de l'an dernier, pas au mois de juin. Cas limites : le 29 février
 retombe sur le 28 février l'an dernier si celui-ci n'est pas bissextile ; une durée écoulée qui
 traverse un 29 février peut décaler la borne de fin de comparaison d'un jour (la durée brute en
@@ -1626,8 +1625,8 @@ sa forme ne change pas.
 > `average_order_value`, ainsi que `chart[].turnover`) excluent désormais les frais de port
 > (`total_shipping_tax_incl`/`total_shipping_tax_excl` de `ps_orders`) : c'est le revenu
 > produits uniquement. Avant v1.10.15, ces valeurs incluaient le port (`total_paid_tax_incl`/
-> `total_paid_tax_excl` bruts), ce qui gonflait le CA affiché. **Aucun champ JSON ajouté/renommé**
-> — seule la valeur change, la structure de l'enveloppe est inchangée.
+> `total_paid_tax_excl` bruts), ce qui gonflait le CA affiché. **Aucun champ JSON ajouté/renommé** :
+> seule la valeur change, la structure de l'enveloppe est inchangée.
 
 > **Périodes civiles + comparaison N-1 « à date » (depuis v1.15.0).** `period.from`/`period.to`
 > des presets (`today`/`week`/`month`/`quarter`/`year`) reflètent désormais des bornes **civiles**
@@ -1722,7 +1721,7 @@ Clients ayant le plus dépensé (par CA TTC décroissant).
 
 ### GET `.../api/customers/top`
 
-Alias vers les meilleurs clients — route friendly identique à `GET .../api/reports/bestcustomers` (même controller `reports`, même paramètre `resource=bestcustomers`). Accepte les mêmes paramètres et retourne la même structure.
+Alias vers les meilleurs clients : route friendly identique à `GET .../api/reports/bestcustomers` (même controller `reports`, même paramètre `resource=bestcustomers`). Accepte les mêmes paramètres et retourne la même structure.
 
 ---
 
@@ -1832,7 +1831,7 @@ Détail d'un panier avec la liste des produits.
 
 ## Notifications / Appareils FCM
 
-> **Architecture hub-only (depuis v1.7.1)** — le module ne détient plus de compte de service FCM.
+> **Architecture hub-only (depuis v1.7.1).** Le module ne détient plus de compte de service FCM.
 > Toutes les notifications push transitent par le hub centralisé `push.rebuild-it.fr` (clé de
 > licence configurable en back-office). La résilience est gérée côté hub. Aucun fallback FCM
 > direct dans le module.
@@ -1848,7 +1847,7 @@ Corps JSON :
 | Champ       | Type         | Description                                          |
 |-------------|--------------|------------------------------------------------------|
 | `token`     | string       | Token FCM de l'appareil (requis, **≥ 50 caractères** ; sinon `400 invalid_payload`) |
-| `topics`    | array/string | Catégories d'événements souhaitées (optionnel — voir ci-dessous) |
+| `topics`    | array/string | Catégories d'événements souhaitées (optionnel, voir ci-dessous) |
 | `device_id` | string       | Identifiant unique de l'appareil (optionnel)         |
 | `platform`  | string       | Plateforme : `android`, `ios`, etc. (optionnel)      |
 
@@ -1877,13 +1876,13 @@ Corps JSON :
 |------|-------------------|----------------------|
 | 400  | `invalid_payload` | `token` absent/vide  |
 
-#### Catégories de notifications (topics) — depuis v1.4.9
+#### Catégories de notifications (topics), depuis v1.4.9
 
 Le champ `topics` détermine quels types d'événements l'appareil souhaite recevoir.
 Il s'agit d'un **abonnement par catégorie** côté serveur : le module ne distribue une notification
 qu'aux appareils dont la liste `topics` intersecte la catégorie de l'événement déclenché.
 
-**Catégories stables (noms immuables — contrat partagé avec l'app Android) :**
+**Catégories stables (noms immuables, contrat partagé avec l'app Android) :**
 
 | Valeur                    | Événement correspondant                        |
 |---------------------------|------------------------------------------------|
@@ -1895,47 +1894,46 @@ qu'aux appareils dont la liste `topics` intersecte la catégorie de l'événemen
 
 > `stock.low` et `shop.payment.error` existent également côté serveur (cf. §§ Produits / gestion
 > du stock et la surveillance du tunnel de paiement) mais ne figuraient pas encore dans cette table
-> au moment de l'écriture — écart préexistant à corriger séparément, sans lien avec `sav.message`/
+> au moment de l'écriture : écart préexistant à corriger séparément, sans lien avec `sav.message`/
 > `review.pending`.
 
 **Réglages back-office (par boutique, panneau « Hub push ») :** chacun des événements ci-dessus
-peut être coupé côté SERVEUR indépendamment du choix de l'appareil (`topics`) — si le réglage BO
+peut être coupé côté SERVEUR indépendamment du choix de l'appareil (`topics`) : si le réglage BO
 est désactivé, l'événement n'est simplement jamais émis. `order.created`/`order.status.changed`
 sont actifs par défaut (rétrocompatibilité), `stock.low` et `review.pending` sont désactivés par
 défaut (volume/bruit), `sav.message` est actif par défaut (c'est la notification jugée la plus
-utile — cf. `docs/app-avis-sav.md`).
+utile, cf. `docs/app-avis-sav.md`).
 
 **Règle de ciblage :**
 
-- **`topics` vide (`[]`) ou absent** — l'appareil est considéré « non configuré » et reçoit
-  **toutes** les catégories d'événements (comportement identique à l'avant v1.4.9,
-  garantissant la rétrocompatibilité des appareils enregistrés avant la mise à jour de l'app).
-- **`topics` non vide** — l'appareil ne reçoit **que** les catégories qu'il a déclarées.
+- `topics` vide (`[]`) ou absent : l'appareil est considéré « non configuré » et reçoit **toutes**
+  les catégories d'événements. C'est le comportement d'avant v1.4.9, pour la rétrocompatibilité des
+  appareils enregistrés avant la mise à jour de l'app.
+- `topics` non vide : l'appareil ne reçoit **que** les catégories qu'il a déclarées.
 
 Les tokens de secours configurés en back-office (`getFcmDeviceTokens`) restent un filet de
 sécurité et reçoivent tous les événements sans condition (comportement inchangé).
 
-#### Canal Android (`channel_id`) — depuis v1.4.10
+#### Canal Android (`channel_id`), depuis v1.4.10
 
-Chaque notification FCM inclut désormais `message.android.notification.channel_id`, ce qui
-permet à l'app Android de router la notification vers le bon canal de notification (son distinct
-par type d'événement).
+Chaque notification FCM inclut désormais `message.android.notification.channel_id`, avec lequel
+l'app Android route la notification vers le bon canal (son distinct par type d'événement).
 
-**Mapping catégorie → `channel_id` (contrat immuable — partagé avec l'app Android) :**
+**Mapping catégorie → `channel_id` (contrat immuable, partagé avec l'app Android) :**
 
 | `event` (`$data['event']`) | `channel_id`      | Usage                                         |
 |----------------------------|-------------------|-----------------------------------------------|
-| `order.created`            | `sales_v2`        | Nouvelle vente — son « caisse enregistreuse » |
+| `order.created`            | `sales_v2`        | Nouvelle vente, son « caisse enregistreuse »  |
 | `order.status.changed`     | `order_status`    | Changement de statut commande                 |
 | `order.shipping.updated`   | `order_shipping`  | Mise à jour numéro de suivi / expédition      |
 | `sav.message`               | `sav_message`      | Nouveau message client sur un fil SAV (**proposé**, depuis v1.19.0) |
 | `review.pending`            | `review_pending`   | Nouvel avis à modérer (**proposé**, depuis v1.19.0) |
 
-⚠️ **Le mapping `event → channel_id` est calculé par le hub** (`push.rebuild-it.fr`,
-`services/push/src/index.js`, constante `CHANNELS`), **pas par ce module** — le connecteur envoie
+Attention : **le mapping `event → channel_id` est calculé par le hub** (`push.rebuild-it.fr`,
+`services/push/src/index.js`, constante `CHANNELS`), **pas par ce module**. Le connecteur envoie
 uniquement `data.event`. Les deux dernières lignes ci-dessus documentent le contrat **visé** côté
 `sav.message`/`review.pending` (noms alignés sur le style `snake_case` des entrées existantes) ;
-**le hub doit encore être mis à jour pour les reconnaître** (hors périmètre de ce module — cf.
+**le hub doit encore être mis à jour pour les reconnaître** (hors périmètre de ce module, cf.
 `rebuild-it/docs/push-centralise.md`). Tant que ce n'est pas fait, ces deux événements arrivent
 côté app sans `channel_id` (canal par défaut), exactement comme un événement inconnu.
 
@@ -1966,7 +1964,7 @@ Exemple de payload FCM HTTP v1 pour `order.created` :
 }
 ```
 
-Charge `data` envoyée au hub (`POST /v1/notify`) pour les deux nouveaux événements — `event` est
+Charge `data` envoyée au hub (`POST /v1/notify`) pour les deux nouveaux événements. `event` est
 la seule clé garantie ; les autres sont des identifiants pour le deep-link app, jamais de contenu
 personnel étendu (le corps de la notification, lui, contient un extrait tronqué du message/de
 l'avis, cf. ci-dessous) :
@@ -2010,16 +2008,16 @@ Désenregistre un appareil. Le token peut aussi être passé dans le corps JSON 
 
 ---
 
-## Callback hub push — récupération de licence (interne, PAS consommé par l'app mobile)
+## Callback hub push : récupération de licence (interne, PAS consommé par l'app mobile)
 
 > Ce endpoint n'est appelé QUE par le hub push centralisé (`push.rebuild-it.fr`, repo `rebuild-it`).
-> Il ne fait pas partie du contrat consommé par l'app PrestaFlow (`prestaflow-android`) — aucun DTO
+> Il ne fait pas partie du contrat consommé par l'app PrestaFlow (`prestaflow-android`) : aucun DTO
 > Android ne dépend de ce format. Documenté ici pour trace côté module uniquement.
 
 ### POST `.../index.php?fc=module&module=rebuildconnector&controller=hubkey`
 
 Callback **public** (pas de JWT, pas d'allowlist IP) déclenché par le hub suite à un
-`POST {hub}/v1/licenses/recover` — récupération self-service d'une licence perdue (ex. réinstallation
+`POST {hub}/v1/licenses/recover`, la récupération self-service d'une licence perdue (ex. réinstallation
 du module), basée sur la preuve de contrôle du domaine : le hub ne renvoie jamais la nouvelle clé à
 l'appelant, il la livre en HTTPS au domaine lui-même, ici.
 
@@ -2147,7 +2145,7 @@ curl -X GET "https://example.com/module/rebuildconnector/api/connector/capabilit
   -H "Authorization: Bearer eyJhbGci..."
 ```
 
-### Répondre à un fil SAV (⚠️ envoie un vrai e-mail)
+### Répondre à un fil SAV (envoie un vrai e-mail)
 
 ```bash
 curl -X POST "https://example.com/module/rebuildconnector/api/sav/154/reply" \
@@ -2156,7 +2154,7 @@ curl -X POST "https://example.com/module/rebuildconnector/api/sav/154/reply" \
   -d '{"message": "Votre colis est en cours de préparation."}'
 ```
 
-### Mettre un avis à la corbeille (motif obligatoire, ⚠️ envoie un e-mail)
+### Mettre un avis à la corbeille (motif obligatoire, envoie un e-mail)
 
 ```bash
 curl -X POST "https://example.com/module/rebuildconnector/api/reviews/812/trash" \
