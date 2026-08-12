@@ -753,37 +753,64 @@ Alias de `GET .../api/products/{id}` (même controller, paramètre `action=stock
 
 ### PATCH `.../api/products/{id}` : mettre à jour le stock
 
-Scope requis : `products.write`
+Scope requis : `stock.write` (**depuis v1.21.0** ; auparavant `products.write`, qui reste le scope de l'action `attributes` du même endpoint, voir plus bas).
 
-Paramètre URL `action=stock` (ou auto-détecté si `payload.quantity` présent).
+Paramètre URL `action=stock` (ou auto-détecté si `payload.quantity` ou `payload.delta` est présent).
 
-Corps JSON :
+Deux modes, mutuellement exclusifs :
 
 | Champ            | Type | Description                              |
 |-------------------|------|------------------------------------------|
-| `quantity`        | int  | Nouvelle quantité absolue en stock       |
+| `quantity`        | int  | Nouvelle quantité **absolue** en stock. Remplace la quantité courante. |
+| `delta`           | int  | **v1.21.0.** Incrément **signé** appliqué à la quantité courante (positif pour un réapprovisionnement, négatif pour retirer/corriger). Appliqué de façon atomique côté base (verrou de ligne), pas par une lecture puis une écriture côté PHP : une écriture concurrente sur le même produit (une vente pendant que l'app applique le delta) n'est jamais écrasée. |
 | `combination_id`  | int  | **Optionnel (v1.10.5)**. `id_product_attribute` de la déclinaison ciblée. Doit appartenir au produit `{id}` de l'URL. Absent ou `0` = niveau produit (comportement historique, `id_product_attribute = 0`). |
 | `warehouse_id`    | int  | Réservé (non traité actuellement, accepté et ignoré sans erreur). |
 | `reason`          | string | Réservé (non traité actuellement, accepté et ignoré sans erreur). |
+
+Fournir `quantity` **et** `delta` dans la même requête est une erreur explicite (`400 invalid_payload`), pas un choix silencieux entre les deux.
+
+Un `delta` négatif plus grand que la quantité courante n'est **pas** rejeté et n'est **pas** clampé à zéro : le résultat peut être négatif, exactement comme le permettait déjà `quantity` (aucun plancher n'y a jamais existé côté absolu). La quantité résultante, potentiellement négative, est renvoyée telle quelle dans la réponse : rien n'est masqué à l'app.
 
 ```json
 { "quantity": 15 }
 ```
 
 ```json
-{ "quantity": 12, "combination_id": 7 }
+{ "delta": 3 }
 ```
 
-**Réponse 200** : retourne la fiche produit mise à jour (même format que `GET /products/{id}`).
+```json
+{ "delta": -2, "combination_id": 7 }
+```
+
+**Réponse 200** : la fiche produit mise à jour (même format que `GET /products/{id}`), **plus** un champ `quantity` au niveau racine portant la quantité résultante exacte (celle du produit, ou de la déclinaison ciblée par `combination_id`). Ce champ existe dans les deux modes, pas seulement en mode `delta` : l'app peut toujours lire `quantity` directement sans avoir à relire la fiche ni à interpréter `product.stock.quantity`, qui reste au niveau produit même quand `combination_id` cible une déclinaison (`matched_combination` est toujours `null` sur ce endpoint, voir plus haut).
+
+```json
+{
+  "product": { "...": "..." },
+  "quantity": 27
+}
+```
 
 **Erreurs** :
 
 | Code | `error`           | Raison                                                                 |
 |------|-------------------|-------------------------------------------------------------------------|
-| 400  | `invalid_payload` | `quantity` absent                                                       |
+| 400  | `invalid_payload` | ni `quantity` ni `delta` fourni                                        |
+| 400  | `invalid_payload` | `quantity` **et** `delta` fournis ensemble (**v1.21.0**)                |
+| 400  | `invalid_payload` | `delta` n'est pas numérique (**v1.21.0**)                               |
 | 400  | `invalid_payload` | `combination_id` n'est pas numérique                                    |
 | 400  | `invalid_payload` | `combination_id` fourni mais n'appartient pas au produit `{id}` (déclinaison d'un autre produit, ou id inexistant) |
 | 404  | `not_found`       | Produit introuvable                                                     |
+
+> **v1.21.0.** Ajoute le mode `delta` : l'app accumule une session de scans de réapprovisionnement
+> en local, sans rien écrire, puis envoie tout d'un coup à la validation. Sur une boutique qui vend
+> pendant que la session se déroule, écrire une quantité absolue à la fin efface les ventes
+> survenues entre-temps ; `delta` incrémente le stock réel au moment de l'écriture. Chaque écriture
+> de stock passée par cette route (mode absolu comme mode `delta`) est aussi tracée dans l'onglet
+> **Mouvements** du back-office (`Catalogue > Stocks > Mouvements`), au même motif qu'une saisie
+> manuelle d'employé, attribuée à l'utilisateur nommé du jeton ou, pour une clé API globale, à
+> l'employé de repli configuré en BO (même résolution que l'attribution d'une réponse SAV).
 
 ---
 
@@ -2118,10 +2145,18 @@ curl -X PATCH "https://example.com/module/rebuildconnector/api/orders/123?action
 ### Mettre à jour le stock
 
 ```bash
+# Quantité absolue (comportement historique)
 curl -X PATCH "https://example.com/module/rebuildconnector/api/products/88?action=stock" \
   -H "Authorization: Bearer eyJhbGci..." \
   -H "Content-Type: application/json" \
   -d '{"quantity": 50}'
+
+# Incrément atomique (v1.21.0) : réapprovisionnement de 3 unités sans écraser les ventes
+# survenues depuis la dernière lecture côté app.
+curl -X PATCH "https://example.com/module/rebuildconnector/api/products/88?action=stock" \
+  -H "Authorization: Bearer eyJhbGci..." \
+  -H "Content-Type: application/json" \
+  -d '{"delta": 3}'
 ```
 
 ### Dashboard du mois (preset)
@@ -2179,7 +2214,8 @@ curl -X POST "https://example.com/module/rebuildconnector/api/reviews/812/trash"
 | GET     | `.../api/products`                              | products     | `products.read`     |
 | GET     | `.../api/products/{id}`                         | products     | `products.read`     |
 | GET     | `.../api/products/{id}/stock`                   | products     | `products.read`     |
-| PATCH   | `.../api/products/{id}`                         | products     | `products.write`    |
+| PATCH   | `.../api/products/{id}` (action `stock`)        | products     | `stock.write`       |
+| PATCH   | `.../api/products/{id}` (action `attributes`)   | products     | `products.write`    |
 | POST    | `.../api/products/{id}/images`                  | productimages| `products.write`    |
 | DELETE  | `.../api/products/{id}/images/{imageId}`        | productimages| `products.write`    |
 | GET     | `.../api/customers`                             | customers    | `customers.read`    |

@@ -377,6 +377,200 @@ final class ProductsServiceTest extends TestCase
         $this->assertSame([], StockAvailable::$setQuantityCalls);
     }
 
+    public function testUpdateStockWithoutEmployeeIdentityWritesNoStockMovement(): void
+    {
+        // Comportement historique de updateStock(88, 10) sans 4e argument (cf. tests ci-dessus) :
+        // aucune trace de mouvement n'est tentée quand l'appelant ne fournit pas d'auteur, plutôt
+        // que d'attribuer le mouvement à un employé arbitraire.
+        $this->simulateProductBelongsToShop();
+        $service = new ProductsService();
+
+        $service->updateStock(88, 10);
+
+        $this->assertSame([], StockMvt::$addCalls);
+    }
+
+    public function testUpdateStockRecordsMovementReflectingTheAbsoluteDeltaApplied(): void
+    {
+        $this->simulateProductBelongsToShop();
+        Configuration::$testValues['PS_STOCK_MVT_INC_EMPLOYEE_EDITION'] = 11;
+        StockAvailable::$testQuantityAvailableResult = 4; // quantité avant écriture
+        StockAvailable::$testStockAvailableId = 900;
+
+        $service = new ProductsService();
+        $employee = ['id' => 7, 'firstname' => 'Julie', 'lastname' => 'Bernard'];
+        $service->updateStock(88, 10, 0, $employee);
+
+        // 10 (nouvelle quantité absolue) - 4 (quantité précédente) = +6.
+        $this->assertCount(1, StockMvt::$addCalls);
+        $this->assertSame(900, StockMvt::$addCalls[0]['id_stock']);
+        $this->assertSame(11, StockMvt::$addCalls[0]['id_stock_mvt_reason']);
+        $this->assertSame(1, StockMvt::$addCalls[0]['sign']);
+        $this->assertSame(6, StockMvt::$addCalls[0]['physical_quantity']);
+        $this->assertSame(7, StockMvt::$addCalls[0]['id_employee']);
+        $this->assertSame('Julie', StockMvt::$addCalls[0]['employee_firstname']);
+        $this->assertSame('Bernard', StockMvt::$addCalls[0]['employee_lastname']);
+    }
+
+    public function testUpdateStockDoesNotRecordMovementWhenAbsoluteQuantityEqualsCurrentStock(): void
+    {
+        // Delta nul (la quantité envoyée est déjà la quantité en base) : rien à tracer, exactement
+        // comme le fait StockManager::saveMovement() du cœur pour un delta à 0.
+        $this->simulateProductBelongsToShop();
+        StockAvailable::$testQuantityAvailableResult = 10;
+
+        $service = new ProductsService();
+        $service->updateStock(88, 10, 0, ['id' => 7, 'firstname' => 'Julie', 'lastname' => 'Bernard']);
+
+        $this->assertSame([], StockMvt::$addCalls);
+    }
+
+    public function testApplyStockDeltaAppliesPositiveDeltaOnTopOfTheLockedCurrentQuantity(): void
+    {
+        $this->simulateProductBelongsToShop();
+        StockAvailable::$testStockAvailableId = 900;
+        Db::$testLockedStockRows = [['quantity' => 10]];
+
+        $service = new ProductsService();
+        $result = $service->applyStockDelta(88, 5);
+
+        $this->assertSame(15, $result);
+        $this->assertSame([[88, 0, 15]], StockAvailable::$setQuantityCalls);
+    }
+
+    public function testApplyStockDeltaAppliesNegativeDelta(): void
+    {
+        $this->simulateProductBelongsToShop();
+        StockAvailable::$testStockAvailableId = 900;
+        Db::$testLockedStockRows = [['quantity' => 10]];
+
+        $service = new ProductsService();
+        $result = $service->applyStockDelta(88, -3);
+
+        $this->assertSame(7, $result);
+        $this->assertSame([[88, 0, 7]], StockAvailable::$setQuantityCalls);
+    }
+
+    public function testApplyStockDeltaAllowsTheResultToGoBelowZero(): void
+    {
+        // Décision assumée (voir docblock d'applyStockDelta()) : ni clamp à zéro, ni rejet. Un
+        // delta négatif plus grand que le stock courant produit une quantité négative, renvoyée
+        // telle quelle, comme le permet déjà le mode quantité absolue de ce même endpoint.
+        $this->simulateProductBelongsToShop();
+        StockAvailable::$testStockAvailableId = 900;
+        Db::$testLockedStockRows = [['quantity' => 2]];
+
+        $service = new ProductsService();
+        $result = $service->applyStockDelta(88, -5);
+
+        $this->assertSame(-3, $result);
+        $this->assertSame([[88, 0, -3]], StockAvailable::$setQuantityCalls);
+    }
+
+    public function testApplyStockDeltaRejectsProductForeignToShop(): void
+    {
+        // m1 : Db::$testExecuteSResult reste à son défaut ([]) : produit non associé à la boutique.
+        $service = new ProductsService();
+        $result = $service->applyStockDelta(88, 5);
+
+        $this->assertNull($result);
+        $this->assertSame([], StockAvailable::$setQuantityCalls);
+    }
+
+    public function testApplyStockDeltaRejectsCombinationIdForeignToProduct(): void
+    {
+        $this->simulateProductBelongsToShop();
+        // Db::$testGetValueResult reste à son défaut (0) : combination_id qui n'appartient pas au produit.
+        $service = new ProductsService();
+        $result = $service->applyStockDelta(88, 5, 999);
+
+        $this->assertNull($result);
+        $this->assertSame([], StockAvailable::$setQuantityCalls);
+    }
+
+    public function testApplyStockDeltaWritesAtCombinationLevelWhenCombinationBelongsToProduct(): void
+    {
+        $this->simulateProductBelongsToShop();
+        Db::$testGetValueResult = 501;
+        StockAvailable::$testStockAvailableId = 900;
+        Db::$testLockedStockRows = [['quantity' => 20]];
+
+        $service = new ProductsService();
+        $result = $service->applyStockDelta(88, 3, 501);
+
+        $this->assertSame(23, $result);
+        $this->assertSame([[88, 501, 23]], StockAvailable::$setQuantityCalls);
+    }
+
+    public function testApplyStockDeltaRecordsPositiveMovementWithTheConfiguredIncreaseReason(): void
+    {
+        $this->simulateProductBelongsToShop();
+        StockAvailable::$testStockAvailableId = 900;
+        Db::$testLockedStockRows = [['quantity' => 10]];
+        Configuration::$testValues['PS_STOCK_MVT_INC_EMPLOYEE_EDITION'] = 11;
+
+        $service = new ProductsService();
+        $service->applyStockDelta(88, 5, 0, ['id' => 7, 'firstname' => 'Julie', 'lastname' => 'Bernard']);
+
+        $this->assertCount(1, StockMvt::$addCalls);
+        $this->assertSame(900, StockMvt::$addCalls[0]['id_stock']);
+        $this->assertSame(11, StockMvt::$addCalls[0]['id_stock_mvt_reason']);
+        $this->assertSame(1, StockMvt::$addCalls[0]['sign']);
+        $this->assertSame(5, StockMvt::$addCalls[0]['physical_quantity']);
+        $this->assertSame(7, StockMvt::$addCalls[0]['id_employee']);
+    }
+
+    public function testApplyStockDeltaRecordsNegativeMovementWithTheConfiguredDecreaseReason(): void
+    {
+        $this->simulateProductBelongsToShop();
+        StockAvailable::$testStockAvailableId = 900;
+        Db::$testLockedStockRows = [['quantity' => 10]];
+        Configuration::$testValues['PS_STOCK_MVT_DEC_EMPLOYEE_EDITION'] = 12;
+
+        $service = new ProductsService();
+        $service->applyStockDelta(88, -4, 0, ['id' => 7, 'firstname' => 'Julie', 'lastname' => 'Bernard']);
+
+        $this->assertCount(1, StockMvt::$addCalls);
+        $this->assertSame(12, StockMvt::$addCalls[0]['id_stock_mvt_reason']);
+        $this->assertSame(-1, StockMvt::$addCalls[0]['sign']);
+        $this->assertSame(4, StockMvt::$addCalls[0]['physical_quantity']);
+    }
+
+    public function testApplyStockDeltaRecordsMovementOnTheTargetedCombination(): void
+    {
+        $this->simulateProductBelongsToShop();
+        Db::$testGetValueResult = 501;
+        StockAvailable::$testStockAvailableId = 777;
+        Db::$testLockedStockRows = [['quantity' => 1]];
+
+        $service = new ProductsService();
+        $service->applyStockDelta(88, 2, 501, ['id' => 7, 'firstname' => 'Julie', 'lastname' => 'Bernard']);
+
+        $this->assertCount(1, StockMvt::$addCalls);
+        // id_stock référence la ligne stock_available de LA DÉCLINAISON (777), pas celle du produit.
+        $this->assertSame(777, StockMvt::$addCalls[0]['id_stock']);
+    }
+
+    public function testApplyStockDeltaDoesNotWriteAMovementTwiceWhenTheCoreContainerIsAvailable(): void
+    {
+        // Contexte où StockManager::saveMovement() du cœur a pu écrire lui-même le mouvement
+        // (conteneur Symfony disponible) : le module ne doit pas en écrire un second.
+        $this->simulateProductBelongsToShop();
+        StockAvailable::$testStockAvailableId = 900;
+        Db::$testLockedStockRows = [['quantity' => 10]];
+        \PrestaShop\PrestaShop\Adapter\SymfonyContainer::$testAvailable = true;
+
+        try {
+            $service = new ProductsService();
+            $result = $service->applyStockDelta(88, 5, 0, ['id' => 7, 'firstname' => 'Julie', 'lastname' => 'Bernard']);
+
+            $this->assertSame(15, $result, 'La quantité reste appliquée même quand le module ne trace pas le mouvement.');
+            $this->assertSame([], StockMvt::$addCalls);
+        } finally {
+            \PrestaShop\PrestaShop\Adapter\SymfonyContainer::$testAvailable = false;
+        }
+    }
+
     public function testUpdateProductAcceptsValidEan13(): void
     {
         $this->simulateProductBelongsToShop();
@@ -638,8 +832,15 @@ final class ProductsServiceTest extends TestCase
         ImageManager::$resizeSucceeds = true;
         Db::$testGetValueResult = 0;
         Db::$testExecuteSResult = [];
+        Db::$testLockedStockRows = [];
         StockAvailable::$setQuantityCalls = [];
+        StockAvailable::$testStockAvailableId = 0;
+        StockAvailable::$testQuantityAvailableResult = 0;
         Combination::$updateCalls = [];
+        StockMvt::$addCalls = [];
+        StockMvt::$addSucceeds = true;
+        Configuration::$testValues = [];
+        \PrestaShop\PrestaShop\Adapter\SymfonyContainer::$testAvailable = false;
 
         parent::tearDown();
     }
