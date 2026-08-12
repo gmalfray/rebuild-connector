@@ -1,10 +1,10 @@
-# Rebuild Connector – Module PrestaShop
+# Rebuild Connector : module PrestaShop
 
 Module PrestaShop développé par **Rebuild IT** pour connecter la boutique à l’application mobile **PrestaFlow (Android)**.
 
-## 🚀 Objectif
+## Objectif
 
-Fournir une API REST sécurisée (JSON) permettant :
+Fournir une API REST sécurisée (JSON) pour :
 - la gestion des commandes, produits, stocks et clients,
 - le suivi des numéros de tracking,
 - l’envoi de notifications push (Firebase Cloud Messaging).
@@ -13,7 +13,7 @@ Compatible avec **PrestaShop ≥ 1.7**.
 
 ---
 
-## 🧩 Stack technique
+## Stack technique
 
 | Élément | Technologie |
 |----------|-------------|
@@ -28,7 +28,7 @@ Compatible avec **PrestaShop ≥ 1.7**.
 
 ---
 
-## 📁 Structure du module
+## Structure du module
 
 ```
 rebuildconnector/
@@ -54,7 +54,7 @@ rebuildconnector/
 
 ---
 
-## 🔗 Endpoints REST (JSON)
+## Endpoints REST (JSON)
 
 | Méthode | Endpoint | Description |
 |----------|-----------|-------------|
@@ -82,17 +82,17 @@ rebuildconnector/
 
 ---
 
-## 🔒 Sécurité
+## Sécurité
 
 - HTTPS obligatoire (HSTS activé)
-- JWT tokens courts (60–90 min)
+- JWT tokens courts (60 à 90 min)
 - Rate limiting (60 req/min/IP)
 - Logs d’audit sur actions sensibles
 - Aucune donnée client en clair dans les logs
 
 ---
 
-## 🔔 Notifications (FCM)
+## Notifications (FCM)
 
 - Envoi via **Firebase Cloud Messaging HTTP v1**
 - Clé de service stockée dans la configuration du module
@@ -126,30 +126,32 @@ service tiers donnerait `SENDER_ID_MISMATCH`).
 
 - Le module relaie au hub : l'**enregistrement des devices** (`POST /v1/devices`), leur **suppression**
   (`DELETE /v1/devices/{token}`) et l'**envoi** (`POST /v1/notify`), authentifiés par la **clé de licence**
-  (header `Authorization: Bearer <clé>`). L'URL du hub est hardcodée — pas de fallback FCM direct.
-- **Auto-provisionnement « zéro config »** *(depuis v1.10.6)* : si aucune clé de licence n'est configurée,
+  (header `Authorization: Bearer <clé>`). L'URL du hub est hardcodée, sans fallback FCM direct.
+- Auto-provisionnement « zéro config » *(depuis v1.10.6)* : si aucune clé de licence n'est configurée,
   le module appelle l'endpoint public du hub `POST /v1/licenses/provision` (`shop_url` + nom de la
   boutique, sans authentification) pour obtenir automatiquement une licence d'essai. Déclenché :
-  - à l'**installation** du module (best-effort — ne fait jamais échouer l'installation) ;
+  - à l'**installation** du module (best-effort, ne fait jamais échouer l'installation) ;
   - via le bouton **« Activer le push / Provisionner une licence »** de la carte Hub push, pour relancer
-    la tentative manuellement — message explicite si le domaine a déjà une licence (HTTP 409, la clé
-    n'est alors pas renvoyée par le hub : à ressaisir manuellement ou à demander à l'administrateur du
-    hub) ou si le hub est injoignable.
+    la tentative manuellement. Le message est explicite si le domaine a déjà une licence (HTTP 409, la
+    clé n'est alors pas renvoyée par le hub : à ressaisir manuellement ou à demander à l'administrateur
+    du hub) ou si le hub est injoignable.
 - Champ vide = mode hub désactivé (aucune notification envoyée) jusqu'à obtention d'une clé, auto ou manuelle.
 
 ---
 
-## 🛠️ Configuration back-office
+## Configuration back-office
 
 L’onglet *Rebuild Connector* du back-office expose les réglages suivants :
 
-- **Accès & utilisateurs** : clé Admin (accès complet) traitée comme un **secret one-time** — affichée/QR une seule fois à la (re)génération puis masquée et stockée hachée — et **utilisateurs nommés** multiples avec scopes dédiés (chacun son QR et sa clé révocable).
-- **Configuration mobile** : QR code prêt à scanner dans PrestaFlow (payload JSON `{"version":1,"shopUrl":"https://…","apiKey":"…"}`) pour injecter automatiquement l’URL API et la clé.
-- **Firebase Cloud Messaging** : compte de service HTTP v1, topics par défaut et jetons fallback pour tester les notifications.
-- **Hub push centralisé** *(v1.5.0, auto-provisionnement depuis v1.10.6)* : clé de licence pour relayer l'envoi à `push.rebuild-it.fr` — obtenue automatiquement (à l'installation ou via le bouton dédié) ou saisie manuellement.
-- **Webhooks** : URL de callback HTTPS, secret HMAC (aperçu + régénération) et reset possible.
-- **Protection d’accès** : liste blanche d’IP/CIDR, limitation de débit configurable (requêtes/minute), activation/désactivation rapide.
-- **Overrides d’environnement** : paires `KEY=VALUE` injectées dans le module pour piloter des comportements dynamiques sans redéploiement.
+| Réglage | Contenu |
+|---------|---------|
+| Accès & utilisateurs | Clé Admin (accès complet), traitée comme un secret one-time : affichée et proposée en QR une seule fois à la (re)génération, puis masquée et stockée hachée. Plus des utilisateurs nommés multiples avec scopes dédiés, chacun avec son QR et sa clé révocable. |
+| Configuration mobile | QR code prêt à scanner dans PrestaFlow (payload JSON `{"version":1,"shopUrl":"https://…","apiKey":"…"}`) pour injecter automatiquement l’URL API et la clé. |
+| Firebase Cloud Messaging | Compte de service HTTP v1, topics par défaut et jetons fallback pour tester les notifications. |
+| Hub push centralisé *(v1.5.0, auto-provisionnement depuis v1.10.6)* | Clé de licence pour relayer l'envoi à `push.rebuild-it.fr`, obtenue automatiquement (à l'installation ou via le bouton dédié) ou saisie manuellement. |
+| Webhooks | URL de callback HTTPS, secret HMAC (aperçu + régénération) et reset possible. |
+| Protection d’accès | Liste blanche d’IP/CIDR, limitation de débit configurable (requêtes/minute), activation/désactivation rapide. |
+| Overrides d’environnement | Paires `KEY=VALUE` injectées dans le module pour piloter des comportements dynamiques sans redéploiement. |
 
 Toutes les entrées sont validées côté module (format JSON, URL HTTPS, IP/CIDR, format des overrides). Les erreurs sont affichées directement dans l’interface.
 
@@ -163,8 +165,8 @@ Le module vérifie automatiquement la disponibilité d'une nouvelle version depu
 - À chaque ouverture de la page de configuration du module, `UpdateCheckService` interroge l'endpoint `https://updates.rebuild-it.fr/rebuildconnector/version.json` qui expose la dernière release GitHub.
 - Le résultat est **mis en cache** 12 heures (clé `REBUILDCONNECTOR_UPDATE_CHECK` en base via `Configuration`). Aucune requête réseau n'est faite entre deux vérifications dans cette fenêtre.
 - Si une version plus récente est détectée (`version_compare`), un **bandeau d'alerte** s'affiche en haut de la page avec la version disponible, un bouton « Télécharger » (`.zip` GitHub Releases) et un lien « Voir la release ».
-- Le service est **fail-silent** : tout échec réseau, timeout (5 s) ou JSON invalide est absorbé silencieusement — aucun message d'erreur n'est visible, aucun log n'est écrit.
-- **Pas d'installation automatique** : la mise à jour reste manuelle (téléchargement + upload ZIP via le gestionnaire de modules PrestaShop).
+- Le service est **fail-silent** : tout échec réseau, timeout (5 s) ou JSON invalide est absorbé silencieusement, sans message d'erreur visible ni log écrit.
+- L'installation n'est pas automatique : la mise à jour reste manuelle (téléchargement + upload ZIP via le gestionnaire de modules PrestaShop).
 
 **Endpoint :**
 ```
@@ -183,7 +185,7 @@ GET https://updates.rebuild-it.fr/rebuildconnector/version.json
 
 ---
 
-## ⚙️ Build et packaging
+## Build et packaging
 
 ```bash
 zip -r rebuildconnector.zip rebuildconnector/
@@ -195,7 +197,7 @@ Déploiement :
 
 ---
 
-## 🧪 Tests
+## Tests
 
 - Tests unitaires : `phpunit`
 - Tests d’intégration API : Postman/Newman
@@ -208,11 +210,11 @@ composer install
 vendor/bin/phpunit --bootstrap tests/bootstrap.php --testdox
 ```
 
-👉 La documentation détaillée des endpoints (authentification, schémas, exemples) est disponible dans [`docs/api.md`](docs/api.md).
+La documentation détaillée des endpoints (authentification, schémas, exemples) est dans [`docs/api.md`](docs/api.md).
 
 ---
 
-## 📦 CI/CD
+## CI/CD
 
 - Analyse statique : PHPStan (level 6+)
 - Tests unitaires : PHPUnit
@@ -220,9 +222,9 @@ vendor/bin/phpunit --bootstrap tests/bootstrap.php --testdox
 
 ---
 
-## 🪪 Licence
+## Licence
 
-**Open Software License 3.0 (OSL-3.0)** — voir [`LICENSE`](LICENSE).  
+**Open Software License 3.0 (OSL-3.0)**, voir [`LICENSE`](LICENSE).  
 © 2026 Rebuild IT.
 
 L’OSL-3.0 est une licence *copyleft* compatible avec l’écosystème PrestaShop (dont le cœur est sous OSL-3.0).

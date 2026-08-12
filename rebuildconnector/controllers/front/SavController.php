@@ -9,8 +9,8 @@ require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/SavService.php';
  * SAV natif PrestaShop (`ps_customer_thread` / `ps_customer_message`). Voir `SavService` pour le
  * contrat des statuts de fil et `docs/api.md` pour le détail des routes.
  *
- * ⚠️ `POST .../sav/{id}/reply` envoie un VRAI e-mail à la cliente — jamais appelé depuis un test
- * automatisé contre des données réelles (cf. mandat de tâche).
+ * ATTENTION : `POST .../sav/{id}/reply` envoie un VRAI e-mail à la cliente. Jamais appelé depuis
+ * un test automatisé contre des données réelles (cf. mandat de tâche).
  */
 class RebuildconnectorSavModuleFrontController extends RebuildconnectorBaseApiModuleFrontController
 {
@@ -74,6 +74,16 @@ class RebuildconnectorSavModuleFrontController extends RebuildconnectorBaseApiMo
 
     private function handleGet(): void
     {
+        // /sav/stats est déclarée avant /sav/{id} dans hookModuleRoutes() (même convention que
+        // /customers/stats), donc jamais atteinte avec un id numérique porté par l'URL. Compteur
+        // exact « à traiter » (voir SavService), indépendant de la pagination.
+        if (Tools::getValue('action') === 'stats') {
+            $this->renderJson([
+                'to_process' => $this->getSavService()->getToProcessCount(),
+            ]);
+            return;
+        }
+
         $idRaw = Tools::getValue('id_customer_thread', Tools::getValue('id', false));
         $hasIdSegment = ($idRaw !== false && $idRaw !== '' && $idRaw !== null);
         $threadId = (int) $idRaw;
@@ -108,6 +118,11 @@ class RebuildconnectorSavModuleFrontController extends RebuildconnectorBaseApiMo
                 );
             }
             $filters['status'] = $status;
+        }
+
+        $toProcess = Tools::getValue('to_process');
+        if (is_string($toProcess) && in_array($toProcess, ['1', 'true'], true)) {
+            $filters['to_process'] = true;
         }
 
         $result = $this->getSavService()->getThreads($filters);
@@ -195,7 +210,7 @@ class RebuildconnectorSavModuleFrontController extends RebuildconnectorBaseApiMo
         }
 
         // Jamais le contenu du message ni l'e-mail de la cliente dans l'audit (donnée client en
-        // clair interdite dans les logs) — uniquement des identifiants.
+        // clair interdite dans les logs) : uniquement des identifiants.
         $this->recordAuditEvent('sav.reply.sent', [
             'thread_id' => $threadId,
             'email_sent' => $result['email_sent'],

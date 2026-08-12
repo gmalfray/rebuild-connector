@@ -8,7 +8,7 @@ class AuditLogService
 
     /**
      * Durée de rétention par défaut des lignes d'audit (en jours).
-     * Aucune purge n'était faite jusque-là (pas de cron sur ce module) → croissance non bornée.
+     * Sans purge (le module n'a pas de cron), la table croît sans borne.
      */
     public const RETENTION_DAYS = 90;
 

@@ -120,6 +120,59 @@ final class SavControllerTest extends TestCase
 
         $this->assertSame(404, $controller->response['status']);
     }
+
+    public function testStatsActionReturnsToProcessCountEnvelope(): void
+    {
+        $_GET['action'] = 'stats';
+
+        $controller = new TestSavController();
+        $controller->injectFakeService(new FakeStatsSavService());
+        $controller->initContent();
+
+        $this->assertSame(200, $controller->response['status']);
+        $this->assertSame(['to_process' => 2], $controller->response['payload']);
+    }
+
+    public function testStatsActionNeverListsThreadsEvenWithFakeListService(): void
+    {
+        // `action=stats` doit être intercepté AVANT toute logique de liste/pagination, quel que
+        // soit le service injecté — non-régression de l'ordre des branches dans handleGet().
+        $_GET['action'] = 'stats';
+
+        $controller = new TestSavController();
+        $controller->injectFakeService(new FakeListSavService());
+        $controller->initContent();
+
+        $this->assertSame(200, $controller->response['status']);
+        $this->assertArrayNotHasKey('threads', $controller->response['payload']);
+    }
+
+    public function testToProcessFilterIsForwardedToService(): void
+    {
+        $_GET['to_process'] = '1';
+
+        $controller = new TestSavController();
+        $fakeService = new FakeListSavService();
+        $controller->injectFakeService($fakeService);
+        $controller->initContent();
+
+        $this->assertSame(200, $controller->response['status']);
+        $this->assertArrayHasKey('to_process', $fakeService->receivedFilters);
+        $this->assertTrue($fakeService->receivedFilters['to_process']);
+    }
+
+    public function testToProcessFilterIgnoredWhenNotTruthy(): void
+    {
+        $_GET['to_process'] = '0';
+
+        $controller = new TestSavController();
+        $fakeService = new FakeListSavService();
+        $controller->injectFakeService($fakeService);
+        $controller->initContent();
+
+        $this->assertSame(200, $controller->response['status']);
+        $this->assertArrayNotHasKey('to_process', $fakeService->receivedFilters);
+    }
 }
 
 final class TestSavController extends RebuildconnectorSavModuleFrontController
@@ -205,10 +258,23 @@ final class FakeEmptySavService extends SavService
     }
 }
 
+final class FakeStatsSavService extends SavService
+{
+    public function getToProcessCount(): int
+    {
+        return 2;
+    }
+}
+
 final class FakeListSavService extends SavService
 {
+    /** @var array<string, mixed> */
+    public array $receivedFilters = [];
+
     public function getThreads(array $filters = []): array
     {
+        $this->receivedFilters = $filters;
+
         return [
             'items' => [['id' => 1, 'status' => 'open']],
             'pagination' => ['limit' => 20, 'offset' => 0, 'count' => 1, 'has_next' => false, 'next_offset' => null],

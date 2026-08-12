@@ -5,7 +5,7 @@ if (!defined('_PS_VERSION_')) {
 }
 
 /**
- * Upgrade 1.11.0 — Alertes stock faible en push
+ * Upgrade 1.11.0 : alertes stock faible en push
  *
  * Nouveautés :
  *   - Nouveau hook `actionUpdateQuantity` → notification push `stock.low` (relayée par le hub push
@@ -13,7 +13,7 @@ if (!defined('_PS_VERSION_')) {
  *     son seuil de stock bas effectif (product_shop.low_stock_threshold, sinon
  *     ProductsService::DEFAULT_LOW_STOCK_THRESHOLD).
  *   - Nouvelle table `rebuildconnector_stock_alert` (StockAlertService) : anti-spam par état
- *     persistant — une seule alerte par franchissement descendant du seuil, réarmée quand le stock
+ *     persistant : une seule alerte par franchissement descendant du seuil, réarmée quand le stock
  *     repasse au-dessus.
  *   - Nouveau réglage BO `stock_low_alerts_enabled` (désactivé par défaut) dans le panneau Hub push.
  *

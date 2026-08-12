@@ -10,7 +10,7 @@ defined('_PS_VERSION_') || exit;
  *   - l'envoi des notifications (POST /v1/notify).
  *
  * Le hub détient le compte de service FCM (unique, Rebuild IT) et envoie réellement à FCM.
- * Le module ne porte aucun secret FCM — la résilience est gérée côté hub.
+ * Le module ne porte aucun secret FCM, la résilience est gérée côté hub.
  * L'URL du hub est hardcodée dans SettingsService::HUB_URL ; seule la clé de licence
  * est configurable en back-office.
  *
@@ -148,7 +148,7 @@ class PushHubService
      * Endpoint public du hub (aucune authentification), rate-limité côté hub (5/h/IP) :
      *   - HTTP 201 → licence créée, `license_key` renvoyée UNE seule fois ;
      *   - HTTP 409 → une licence existe déjà pour ce domaine (`reason: already_exists`), la clé
-     *     n'est PAS renvoyée par le hub — l'admin doit la ressaisir manuellement ou contacter le hub ;
+     *     n'est PAS renvoyée par le hub : l'admin doit la ressaisir manuellement ou contacter le hub ;
      *   - toute autre situation (timeout, réseau, 4xx/5xx) → échec best-effort.
      *
      * Ne logge JAMAIS la clé obtenue.
@@ -202,7 +202,7 @@ class PushHubService
      * Variante simple de {@see provisionLicenseDetailed()} : retourne la clé obtenue, ou null
      * si le hub n'a rien provisionné (déjà existant, erreur réseau, réponse invalide…).
      *
-     * Best-effort — ne lève jamais d'exception métier (les erreurs cURL sont absorbées).
+     * Best-effort : ne lève jamais d'exception métier (les erreurs cURL sont absorbées).
      */
     public function provisionLicense(string $shopUrl, ?string $label = null): ?string
     {
@@ -212,13 +212,13 @@ class PushHubService
     /**
      * Récupération self-service d'une licence hub perdue (réinstallation du module), basée sur la
      * preuve de contrôle du domaine : le hub ne renvoie JAMAIS la nouvelle clé dans cette réponse
-     * HTTP — il la livre via un callback signé vers le controller `hubkey` de CE domaine (cf.
+     * HTTP, il la livre via un callback signé vers le controller `hubkey` de CE domaine (cf.
      * rebuild-it/docs/push-recover.md). Cette méthode ne fait donc que déclencher la rotation et
      * interpréter le statut ; la clé elle-même arrive de façon asynchrone via le callback.
      *
      * Endpoint public du hub (aucune authentification), rate-limité côté hub (3/h/shop_url) :
      *   - HTTP 200 → rotation acceptée, callback en cours (`recovered: true` côté hub) ;
-     *   - HTTP 404 → aucune licence existante pour ce domaine (`reason: not_found`) — l'appelant
+     *   - HTTP 404 → aucune licence existante pour ce domaine (`reason: not_found`) : l'appelant
      *     doit basculer sur le provisioning normal (première installation) ;
      *   - HTTP 502 → le hub n'a pas pu joindre le domaine en HTTPS pour livrer la clé
      *     (`reason: callback_failed`), le hash n'a pas changé côté hub ;

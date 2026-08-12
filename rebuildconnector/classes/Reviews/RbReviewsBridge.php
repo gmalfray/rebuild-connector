@@ -7,7 +7,7 @@ require_once __DIR__ . '/ReviewsUnavailableException.php';
 require_once __DIR__ . '/ReviewsAvailability.php';
 
 /**
- * Implémentation réelle du pont — SEUL fichier du connecteur qui connaît les classes du module
+ * Implémentation réelle du pont. SEUL fichier du connecteur qui connaît les classes du module
  * tiers rbreviews (`RbReview`). Instancié UNIQUEMENT par `ReviewsBridgeFactory::create()`, qui a
  * déjà vérifié `ReviewsAvailability::isAvailable()` avant de charger ce fichier : à ce stade,
  * `RbReview` est garantie autochargée par PrestaShop (convention `modules/<module>/classes/`,
@@ -22,7 +22,7 @@ final class RbReviewsBridge implements ReviewsBridgeInterface
     public const DEFAULT_LIMIT = 20;
     public const MAX_LIMIT = 100;
 
-    /** Motif de refus minimum — aligné sur la validation déjà appliquée côté BO rbreviews. */
+    /** Motif de refus minimum, aligné sur la validation déjà appliquée côté BO rbreviews. */
     public const REASON_MIN_LENGTH = 10;
 
     public function isAvailable(): bool
@@ -115,7 +115,7 @@ final class RbReviewsBridge implements ReviewsBridgeInterface
         }
 
         // Même ordre que la corbeille en BO (AdminRbReviewsController::processBulkRejectSelection) :
-        // poser deleted/validated/rejection_reason puis SEULEMENT ENSUITE notifier l'auteur — jamais
+        // poser deleted/validated/rejection_reason puis SEULEMENT ENSUITE notifier l'auteur, jamais
         // l'inverse, sinon `notifyRejection()` lirait un `rejection_reason` pas encore en base.
         $review->deleted = true;
         $review->validated = false;
@@ -131,7 +131,7 @@ final class RbReviewsBridge implements ReviewsBridgeInterface
             } catch (\Throwable $exception) {
                 // Même discipline que le BO rbreviews : un échec de notification (Exception OU
                 // Error PHP 8, ex. TypeError) ne doit jamais faire échouer la mise en corbeille
-                // elle-même — l'avis EST en corbeille, seule la notification a pu rater.
+                // elle-même : l'avis EST en corbeille, seule la notification a pu rater.
                 if (defined('_PS_MODE_DEV_') && (bool) constant('_PS_MODE_DEV_')) {
                     error_log('[RebuildConnector] notifyRejection a échoué (avis #' . $idReview . '): ' . $exception->getMessage());
                 }
@@ -193,7 +193,7 @@ final class RbReviewsBridge implements ReviewsBridgeInterface
     }
 
     /**
-     * Charge un avis et vérifie son appartenance à la boutique courante (protection IDOR) — même
+     * Charge un avis et vérifie son appartenance à la boutique courante (protection IDOR). Même
      * garde que partout ailleurs dans le connecteur : une absence ou une mauvaise boutique
      * retournent toutes les deux `null`, jamais une distinction qui confirmerait l'existence d'un
      * avis d'une autre boutique.

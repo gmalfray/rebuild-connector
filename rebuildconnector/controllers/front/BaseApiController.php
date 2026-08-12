@@ -86,10 +86,10 @@ abstract class RebuildconnectorBaseApiModuleFrontController extends ModuleFrontC
     }
 
     /**
-     * Renvoie une réponse HTTP 204 No Content — SANS corps.
+     * Renvoie une réponse HTTP 204 No Content, SANS corps.
      *
      * Un statut 204 ne doit jamais transporter de corps (RFC 7231). On n'émet donc aucun JSON
-     * ici, contrairement à renderJson([], 204) qui envoyait un corps `[]` invalide.
+     * ici, contrairement à renderJson([], 204), qui produit un corps `[]` invalide.
      */
     protected function renderNoContent(): void
     {

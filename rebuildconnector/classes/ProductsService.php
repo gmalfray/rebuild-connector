@@ -118,18 +118,16 @@ class ProductsService
 
         $rows = (array) Db::getInstance()->executeS($query);
 
-        // Le champ `combinations` (liste complète des déclinaisons) n'est exposé que sur les résultats
-        // d'une recherche "barcode" (scan) : c'est le seul cas où l'app en a besoin (faire choisir la
-        // bonne déclinaison), et ça évite d'alourdir la liste paginée générale.
-        // combinations exposées pour les recherches CIBLÉES (barcode OU search) : l'app en a besoin
-        // pour l'association (choisir/cibler la bonne déclinaison à laquelle poser l'EAN). Reste exclu
-        // de la liste paginée générale (non filtrée) pour ne pas l'alourdir.
+        // Le champ `combinations` (liste complète des déclinaisons) n'est exposé que sur les
+        // recherches CIBLÉES (barcode OU search) : c'est là que l'app en a besoin, pour
+        // l'association, choisir ou cibler la bonne déclinaison à laquelle poser l'EAN. Reste
+        // exclu de la liste paginée générale (non filtrée) pour ne pas l'alourdir.
         $includeCombinations = !empty($filters['barcode']) || !empty($filters['search']);
         // matched_combination (déclinaison ciblée sans ambiguïté) : uniquement pour un scan barcode.
         $barcodeCode = !empty($filters['barcode']) ? trim((string) $filters['barcode']) : null;
 
         // Pré-chargement en amont de la boucle (m8) : évite le N+1 Image::getImages()/requête de
-        // libellé de combinaison PAR PRODUIT — une seule requête batchée pour toute la page au lieu
+        // libellé de combinaison PAR PRODUIT : une seule requête batchée pour toute la page au lieu
         // d'une par ligne (des centaines de requêtes sur une liste de 100 produits sinon).
         $productIds = [];
         foreach ($rows as $row) {
@@ -163,7 +161,7 @@ class ProductsService
 
     /**
      * Pré-charge en une seule requête les images de plusieurs produits (reproduit les colonnes/le
-     * périmètre d'Image::getImages() — cf. classes/Image.php du core — juste groupées par id_product
+     * périmètre d'Image::getImages(), cf. classes/Image.php du core, juste groupées par id_product
      * au lieu d'une requête par produit). Utilisé par getProducts() pour éviter le N+1 (m8).
      *
      * @param int[] $productIds
@@ -532,8 +530,8 @@ class ProductsService
 
     /**
      * Contexte "stock bas" d'un produit pour une boutique donnée : actif ou non, et seuil effectif
-     * (`product_shop.low_stock_threshold` si renseigné et > 0, sinon `DEFAULT_LOW_STOCK_THRESHOLD`) —
-     * réplique exactement la logique déjà utilisée par getProducts()/countProducts() (filtre
+     * (`product_shop.low_stock_threshold` si renseigné et > 0, sinon `DEFAULT_LOW_STOCK_THRESHOLD`).
+     * Réplique exactement la logique déjà utilisée par getProducts()/countProducts() (filtre
      * `stock=low_stock`). Utilisé par le hook `actionUpdateQuantity` (alertes stock faible).
      *
      * @return array{active: bool, threshold: int}|null null si le produit n'existe pas.
@@ -1384,7 +1382,7 @@ class ProductsService
 
     /**
      * Résout l'id_lang selon l'en-tête `Accept-Language` envoyé par l'app (fallback langue par
-     * défaut boutique si absent/non installée/inactive) — voir LanguageResolver.
+     * défaut boutique si absent/non installée/inactive), voir LanguageResolver.
      */
     private function getLanguageId(): int
     {

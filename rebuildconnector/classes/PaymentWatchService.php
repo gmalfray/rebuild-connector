@@ -13,7 +13,7 @@ defined('_PS_VERSION_') || exit;
  * réglé le cas de cette boutique-là ; le connecteur étant distribué à des boutiques dont on
  * n'administre pas l'hébergement, la détection doit voyager avec le module.
  *
- * ⚠️ RÈGLE : on alerte sur ce qui relève de la BOUTIQUE, jamais sur l'incident d'un client.
+ * RÈGLE : on alerte sur ce qui relève de la BOUTIQUE, jamais sur l'incident d'un client.
  *   - Un client qui abandonne          → journalisé en INFO par ps_checkout : jamais vu ici.
  *   - Carte refusée, 3-D Secure échoué → ligne ERROR, mais ça le regarde : IGNORÉ, sauf si
  *                                        plusieurs paniers sont touchés (cf. niveau 2).
@@ -99,7 +99,7 @@ class PaymentWatchService
 
     /**
      * Analyse les lignes en erreur : combien relèvent d'une panne technique, quels paniers sont
-     * touchés, et quel message afficher. Fonction pure — c'est le cœur testable du service.
+     * touchés, et quel message afficher. Fonction pure : c'est la partie testable du service.
      *
      * @param array<int, string> $errorLines
      *
@@ -123,7 +123,7 @@ class PaymentWatchService
 
             // Une même ligne porte plusieurs messages emboîtés : l'enveloppe
             // (« CreateOrder - Exception 42 ») puis la cause réelle (l'erreur SQL). On les
-            // parcourt tous et on privilégie celui qui porte une signature technique — c'est le
+            // parcourt tous et on privilégie celui qui porte une signature technique : c'est le
             // seul qui dise quelque chose d'actionnable dans une notification.
             if (preg_match_all('/"(?:error|message)":"([^"]+)"/', $line, $all) >= 1) {
                 foreach ($all[1] as $candidate) {

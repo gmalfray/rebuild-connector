@@ -5,7 +5,7 @@ if (!defined('_PS_VERSION_')) {
 }
 
 /**
- * Upgrade 1.6.1 — Mise à jour en un clic depuis le back-office
+ * Upgrade 1.6.1 : mise à jour en un clic depuis le back-office
  *
  * Nouveautés :
  *   - Mise à jour en un clic depuis le bandeau « MAJ disponible » du back-office.

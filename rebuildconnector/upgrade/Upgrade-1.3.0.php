@@ -5,7 +5,7 @@ if (!defined('_PS_VERSION_')) {
 }
 
 /**
- * Upgrade 1.3.0 — Refonte de la page de configuration admin
+ * Upgrade 1.3.0 : refonte de la page de configuration admin
  *
  * Pas de modification de schéma de base de données dans cette version.
  * La refonte concerne uniquement l'interface d'administration (configure.tpl)

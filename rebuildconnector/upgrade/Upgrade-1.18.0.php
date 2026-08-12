@@ -7,7 +7,7 @@ if (!defined('_PS_VERSION_')) {
 require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/SettingsService.php';
 
 /**
- * Upgrade 1.18.0 — Capacités boutique + SAV natif + pont avis (rbreviews).
+ * Upgrade 1.18.0 : capacités boutique + SAV natif + pont avis (rbreviews).
  *
  * Nouveautés :
  *   - GET /connector/capabilities : ce que la boutique sait faire ({reviews, sav}).
@@ -17,13 +17,13 @@ require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/SettingsService.php';
  *     scope `reviews.moderate`.
  *
  * Comme pour l'ajout de `baskets.read`/`reports.read` en 0.3.0 : `getScopes()` renvoie EXACTEMENT
- * ce qui est persisté en base une fois `scopes` défini — les nouveaux scopes ne rejoignent donc
+ * ce qui est persisté en base une fois `scopes` défini. Les nouveaux scopes ne rejoignent donc
  * PAS automatiquement une boutique déjà installée simplement parce qu'ils rejoignent
  * `SettingsService::DEFAULT_SCOPES`. On les ajoute donc explicitement ici à la clé API globale
  * legacy (rétrocompatibilité totale, comme toutes les mises à jour précédentes).
  *
  * Les utilisateurs NOMMÉS (table `rebuildconnector_user`), eux, ne sont volontairement PAS
- * modifiés : chacun garde exactement les scopes qui lui ont été attribués en BO — c'est le
+ * modifiés : chacun garde exactement les scopes qui lui ont été attribués en BO. C'est le
  * comportement de moindre privilège attendu pour un compte nommé, un nouveau scope ne doit pas
  * apparaître dans la poche de quelqu'un sans décision explicite.
  *

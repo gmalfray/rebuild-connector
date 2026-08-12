@@ -10,7 +10,7 @@ defined('_PS_VERSION_') || exit;
  * Principe : le hub signe le payload JSON tel quel (RSA-2048, SHA-256, PKCS#1 v1.5) avant de
  * l'envoyer ; ce module vérifie avec la clé PUBLIQUE correspondante (aucun risque à la committer).
  *
- * IMPORTANT — la vérification porte sur la chaîne JSON BRUTE du payload, telle que reçue,
+ * IMPORTANT : la vérification porte sur la chaîne JSON BRUTE du payload, telle que reçue,
  * jamais sur une ré-sérialisation de l'objet décodé : l'ordre des clés, les espaces ou
  * l'échappement unicode produits par un json_encode() local ne reproduiraient pas forcément
  * l'octet exact signé côté hub, ce qui invaliderait silencieusement des signatures pourtant

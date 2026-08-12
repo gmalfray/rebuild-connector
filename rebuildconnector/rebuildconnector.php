@@ -42,7 +42,7 @@ class RebuildConnector extends Module
     {
         $this->name = 'rebuildconnector';
         $this->tab = 'administration';
-        $this->version = '1.19.0';
+        $this->version = '1.20.0';
         $this->author = 'Rebuild IT';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -96,7 +96,7 @@ class RebuildConnector extends Module
             && $this->registerHook('actionUpdateQuantity')
             && $this->registerHook('actionDispatcher')
             // Hooks génériques que PrestaShop lève automatiquement à chaque ObjectModel::add()
-            // (`actionObject<ClassName>AddAfter`) — cf. hookActionObjectCustomerMessageAddAfter()
+            // (`actionObject<ClassName>AddAfter`), cf. hookActionObjectCustomerMessageAddAfter()
             // et hookActionObjectRbReviewAddAfter() pour le détail. `actionObjectRbReviewAddAfter`
             // ne se déclenchera jamais tant que rbreviews n'est pas installé (la classe RbReview
             // n'existe pas) : l'enregistrer inconditionnellement est sans danger.
@@ -161,7 +161,7 @@ class RebuildConnector extends Module
                 ];
                 $encoded = json_encode($qrData);
                 $newUserQrJson = is_string($encoded) ? $encoded : '{}';
-                $messages[] = 'Utilisateur « ' . htmlspecialchars($label, ENT_QUOTES) . ' » créé. Conservez la clé API — elle ne sera plus affichée.';
+                $messages[] = 'Utilisateur « ' . htmlspecialchars($label, ENT_QUOTES) . ' » créé. Notez la clé API maintenant : elle ne sera plus affichée.';
             }
         } elseif (Tools::isSubmit('rebuildconnector_update_scopes')) {
             $idUser = (int) Tools::getValue('rebuildconnector_user_id', 0);
@@ -243,7 +243,7 @@ class RebuildConnector extends Module
                 );
             }
         } elseif (Tools::isSubmit('rebuildconnector_hub_provision')) {
-            // Bouton BO « Activer le push / Provisionner une licence » — n'a de sens que si le
+            // Bouton BO « Activer le push / Provisionner une licence » : n'a de sens que si le
             // hub n'est pas déjà actif (cf. condition d'affichage côté template).
             $shopUrlForProvision = $this->getShopBaseUrl();
             if ($shopUrlForProvision === '') {
@@ -264,7 +264,7 @@ class RebuildConnector extends Module
                 }
             }
         } elseif (Tools::isSubmit('rebuildconnector_hub_recover')) {
-            // Bouton BO « Récupérer ma clé » — récupération self-service d'une licence hub perdue
+            // Bouton BO « Récupérer ma clé » : récupération self-service d'une licence hub perdue
             // (typiquement après une réinstallation du module, qui efface la config locale). Le hub
             // ne renvoie JAMAIS la clé dans cette réponse HTTP : preuve de contrôle du domaine, il la
             // livre via un callback signé vers le controller `hubkey` de CE domaine (cf. HubKeyVerifier).
@@ -323,7 +323,7 @@ class RebuildConnector extends Module
                     );
                     break;
                 case UpdateCheckService::STATUS_UP_TO_DATE:
-                    $messages[] = 'Vous êtes à jour — Rebuild Connector v' . $this->version . ' est la dernière version disponible.';
+                    $messages[] = 'Vous êtes à jour : Rebuild Connector v' . $this->version . ' est la dernière version disponible.';
                     break;
                 case UpdateCheckService::STATUS_CHECK_FAILED:
                 default:
@@ -486,10 +486,10 @@ class RebuildConnector extends Module
 
         // Avertissement BO : utilisateurs nommés actifs créés AVANT la 1.18.0, qui n'ont donc pas
         // reçu automatiquement les scopes sav.read/sav.write/reviews.moderate (ajoutés en 1.18.0
-        // uniquement aux scopes GLOBAUX, cf. Upgrade-1.18.0.php — jamais migrés silencieusement
+        // uniquement aux scopes GLOBAUX, cf. Upgrade-1.18.0.php, jamais migrés silencieusement
         // vers les utilisateurs nommés existants : sav.write envoie de vrais e-mails à de vraies
         // clientes, une élévation de privilège automatique est exclue). Calculé à CHAQUE affichage
-        // (jamais stocké), donc toujours à jour — y compris juste après un
+        // (jamais stocké), donc toujours à jour, y compris juste après un
         // rebuildconnector_update_scopes traité plus haut dans cette même requête, puisque $users
         // vient d'être rechargé.
         $missingSavReviewScopesUsers = [];
@@ -508,7 +508,7 @@ class RebuildConnector extends Module
         if ($missingSavReviewScopesUsers !== []) {
             $output .= $this->displayWarning(sprintf(
                 '%d utilisateur(s) nommé(s) n\'ont pas les nouveaux droits SAV/Avis (sav.read, sav.write, reviews.moderate) : %s. '
-                . 'Modifiez leurs scopes ci-dessous (bouton « Scopes ») si vous voulez leur donner accès aux nouveaux écrans SAV/Avis de l\'app — ce n\'est PAS automatique.',
+                . 'Modifiez leurs scopes ci-dessous (bouton « Scopes ») si vous voulez leur donner accès aux nouveaux écrans SAV/Avis de l\'app : ce n\'est PAS automatique.',
                 count($missingSavReviewScopesUsers),
                 htmlspecialchars(implode(', ', $missingSavReviewScopesUsers), ENT_QUOTES)
             ));
@@ -655,7 +655,7 @@ class RebuildConnector extends Module
     /**
      * Alerte stock faible (événement `stock.low`). Se déclenche à CHAQUE écriture de quantité
      * (StockAvailable::setQuantity()), y compris depuis ProductsService::updateStock() (app) ou
-     * plusieurs fois pendant un même checkout — d'où la garde d'état StockAlertService (une seule
+     * plusieurs fois pendant un même checkout, d'où la garde d'état StockAlertService (une seule
      * alerte par franchissement descendant du seuil, réarmée quand le stock repasse au-dessus).
      *
      * @param array<string, mixed> $params
@@ -671,7 +671,7 @@ class RebuildConnector extends Module
             return;
         }
 
-        // Absent (ou 0) pour un produit sans déclinaison — comportement normal du hook core.
+        // Absent (ou 0) pour un produit sans déclinaison, comportement normal du hook core.
         $idProductAttribute = isset($params['id_product_attribute']) ? (int) $params['id_product_attribute'] : 0;
         if ($idProductAttribute < 0) {
             $idProductAttribute = 0;
@@ -755,9 +755,9 @@ class RebuildConnector extends Module
     /**
      * Alerte push « nouveau message SAV » (événement `sav.message`). Branchée sur le hook générique
      * `actionObject<ClassName>AddAfter` que PrestaShop lève automatiquement à chaque
-     * `ObjectModel::add()` — ici pour `CustomerMessage`.
+     * `ObjectModel::add()`, ici pour `CustomerMessage`.
      *
-     * ⚠️ Ce hook se déclenche pour DEUX origines de message, qu'il faut distinguer :
+     * ATTENTION : ce hook se déclenche pour DEUX origines de message, qu'il faut distinguer :
      *   - une CLIENTE écrit (formulaire de contact front, ou relance sur un fil existant)
      *     → `id_employee == 0` → c'est CE cas qui doit notifier ;
      *   - un EMPLOYÉ répond depuis le back-office natif PrestaShop (`AdminCustomerThreadsController`,
@@ -768,7 +768,7 @@ class RebuildConnector extends Module
      *
      * Aucun anti-étranglement nécessaire ici, contrairement à `stock.low` (écritures répétées pour
      * un même franchissement) ou `shop.payment.error` (pas de hook natif, lecture périodique d'un
-     * journal) : chaque insertion d'un message CLIENT est un événement réellement unique — une
+     * journal) : chaque insertion d'un message CLIENT est un événement réellement unique. Une
      * notification par message, jamais plus.
      *
      * Best-effort strict (try/catch large) : un message SAV ne doit jamais échouer à cause d'une
@@ -790,7 +790,7 @@ class RebuildConnector extends Module
             $message = $params['object'];
 
             if (!isset($message->id_employee) || (int) $message->id_employee !== 0) {
-                // Réponse d'un employé (BO natif) : jamais de notification — on ne s'auto-notifie pas.
+                // Réponse d'un employé (BO natif) : jamais de notification, on ne s'auto-notifie pas.
                 return;
             }
 
@@ -840,7 +840,7 @@ class RebuildConnector extends Module
             ]);
 
             // Best-effort et différé : ce hook peut se déclencher au milieu d'une requête front
-            // (soumission du formulaire de contact) — même discipline que order.created/stock.low.
+            // (soumission du formulaire de contact), même discipline que order.created/stock.low.
             $this->runAfterResponse(function () use ($notification, $data): void {
                 $this->notifyDevices($notification, $data);
             });
@@ -919,7 +919,7 @@ class RebuildConnector extends Module
                 'body' => $this->t(
                     'notifications.review_pending_body',
                     [$authorName, (string) $grade],
-                    sprintf('%s — %d/5', $authorName, $grade)
+                    sprintf('%s · %d/5', $authorName, $grade)
                 ),
             ];
 
@@ -991,9 +991,9 @@ class RebuildConnector extends Module
 
                 return Tools::displayPrice($amount);
             } catch (\Throwable $exception) {
-                // Robustesse du hook de commande : on attrape \Throwable (pas seulement \Exception)
-                // pour qu'une \TypeError/\Error éventuelle de Tools::displayPrice() (déprécié, retrait
-                // prévu PS9) ne fasse JAMAIS planter la notification de commande — on retombe sur le
+                // On attrape \Throwable (pas seulement \Exception) pour qu'une \TypeError/\Error
+                // éventuelle de Tools::displayPrice() (déprécié, retrait prévu PS9) ne fasse JAMAIS
+                // planter la notification de commande. On retombe alors sur le
                 // formatage manuel ci-dessous. Migration vers Locale::formatPrice non retenue ici pour
                 // ne pas risquer de régression d'affichage (locale/devise) sur un simple libellé push.
             }
@@ -1053,7 +1053,7 @@ class RebuildConnector extends Module
 
         $hub = $this->getPushHubService();
         if (!$hub->isEnabled()) {
-            // Clé de licence non configurée — aucune notification envoyée.
+            // Clé de licence non configurée, aucune notification envoyée.
             return;
         }
 
@@ -1168,7 +1168,7 @@ class RebuildConnector extends Module
 
     /**
      * Id boutique courante (contexte multiboutique), avec repli sur la boutique par défaut si le
-     * contexte n'est pas disponible (ex. exécution CLI/cron) — même garde que ProductsService::getShopId().
+     * contexte n'est pas disponible (ex. exécution CLI/cron). Même garde que ProductsService::getShopId().
      */
     private function getCurrentShopId(): int
     {
@@ -1194,7 +1194,7 @@ class RebuildConnector extends Module
     private function recordAudit(string $event, array $context = []): void
     {
         // M3 : ne PAS utiliser Tools::getRemoteAddr() (se fie au 1er élément de X-Forwarded-For,
-        // falsifiable par le client) pour une décision/trace de sécurité — cf. ClientIpResolver.
+        // falsifiable par le client) pour une décision/trace de sécurité, cf. ClientIpResolver.
         $this->getAuditLogService()->record($event, array_merge($context, [
             'ip' => ClientIpResolver::resolve(),
         ]));
@@ -1218,7 +1218,7 @@ class RebuildConnector extends Module
      *
      * PrestaShop n'a pas d'ordonnanceur : ce hook, qui passe à chaque requête, sert d'horloge
      * pauvre. `PaymentWatchService` s'étrangle lui-même (une inspection toutes les 5 min au plus)
-     * et sort en deux lectures de configuration le reste du temps — le coût sur une page vue est
+     * et sort en deux lectures de configuration le reste du temps. Le coût sur une page vue est
      * négligeable. Un cron n'est pas requis : la détection voyage avec le module, y compris sur
      * un hébergement qu'on n'administre pas.
      *
@@ -1563,6 +1563,16 @@ class RebuildConnector extends Module
                     'module' => $module,
                 ],
             ],
+            'module-' . $module . '-api-sav-stats' => [
+                'controller' => 'sav',
+                'rule' => $baseRule . '/sav/stats',
+                'keywords' => [],
+                'params' => [
+                    'fc' => 'module',
+                    'module' => $module,
+                    'action' => 'stats',
+                ],
+            ],
             'module-' . $module . '-api-sav-id' => [
                 'controller' => 'sav',
                 'rule' => $baseRule . '/sav/{id}',
@@ -1596,8 +1606,8 @@ class RebuildConnector extends Module
                 ],
             ],
             // NB : { id, action } supporte à la fois PATCH .../sav/{id}/status (changer le statut,
-            // sans e-mail) et POST .../sav/{id}/reply (ajoute un message ET envoie un e-mail réel)
-            // — même URL, verbe HTTP différent, exactement comme .../orders/{id}/{action}.
+            // sans e-mail) et POST .../sav/{id}/reply (ajoute un message ET envoie un e-mail réel) :
+            // même URL, verbe HTTP différent, exactement comme .../orders/{id}/{action}.
             'module-' . $module . '-api-reviews' => [
                 'controller' => 'reviews',
                 'rule' => $baseRule . '/reviews',
@@ -1685,7 +1695,7 @@ class RebuildConnector extends Module
     /**
      * Auto-provisionnement « zéro config » de la licence hub push. Best-effort : n'importe
      * quelle erreur (réseau, hub indisponible, licence déjà existante pour ce domaine…) est
-     * absorbée silencieusement — l'appelant (install() en particulier) ne doit jamais échouer
+     * absorbée silencieusement. L'appelant (install() en particulier) ne doit jamais échouer
      * à cause du hub. Ne logge jamais la clé obtenue.
      *
      * @return string|null La clé de licence si provisionnée, null sinon (déjà configurée,

@@ -93,7 +93,7 @@ class RebuildconnectorNotificationsModuleFrontController extends Rebuildconnecto
         // Enregistrement local (source de vérité pour la synchro hub via syncAllDevices).
         $this->getDeviceService()->registerDevice($token, $topics, $deviceId, $platform);
 
-        // Relai au hub (best-effort) — le hub synchronise ses propres devices FCM.
+        // Relai au hub (best-effort) : le hub synchronise ses propres devices FCM.
         $hub = $this->getPushHubService();
         if ($hub->isEnabled()) {
             $hub->registerDevice($token, $platform, $topics);

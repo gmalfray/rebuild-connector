@@ -788,6 +788,17 @@ class DbQuery
         return $this;
     }
 
+    /**
+     * Équivalent stub de `DbQueryCore::join()` (cœur PrestaShop) : clause JOIN brute complète,
+     * utilisée quand une table dérivée (sous-requête) doit être jointe — `leftJoin()`/`innerJoin()`
+     * préfixent toujours leur premier argument avec `_DB_PREFIX_`, ce qui interdit d'y passer une
+     * sous-requête. Voir `SavService::lastMessageJoinClause()`.
+     */
+    public function join(string $join): self
+    {
+        return $this;
+    }
+
     public function where(string $condition): self
     {
         self::$testWhereLog[] = $condition;

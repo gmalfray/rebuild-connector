@@ -153,7 +153,7 @@ class ShippingLabelService
     }
 
     // -------------------------------------------------------------------------
-    // Colissimo — PDF local sur disque
+    // Colissimo : PDF local sur disque
     // -------------------------------------------------------------------------
 
     /**
@@ -227,7 +227,7 @@ class ShippingLabelService
     }
 
     // -------------------------------------------------------------------------
-    // Mondial Relay — proxy HTTP vers URL distante
+    // Mondial Relay : proxy HTTP vers URL distante
     // -------------------------------------------------------------------------
 
     /**

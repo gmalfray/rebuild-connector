@@ -8,7 +8,7 @@ defined('_PS_VERSION_') || exit;
  * AUCUNE méthode ne référence de type rbreviews (ex. `RbReview`) dans sa signature : les routes
  * publiques (`ReviewsController`) ne manipulent que des tableaux neutres. C'est ce qui permet à
  * `ReviewsController` de fonctionner (et de compiler/s'autoloader) que rbreviews soit présent ou
- * non — seule l'implémentation concrète (`RbReviewsBridge`), chargée UNIQUEMENT quand rbreviews
+ * non : seule l'implémentation concrète (`RbReviewsBridge`), chargée UNIQUEMENT quand rbreviews
  * est confirmé présent, connaît les classes réelles du module.
  */
 interface ReviewsBridgeInterface

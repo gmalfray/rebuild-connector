@@ -18,9 +18,9 @@ class UpdateCheckService
 
     /**
      * Statuts explicites retournés par checkForUpdateFresh(), pour distinguer
-     * « à jour » d'un échec de vérification (réseau/JSON) — les deux se traduisaient
-     * auparavant par un simple `null`, ce qui trompait l'utilisateur du bouton BO
-     * en cas d'échec réseau (message « vous êtes à jour » affiché à tort).
+     * « à jour » d'un échec de vérification (réseau/JSON). Sans cette distinction, un
+     * simple `null` couvre les deux cas et le bouton BO affiche « vous êtes à jour »
+     * à tort dès que le réseau tombe.
      */
     public const STATUS_UPDATE_AVAILABLE = 'update_available';
     public const STATUS_UP_TO_DATE = 'up_to_date';
@@ -36,7 +36,7 @@ class UpdateCheckService
     /**
      * Retourne les informations de mise à jour disponible, ou null si le module
      * est à jour (ou si la vérification a échoué).
-     * Utilise le cache local (TTL 12 h) — pour le bandeau automatique BO.
+     * Utilise le cache local (TTL 12 h), pour le bandeau automatique BO.
      *
      * @return array{latest: string, url: string, download_url: string}|null
      */
@@ -65,7 +65,7 @@ class UpdateCheckService
      *   - STATUS_UPDATE_AVAILABLE : une version plus récente est disponible ;
      *   - STATUS_UP_TO_DATE       : la vérification a réussi et le module est à jour ;
      *   - STATUS_CHECK_FAILED     : la vérification a échoué (réseau/timeout/JSON invalide)
-     *                               — ne doit PAS être interprété comme « à jour ».
+     *                               et ne doit PAS être interprété comme « à jour ».
      * À utiliser uniquement sur action explicite de l'utilisateur (bouton BO).
      *
      * @return array{status: self::STATUS_*, update: array{latest: string, url: string, download_url: string}|null}
@@ -173,7 +173,7 @@ class UpdateCheckService
     /**
      * Effectue la requête HTTP vers l'URL fournie.
      * Utilise cURL si disponible, sinon file_get_contents avec stream context.
-     * Timeout court (5 s) — fail-silent sur tout échec.
+     * Timeout court (5 s), fail-silent sur tout échec.
      *
      * `protected` (et non `private`) pour permettre aux tests unitaires de surcharger
      * cette méthode dans une sous-classe et simuler succès/échec sans appel réseau réel.
