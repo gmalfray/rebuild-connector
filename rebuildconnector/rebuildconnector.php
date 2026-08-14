@@ -467,13 +467,23 @@ class RebuildConnector extends Module
         $settingsForTemplate['api_legacy_url'] = $apiEndpoints['legacy'];
         $settingsForTemplate['shop_url'] = $shopBaseUrl;
 
-        // Données pour la section utilisateurs nommés
+        // Données pour la section utilisateurs nommés.
+        //
+        // Employee::getEmployees() ne renvoie QUE id_employee, firstname et lastname — ni en
+        // PrestaShop 8 ni en 9. Le gabarit affiche l'e-mail à côté du nom pour distinguer deux
+        // homonymes : il faut donc le lire nous-mêmes. Le défaut passait inaperçu en production
+        // (un simple avertissement, masqué hors mode debug) et n'est apparu que sur la preprod
+        // PrestaShop 9, où le mode développeur le remonte en exception.
         $employees = [];
-        if (class_exists('Employee')) {
-            $rawEmployees = Employee::getEmployees();
-            if (is_array($rawEmployees)) {
-                $employees = $rawEmployees;
-            }
+        $rows = Db::getInstance()->executeS(
+            (new DbQuery())
+                ->select('id_employee, firstname, lastname, email')
+                ->from('employee')
+                ->where('active = 1')
+                ->orderBy('lastname ASC, firstname ASC')
+        );
+        if (is_array($rows)) {
+            $employees = $rows;
         }
 
         $users = $userService->listUsers();
