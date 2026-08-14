@@ -532,6 +532,11 @@ class RebuildConnector extends Module
             'regenerated_admin_api_key'  => $regeneratedAdminApiKey,
             'regenerated_admin_qr_json'  => $regeneratedAdminQrJson,
             'module_version'             => $this->version,
+            // Jeton d'AdminModules fourni par le module, jamais relu depuis l'URL : en
+            // PrestaShop 9 la page de configuration est servie par une route Symfony dont
+            // le paramètre s'appelle « _token », donc $_GET['token'] n'existe plus. Le champ
+            // caché du formulaire restait vide et l'enregistrement était refusé.
+            'admin_token'                => Tools::getAdminTokenLite('AdminModules'),
             'update_info'                => $updateInfo,
         ]);
 
