@@ -55,7 +55,15 @@ class RebuildConnector extends Module
 
         $this->displayName = $this->t('module.name', [], 'Rebuild Connector');
         $this->description = $this->t('module.description', [], 'API connector between PrestaShop and the PrestaFlow mobile application.');
-        $this->ps_versions_compliancy = ['min' => '1.7.0.0', 'max' => _PS_VERSION_];
+        // Borne haute réelle, pas _PS_VERSION_ : cette valeur revient à déclarer « compatible avec
+        // la version qui tourne, quelle qu'elle soit », donc à ne rien déclarer du tout. Le module
+        // n'apparaît alors dans aucun rapport de compatibilité, et une rupture ne se voit qu'à
+        // l'exécution. C'est ainsi que la disparition d'AdminController::l() en 9 est passée sous
+        // les radars jusqu'à l'ouverture des écrans.
+        //
+        // 9.99.99 dit ce qui a été vérifié : la page de configuration et les écrans du module ont
+        // été recettés sur une boutique en PrestaShop 9.1.4 le 2026-08-14.
+        $this->ps_versions_compliancy = ['min' => '1.7.0.0', 'max' => '9.99.99'];
     }
 
     public function install(): bool
