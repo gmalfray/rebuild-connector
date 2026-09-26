@@ -44,7 +44,7 @@ class RebuildConnector extends Module
     {
         $this->name = 'rebuildconnector';
         $this->tab = 'administration';
-        $this->version = '1.21.0';
+        $this->version = '1.21.1';
         $this->author = 'Rebuild IT';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -1266,6 +1266,19 @@ class RebuildConnector extends Module
                         'notifications.payment_outage_technical',
                         [(string) $context['technical'], (string) $context['carts'], $reason],
                         sprintf('%s technical error(s) on %s cart(s). %s', $context['technical'], $context['carts'], $reason)
+                    );
+                } elseif ($kind === PaymentWatchService::KIND_AUTH) {
+                    // Autorisation PayPal refusée (jeton) : on ne redonne pas l'enveloppe brute
+                    // du journal (« CreateOrder - Exception 0 » ne dit rien à un humain), le
+                    // message est fixe et explicite.
+                    $body = $this->t(
+                        'notifications.payment_outage_auth',
+                        [(string) $context['carts'], (string) $context['errors']],
+                        sprintf(
+                            'PayPal refuses to authorize payment on %s cart(s) (%s attempt(s)). The token may need renewing.',
+                            $context['carts'],
+                            $context['errors']
+                        )
                     );
                 } else {
                     $body = $this->t(
