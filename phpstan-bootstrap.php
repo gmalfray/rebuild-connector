@@ -606,6 +606,14 @@ class Db
     public static $testGetValueResult = 0;
 
     /**
+     * Bascule de test : valeurs de getValue() par sous-chaîne de la requête SQL (la première clé
+     * contenue dans la requête l'emporte) ; à défaut, $testGetValueResult.
+     *
+     * @var array<string, mixed>
+     */
+    public static array $testGetValueMap = [];
+
+    /**
      * Bascule de test : lignes retournées par executeS() (par défaut [], comportement historique du
      * stub). Permet de simuler par ex. les déclinaisons d'un produit (product_attribute) sans base réelle.
      *
@@ -752,6 +760,11 @@ class Db
     {
         if (is_string($query)) {
             self::$testLoggedSelectQueries[] = $query;
+            foreach (self::$testGetValueMap as $needle => $value) {
+                if (strpos($query, (string) $needle) !== false) {
+                    return $value;
+                }
+            }
         }
 
         return self::$testGetValueResult;
