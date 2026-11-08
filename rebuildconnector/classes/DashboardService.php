@@ -44,6 +44,11 @@ class DashboardService
             . $shopFilterSql
         );
 
+        $ordersFreeCount = (int) $db->getValue(
+            'SELECT COUNT(*) FROM ' . _DB_PREFIX_ . 'orders WHERE total_paid_tax_incl = 0 AND date_add BETWEEN "'
+            . $fromSql . '" AND "' . $toSql . '"' . $shopFilterSql
+        );
+
         // CA = revenu produits uniquement, HORS frais de port (total_paid_tax_incl inclut le
         // port ; on retranche total_shipping_tax_incl pour obtenir le CA "marchandise").
         // Même base fiscale conservée qu'avant (TTC pour revenueTaxIncl, HT pour revenueTaxExcl) :
@@ -102,7 +107,10 @@ class DashboardService
         );
 
         $currency = $this->resolveCurrencyIso();
-        $averageBasket = $ordersCount > 0 ? $revenueTaxIncl / $ordersCount : 0.0;
+        // Panier moyen calculé sur les commandes PAYANTES (total_paid_tax_incl > 0) ; orders_count
+        // reste le total (gratuites incluses).
+        $paidOrdersCount = max(0, $ordersCount - $ordersFreeCount);
+        $averageBasket = $paidOrdersCount > 0 ? $revenueTaxIncl / $paidOrdersCount : 0.0;
 
         // --- Nouvelles métriques ---
         $pendingOrdersCount = $this->countPendingOrders();
@@ -125,6 +133,7 @@ class DashboardService
             'turnover' => $revenueTaxIncl,
             'previous_turnover' => $previousTurnover,
             'orders_count' => $ordersCount,
+            'orders_free_count' => $ordersFreeCount,
             'customers_count' => $customersCount,
             'products_count' => $this->countActiveProducts(),
             'revenue' => $revenueTaxIncl,
@@ -139,7 +148,7 @@ class DashboardService
             'pending_orders_count' => $pendingOrdersCount,
             'conversion_rate' => $conversionRate,
             'low_stock_alerts' => $lowStockProducts,
-            'chart' => $this->buildChart($from, $to, $period, $customFrom !== null && $customTo !== null),
+            'chart' => $this->buildChart($from, $to, $period, $isCustomRange, $prevFrom, $prevTo),
         ];
     }
 
@@ -477,184 +486,191 @@ class DashboardService
     }
 
     /**
+     * Série du graphe. Chaque point : label, turnover, orders (total, gratuites incluses),
+     * orders_free, customers, new_customers, turnover_previous (CA du bucket de même rang sur la
+     * période de comparaison N-1, alignement positionnel ; 0.0 si N-1 a moins de buckets).
+     *
      * @param bool $isCustomRange La plage provient-elle de from/to explicites ?
+     * @param \DateTimeImmutable|null $prevFrom Début de la plage de comparaison (avec $prevTo)
+     * @param \DateTimeImmutable|null $prevTo   Fin de la plage de comparaison
      * @return array<int, array<string, mixed>>
      */
     private function buildChart(
         \DateTimeImmutable $from,
         \DateTimeImmutable $to,
         string $period = 'month',
-        bool $isCustomRange = false
+        bool $isCustomRange = false,
+        ?\DateTimeImmutable $prevFrom = null,
+        ?\DateTimeImmutable $prevTo = null
     ): array {
+        $granularity = $this->resolveGranularity($from, $to, $period, $isCustomRange);
+
+        $newCustomersIndex = $this->buildNewCustomersIndex($from, $to, $granularity);
+        $indexed = $this->fetchChartBuckets($from, $to, $granularity);
+        $keys = $this->listBucketKeys($from, $to, $granularity);
+
+        $previousKeys = [];
+        $previousIndexed = [];
+        if ($prevFrom !== null && $prevTo !== null) {
+            $previousKeys = $this->listBucketKeys($prevFrom, $prevTo, $granularity);
+            $previousIndexed = $this->fetchChartBuckets($prevFrom, $prevTo, $granularity);
+        }
+
+        $empty = ['revenue' => 0.0, 'orders' => 0, 'orders_free' => 0, 'customers' => 0];
+        $chart = [];
+        foreach ($keys as $i => $key) {
+            $data = $indexed[$key] ?? $empty;
+            $previousKey = $previousKeys[$i] ?? null;
+            $chart[] = [
+                'label' => $key,
+                'turnover' => (float) $data['revenue'],
+                'orders' => (int) $data['orders'],
+                'orders_free' => (int) $data['orders_free'],
+                'customers' => (int) $data['customers'],
+                'new_customers' => $newCustomersIndex[$key] ?? 0,
+                'turnover_previous' => $previousKey !== null && isset($previousIndexed[$previousKey])
+                    ? (float) $previousIndexed[$previousKey]['revenue']
+                    : 0.0,
+            ];
+        }
+
+        return $chart;
+    }
+
+    /**
+     * Agrégats par bucket (CA hors port, commandes, commandes gratuites, clients) sur une plage.
+     *
+     * @param string $granularity 'hour', 'day' ou 'month'
+     * @return array<string, array{revenue: float, orders: int, orders_free: int, customers: int}>
+     */
+    private function fetchChartBuckets(\DateTimeImmutable $from, \DateTimeImmutable $to, string $granularity): array
+    {
         $fromSql = pSQL($from->format('Y-m-d H:i:s'));
         $toSql = pSQL($to->format('Y-m-d H:i:s'));
         $shopId = $this->getShopId();
 
-        $granularity = $this->resolveGranularity($from, $to, $period, $isCustomRange);
-        $isHourly = $granularity === 'hour';
-
-        // Index des nouveaux clients par bucket.
-        $newCustomersIndex = $this->buildNewCustomersIndex($from, $to, $granularity);
-
-        if ($isHourly) {
-            // Granularité horaire : la vue journalière ne produit qu'1 point en granularité
-            // journalière → la courbe est vide côté app (guard size < 2). On groupe par heure.
-            $query = new DbQuery();
-            $query->select('DATE_FORMAT(o.date_add, \'%Y-%m-%d %H:00:00\') AS hour');
-            // CA hors frais de port (cf. getMetrics()) : même correction sur la série horaire.
-            $query->select('SUM(o.total_paid_tax_incl - o.total_shipping_tax_incl) AS revenue');
-            $query->select('COUNT(*) AS orders');
-            $query->select('COUNT(DISTINCT o.id_customer) AS customers');
-            $query->from('orders', 'o');
-            $query->where('o.date_add BETWEEN "' . $fromSql . '" AND "' . $toSql . '"');
-            if ($shopId > 0) {
-                $query->where('o.id_shop = ' . $shopId);
-            }
-            $query->groupBy('hour');
-            $query->orderBy('hour ASC');
-
-            $rows = (array) Db::getInstance()->executeS($query);
-            $indexed = [];
-            foreach ($rows as $row) {
-                /** @var array<string, mixed> $row */
-                if (!isset($row['hour'])) {
-                    continue;
-                }
-
-                $hour = (string) $row['hour'];
-                $indexed[$hour] = [
-                    'revenue' => isset($row['revenue']) ? (float) $row['revenue'] : 0.0,
-                    'orders' => isset($row['orders']) ? (int) $row['orders'] : 0,
-                    'customers' => isset($row['customers']) ? (int) $row['customers'] : 0,
-                ];
-            }
-
-            $chart = [];
-            // Itération heure par heure de 00:00 à 23:00 (24 points).
-            $hourPeriod = new \DatePeriod(
-                $from->setTime(0, 0, 0),
-                new \DateInterval('PT1H'),
-                $to->setTime(23, 59, 59)->modify('+1 second')
-            );
-
-            foreach ($hourPeriod as $dt) {
-                $key = $dt->format('Y-m-d H:00:00');
-                $data = $indexed[$key] ?? ['revenue' => 0.0, 'orders' => 0, 'customers' => 0];
-                $chart[] = [
-                    'label' => $key,
-                    'turnover' => (float) $data['revenue'],
-                    'orders' => (int) $data['orders'],
-                    'customers' => (int) $data['customers'],
-                    'new_customers' => $newCustomersIndex[$key] ?? 0,
-                ];
-            }
-
-            return $chart;
-        }
-
-        if ($granularity === 'month') {
-            // Granularité mensuelle (preset `year`, cf. resolveGranularity()) : 1 point par mois
-            // civil, du mois de $from jusqu'au mois de $to inclus (12 points max sur une année).
-            $query = new DbQuery();
-            $query->select('DATE_FORMAT(o.date_add, \'%Y-%m-01\') AS month');
-            $query->select('SUM(o.total_paid_tax_incl - o.total_shipping_tax_incl) AS revenue');
-            $query->select('COUNT(*) AS orders');
-            $query->select('COUNT(DISTINCT o.id_customer) AS customers');
-            $query->from('orders', 'o');
-            $query->where('o.date_add BETWEEN "' . $fromSql . '" AND "' . $toSql . '"');
-            if ($shopId > 0) {
-                $query->where('o.id_shop = ' . $shopId);
-            }
-            $query->groupBy('month');
-            $query->orderBy('month ASC');
-
-            $rows = (array) Db::getInstance()->executeS($query);
-            $indexed = [];
-            foreach ($rows as $row) {
-                /** @var array<string, mixed> $row */
-                if (!isset($row['month'])) {
-                    continue;
-                }
-
-                $month = (string) $row['month'];
-                $indexed[$month] = [
-                    'revenue' => isset($row['revenue']) ? (float) $row['revenue'] : 0.0,
-                    'orders' => isset($row['orders']) ? (int) $row['orders'] : 0,
-                    'customers' => isset($row['customers']) ? (int) $row['customers'] : 0,
-                ];
-            }
-
-            $chart = [];
-            $cursor = $from->setDate((int) $from->format('Y'), (int) $from->format('n'), 1)->setTime(0, 0, 0);
-            $lastMonth = $to->setDate((int) $to->format('Y'), (int) $to->format('n'), 1)->setTime(0, 0, 0);
-
-            while ($cursor <= $lastMonth) {
-                $key = $cursor->format('Y-m-01');
-                $data = $indexed[$key] ?? ['revenue' => 0.0, 'orders' => 0, 'customers' => 0];
-                $chart[] = [
-                    'label' => $key,
-                    'turnover' => (float) $data['revenue'],
-                    'orders' => (int) $data['orders'],
-                    'customers' => (int) $data['customers'],
-                    'new_customers' => $newCustomersIndex[$key] ?? 0,
-                ];
-                $cursor = $cursor->modify('+1 month');
-            }
-
-            return $chart;
-        }
-
-        // Granularité journalière (toutes les autres périodes).
         $query = new DbQuery();
-        $query->select('DATE(o.date_add) AS day');
-        // CA hors frais de port (cf. getMetrics()) : même correction sur la série journalière.
+        if ($granularity === 'hour') {
+            $query->select('DATE_FORMAT(o.date_add, \'%Y-%m-%d %H:00:00\') AS bucket');
+        } elseif ($granularity === 'month') {
+            $query->select('DATE_FORMAT(o.date_add, \'%Y-%m-01\') AS bucket');
+        } else {
+            $query->select('DATE(o.date_add) AS bucket');
+        }
+        // CA hors frais de port (cf. getMetrics()).
         $query->select('SUM(o.total_paid_tax_incl - o.total_shipping_tax_incl) AS revenue');
         $query->select('COUNT(*) AS orders');
+        $query->select('SUM(CASE WHEN o.total_paid_tax_incl = 0 THEN 1 ELSE 0 END) AS orders_free');
         $query->select('COUNT(DISTINCT o.id_customer) AS customers');
         $query->from('orders', 'o');
         $query->where('o.date_add BETWEEN "' . $fromSql . '" AND "' . $toSql . '"');
         if ($shopId > 0) {
             $query->where('o.id_shop = ' . $shopId);
         }
-        $query->groupBy('day');
-        $query->orderBy('day ASC');
+        $query->groupBy('bucket');
+        $query->orderBy('bucket ASC');
 
-        $rows = (array) Db::getInstance()->executeS($query);
         $indexed = [];
-        foreach ($rows as $row) {
+        foreach ((array) Db::getInstance()->executeS($query) as $row) {
             /** @var array<string, mixed> $row */
-            if (!isset($row['day'])) {
+            if (!isset($row['bucket'])) {
                 continue;
             }
 
-            $day = (string) $row['day'];
-            $indexed[$day] = [
+            $indexed[(string) $row['bucket']] = [
                 'revenue' => isset($row['revenue']) ? (float) $row['revenue'] : 0.0,
                 'orders' => isset($row['orders']) ? (int) $row['orders'] : 0,
+                'orders_free' => isset($row['orders_free']) ? (int) $row['orders_free'] : 0,
                 'customers' => isset($row['customers']) ? (int) $row['customers'] : 0,
             ];
         }
 
-        $chart = [];
-        $datePeriod = new \DatePeriod(
-            $from->setTime(0, 0, 0),
-            new \DateInterval('P1D'),
-            $to->setTime(23, 59, 59)->modify('+1 second')
-        );
+        return $indexed;
+    }
 
-        foreach ($datePeriod as $date) {
-            $key = $date->format('Y-m-d');
-            $data = $indexed[$key] ?? ['revenue' => 0.0, 'orders' => 0, 'customers' => 0];
-            $chart[] = [
-                'label' => $key,
-                'turnover' => (float) $data['revenue'],
-                'orders' => (int) $data['orders'],
-                'customers' => (int) $data['customers'],
-                'new_customers' => $newCustomersIndex[$key] ?? 0,
-            ];
+    /**
+     * Clés ordonnées des buckets couvrant la plage (y compris sans activité).
+     *
+     * @return array<int, string>
+     */
+    private function listBucketKeys(\DateTimeImmutable $from, \DateTimeImmutable $to, string $granularity): array
+    {
+        $keys = [];
+        if ($granularity === 'month') {
+            $cursor = $from->setDate((int) $from->format('Y'), (int) $from->format('n'), 1)->setTime(0, 0, 0);
+            $lastMonth = $to->setDate((int) $to->format('Y'), (int) $to->format('n'), 1)->setTime(0, 0, 0);
+            while ($cursor <= $lastMonth) {
+                $keys[] = $cursor->format('Y-m-01');
+                $cursor = $cursor->modify('+1 month');
+            }
+
+            return $keys;
         }
 
-        return $chart;
+        $isHourly = $granularity === 'hour';
+        $datePeriod = new \DatePeriod(
+            $from->setTime(0, 0, 0),
+            new \DateInterval($isHourly ? 'PT1H' : 'P1D'),
+            $to->setTime(23, 59, 59)->modify('+1 second')
+        );
+        foreach ($datePeriod as $dt) {
+            $keys[] = $dt->format($isHourly ? 'Y-m-d H:00:00' : 'Y-m-d');
+        }
+
+        return $keys;
+    }
+
+    /**
+     * Taux de conversion offert -> payant.
+     *
+     * Parmi les clients dont la TOUTE PREMIERE commande (MIN date_add) est gratuite
+     * (total_paid_tax_incl = 0), part ayant passé ensuite au moins une commande payante
+     * (total_paid_tax_incl > 0, date_add postérieure). La fenêtre from/to porte sur la date de la
+     * première commande ; l'historique complet sert à qualifier la conversion.
+     *
+     * @return array{free_first_customers: int, paid_first_customers: int, converted: int, rate: float}
+     */
+    public function getFreeConversion(?\DateTimeImmutable $from = null, ?\DateTimeImmutable $to = null): array
+    {
+        $db = Db::getInstance();
+        $shopId = $this->getShopId();
+        $shopSql = $shopId > 0 ? ' AND id_shop = ' . $shopId : '';
+        $shopSqlO = $shopId > 0 ? ' AND o.id_shop = ' . $shopId : '';
+
+        $windowSql = '';
+        if ($from !== null) {
+            $windowSql .= ' AND f.first_date >= "' . pSQL($from->format('Y-m-d H:i:s')) . '"';
+        }
+        if ($to !== null) {
+            $windowSql .= ' AND f.first_date <= "' . pSQL($to->format('Y-m-d H:i:s')) . '"';
+        }
+
+        // Une ligne par client : date de 1ère commande, et total de cette 1ère commande (la plus
+        // ancienne ; à date égale, l'id_order le plus petit).
+        $firstOrders = 'SELECT o.id_customer, o.date_add AS first_date, o.total_paid_tax_incl AS first_total'
+            . ' FROM ' . _DB_PREFIX_ . 'orders o'
+            . ' WHERE o.id_order = ('
+            . 'SELECT o2.id_order FROM ' . _DB_PREFIX_ . 'orders o2'
+            . ' WHERE o2.id_customer = o.id_customer' . str_replace('id_shop', 'o2.id_shop', $shopSql)
+            . ' ORDER BY o2.date_add ASC, o2.id_order ASC LIMIT 1)' . $shopSqlO;
+
+        $base = ' FROM (' . $firstOrders . ') f WHERE 1' . $windowSql;
+
+        $freeFirst = (int) $db->getValue('SELECT COUNT(*)' . $base . ' AND f.first_total = 0');
+        $paidFirst = (int) $db->getValue('SELECT COUNT(*)' . $base . ' AND f.first_total > 0');
+        $converted = (int) $db->getValue(
+            'SELECT COUNT(*)' . $base . ' AND f.first_total = 0 AND EXISTS ('
+            . 'SELECT 1 FROM ' . _DB_PREFIX_ . 'orders op'
+            . ' WHERE op.id_customer = f.id_customer AND op.total_paid_tax_incl > 0'
+            . ' AND op.date_add > f.first_date' . str_replace('id_shop', 'op.id_shop', $shopSql) . ')'
+        );
+
+        return [
+            'free_first_customers' => $freeFirst,
+            'paid_first_customers' => $paidFirst,
+            'converted' => $converted,
+            'rate' => $freeFirst > 0 ? round($converted / $freeFirst * 100, 1) : 0.0,
+        ];
     }
 
     private function countActiveProducts(): int

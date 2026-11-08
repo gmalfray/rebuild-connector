@@ -56,6 +56,11 @@ class RebuildconnectorDashboardModuleFrontController extends RebuildconnectorBas
 
     private function handleGet(): void
     {
+        if ($this->isFreeConversionRequest()) {
+            $this->handleFreeConversion();
+            return;
+        }
+
         $fromParam = trim((string) Tools::getValue('from', ''));
         $toParam = trim((string) Tools::getValue('to', ''));
 
@@ -116,6 +121,47 @@ class RebuildconnectorDashboardModuleFrontController extends RebuildconnectorBas
         $metrics = $this->getDashboardService()->getMetrics($period);
 
         $this->renderJson($metrics);
+    }
+
+    private function isFreeConversionRequest(): bool
+    {
+        return trim((string) Tools::getValue('action', '')) === 'free-conversion';
+    }
+
+    /**
+     * GET dashboard/free-conversion[?from=YYYY-MM-DD&to=YYYY-MM-DD] (fenêtre sur la date de 1ère commande).
+     */
+    private function handleFreeConversion(): void
+    {
+        $fromParam = trim((string) Tools::getValue('from', ''));
+        $toParam = trim((string) Tools::getValue('to', ''));
+        $from = null;
+        $to = null;
+
+        foreach (['from' => $fromParam, 'to' => $toParam] as $name => $value) {
+            if ($value === '') {
+                continue;
+            }
+            $date = \DateTimeImmutable::createFromFormat('Y-m-d', $value);
+            if ($date === false || $date->format('Y-m-d') !== $value) {
+                throw new \InvalidArgumentException(
+                    $this->t('dashboard.error.invalid_date_format', [], 'Invalid date format. Use YYYY-MM-DD (e.g. 2025-06-01).')
+                );
+            }
+            if ($name === 'from') {
+                $from = $date->setTime(0, 0, 0);
+            } else {
+                $to = $date->setTime(23, 59, 59);
+            }
+        }
+
+        if ($from !== null && $to !== null && $from > $to) {
+            throw new \InvalidArgumentException(
+                $this->t('dashboard.error.from_after_to', [], '"from" must be earlier than or equal to "to".')
+            );
+        }
+
+        $this->renderJson($this->getDashboardService()->getFreeConversion($from, $to));
     }
 
     private function getDashboardService(): DashboardService

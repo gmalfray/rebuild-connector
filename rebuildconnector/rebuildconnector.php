@@ -593,6 +593,9 @@ class RebuildConnector extends Module
             'event' => 'order.created',
             'order_id' => (string) $orderId,
             'reference' => $reference,
+            'order_total' => (string) ($order->total_paid ?? 0),
+            'is_free' => (isset($order->total_paid) && (float) $order->total_paid == 0.0) ? '1' : '0',
+            'id_customer' => (string) ((int) ($order->id_customer ?? 0)),
         ];
 
         $this->recordAudit('order.created', [
@@ -1504,6 +1507,16 @@ class RebuildConnector extends Module
                 'params' => [
                     'fc' => 'module',
                     'module' => $module,
+                ],
+            ],
+            'module-' . $module . '-api-dashboard-free-conversion' => [
+                'controller' => 'dashboard',
+                'rule' => $baseRule . '/dashboard/free-conversion',
+                'keywords' => [],
+                'params' => [
+                    'fc' => 'module',
+                    'module' => $module,
+                    'action' => 'free-conversion',
                 ],
             ],
             'module-' . $module . '-api-customers' => [

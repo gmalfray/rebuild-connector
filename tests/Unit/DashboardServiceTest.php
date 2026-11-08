@@ -19,6 +19,8 @@ final class DashboardServiceTest extends TestCase
     {
         Db::$testLoggedSelectQueries = [];
         Db::$testGetValueResult = 0;
+        Db::$testGetValueMap = [];
+        Db::$testExecuteSResult = [];
         DbQuery::$testSelectLog = [];
         parent::tearDown();
     }
@@ -196,21 +198,132 @@ final class DashboardServiceTest extends TestCase
 
     public function testAverageBasketDerivesFromShippingExcludedTurnover(): void
     {
-        // Le panier moyen doit rester dérivé de `turnover` (déjà hors port), pas d'un total
-        // séparé qui réintroduirait le port par erreur.
+        // Le panier moyen reste dérivé de `turnover` (déjà hors port), divisé par les commandes
+        // PAYANTES (aucune gratuite ici).
         Db::$testGetValueResult = 30;
+        Db::$testGetValueMap = ['total_paid_tax_incl = 0 AND' => 0];
 
         $service = new DashboardService();
         $metrics = $service->getMetrics('today');
 
         $this->assertSame($metrics['turnover'], $metrics['revenue']);
-        $this->assertGreaterThan(0, $metrics['orders_count']);
+        $this->assertSame(0, $metrics['orders_free_count']);
         $this->assertEqualsWithDelta(
             $metrics['turnover'] / $metrics['orders_count'],
             $metrics['average_basket'],
-            0.0001,
-            'average_basket doit être turnover (hors port) / orders_count.'
+            0.0001
         );
+    }
+
+    public function testAverageBasketUsesPaidOrdersOnly(): void
+    {
+        Db::$testGetValueResult = 100;
+        Db::$testGetValueMap = ['total_paid_tax_incl = 0 AND' => 20];
+
+        $metrics = (new DashboardService())->getMetrics('today');
+
+        $this->assertSame(100, $metrics['orders_count']);
+        $this->assertSame(20, $metrics['orders_free_count']);
+        // numérateur 100.0 (stub), dénominateur 100 - 20 = 80
+        $this->assertEqualsWithDelta(100.0 / 80, $metrics['average_basket'], 0.0001);
+        $this->assertSame($metrics['average_basket'], $metrics['average_order_value']);
+    }
+
+    public function testAverageBasketIsZeroWhenAllOrdersAreFree(): void
+    {
+        Db::$testGetValueResult = 10;
+        Db::$testGetValueMap = ['total_paid_tax_incl = 0 AND' => 10];
+
+        $metrics = (new DashboardService())->getMetrics('today');
+
+        $this->assertSame(10, $metrics['orders_count']);
+        $this->assertSame(0.0, $metrics['average_basket']);
+    }
+
+    public function testChartPointsExposeFreeOrdersAndPreviousTurnover(): void
+    {
+        Db::$testExecuteSResult = [];
+        $metrics = (new DashboardService())->getMetrics('month');
+
+        $this->assertNotEmpty($metrics['chart']);
+        foreach ($metrics['chart'] as $point) {
+            $this->assertArrayHasKey('orders_free', $point);
+            $this->assertArrayHasKey('turnover_previous', $point);
+            $this->assertIsInt($point['orders_free']);
+            $this->assertIsFloat($point['turnover_previous']);
+        }
+    }
+
+    public function testChartPreviousTurnoverAlignsPositionally(): void
+    {
+        $service = new DashboardService();
+        $method = new \ReflectionMethod(DashboardService::class, 'buildChart');
+        $method->setAccessible(true);
+
+        // Le stub renvoie les mêmes lignes pour les deux plages : on les indexe sur des clés
+        // différentes en pilotant les deux appels via des lignes couvrant les deux années.
+        Db::$testExecuteSResult = [
+            ['bucket' => '2025-03-01', 'revenue' => '10', 'orders' => '2', 'orders_free' => '1', 'customers' => '2'],
+            ['bucket' => '2024-03-01', 'revenue' => '7.5', 'orders' => '1', 'orders_free' => '0', 'customers' => '1'],
+        ];
+        $from = new \DateTimeImmutable('2025-03-01 00:00:00');
+        $to = new \DateTimeImmutable('2025-03-03 23:59:59');
+        $prevFrom = new \DateTimeImmutable('2024-03-01 00:00:00');
+        $prevTo = new \DateTimeImmutable('2024-03-02 23:59:59'); // N-1 plus court
+
+        /** @var array<int, array<string, mixed>> $chart */
+        $chart = $method->invoke($service, $from, $to, 'custom', true, $prevFrom, $prevTo);
+
+        $this->assertCount(3, $chart);
+        $this->assertSame('2025-03-01', $chart[0]['label']);
+        $this->assertSame(10.0, $chart[0]['turnover']);
+        $this->assertSame(1, $chart[0]['orders_free']);
+        $this->assertSame(2, $chart[0]['orders']);
+        $this->assertSame(7.5, $chart[0]['turnover_previous']);
+        $this->assertSame(0.0, $chart[1]['turnover_previous']);
+        $this->assertSame(0.0, $chart[2]['turnover_previous'], 'N-1 plus court : complété par 0.');
+    }
+
+    public function testFreeConversionComputesRate(): void
+    {
+        Db::$testGetValueMap = [
+            'f.first_total = 0 AND EXISTS' => 3,
+            'f.first_total = 0' => 12,
+            'f.first_total > 0' => 40,
+        ];
+
+        $result = (new DashboardService())->getFreeConversion();
+
+        $this->assertSame(12, $result['free_first_customers']);
+        $this->assertSame(3, $result['converted']);
+        $this->assertSame(40, $result['paid_first_customers']);
+        $this->assertSame(25.0, $result['rate']);
+    }
+
+    public function testFreeConversionRateIsZeroWithoutFreeFirstCustomers(): void
+    {
+        Db::$testGetValueResult = 0;
+
+        $result = (new DashboardService())->getFreeConversion();
+
+        $this->assertSame(0, $result['free_first_customers']);
+        $this->assertSame(0.0, $result['rate']);
+    }
+
+    public function testFreeConversionFiltersShopAndWindow(): void
+    {
+        $from = new \DateTimeImmutable('2025-01-01 00:00:00');
+        $to = new \DateTimeImmutable('2025-12-31 23:59:59');
+        (new DashboardService())->getFreeConversion($from, $to);
+
+        $this->assertNotEmpty(Db::$testLoggedSelectQueries);
+        foreach (Db::$testLoggedSelectQueries as $sql) {
+            $this->assertStringContainsString('id_shop = 1', $sql);
+            $this->assertStringContainsString('f.first_date >= "2025-01-01 00:00:00"', $sql);
+            $this->assertStringContainsString('f.first_date <= "2025-12-31 23:59:59"', $sql);
+        }
+        $this->assertStringContainsString('op.total_paid_tax_incl > 0', Db::$testLoggedSelectQueries[2]);
+        $this->assertStringContainsString('op.date_add > f.first_date', Db::$testLoggedSelectQueries[2]);
     }
 
     // -----------------------------------------------------------------------

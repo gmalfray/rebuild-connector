@@ -1606,6 +1606,7 @@ sa forme ne change pas.
   },
   "turnover": 12500.00,
   "orders_count": 145,
+  "orders_free_count": 6,
   "customers_count": 98,
   "products_count": 312,
   "revenue": 12500.00,
@@ -1621,15 +1622,19 @@ sa forme ne change pas.
       "label": "2025-06-01",
       "turnover": 450.00,
       "orders": 5,
+      "orders_free": 1,
       "customers": 4,
-      "new_customers": 2
+      "new_customers": 2,
+      "turnover_previous": 380.50
     },
     {
       "label": "2025-06-02",
       "turnover": 0.0,
       "orders": 0,
+      "orders_free": 0,
       "customers": 0,
-      "new_customers": 0
+      "new_customers": 0,
+      "turnover_previous": 0.0
     }
   ]
 }
@@ -1644,6 +1649,14 @@ sa forme ne change pas.
 | `orders`        | int   | Nombre de commandes créées sur ce bucket.                                                    |
 | `customers`     | int   | Nombre de clients **ayant commandé** (COUNT DISTINCT id_customer) sur ce bucket.             |
 | `new_customers` | int   | **Nouveau (v1.7.0).** Nombre de clients dont la date d'inscription (`date_add` dans `ps_customer`) tombe dans ce bucket. Distinct de `customers` (qui mesure l'activité achat). Vaut 0 si aucune inscription. |
+
+| `orders_free`   | int   | **Nouveau.** Nombre de commandes gratuites (`total_paid_tax_incl = 0`) sur ce bucket (incluses dans `orders`). Payantes = `orders - orders_free`. |
+| `turnover_previous` | float | **Nouveau.** CA (hors port) du bucket de même rang sur la période de comparaison N-1 (`comparison_period`), alignement positionnel (bucket i courant = bucket i N-1, libellés différents). `0.0` si N-1 a moins de buckets ou pas de vente. |
+
+> **Commandes gratuites (nouveau).** `orders_count` et `turnover` restent des totaux (gratuites
+> incluses). Le champ additif `orders_free_count` (int, commandes `total_paid_tax_incl = 0` sur la
+> période, mêmes filtres que `orders_count`) les expose à part. `average_basket` /
+> `average_order_value` = `turnover` / (`orders_count - orders_free_count`), 0 si aucune payante.
 
 > `turnover` et `revenue` sont identiques et correspondent au CA TTC. `chart` contient un point par bucket sur toute la période, y compris les buckets sans activité (toutes les valeurs à zéro).
 
@@ -1677,6 +1690,34 @@ Plage libre du 1er janvier au 31 mars 2025 :
 curl "https://example.com/module/rebuildconnector/api/dashboard/metrics?from=2025-01-01&to=2025-03-31" \
   -H "Authorization: Bearer <token>"
 ```
+
+### GET `.../api/dashboard/free-conversion`
+
+Scope requis : `dashboard.read`
+
+Taux de conversion offert vers payant : parmi les clients dont la **toute première commande**
+(`MIN(date_add)`) est gratuite (`total_paid_tax_incl = 0`), part ayant passé ensuite au moins une
+commande payante (`total_paid_tax_incl > 0`, `date_add` postérieure). Les clients n'ayant que des
+commandes gratuites comptent au dénominateur, non convertis. Filtré sur la boutique courante.
+
+| Paramètre | Type   | Description |
+|-----------|--------|-------------|
+| `from`    | string | Optionnel, `YYYY-MM-DD` : borne basse sur la date de la 1ère commande. |
+| `to`      | string | Optionnel, `YYYY-MM-DD` : borne haute (jour inclus). Défaut sans paramètres : tout l'historique. |
+
+**Réponse 200** (objet plat) :
+
+```json
+{
+  "free_first_customers": 12,
+  "paid_first_customers": 340,
+  "converted": 3,
+  "rate": 25.0
+}
+```
+
+`rate` = `converted / free_first_customers * 100`, arrondi à 1 décimale (`0.0` si aucun client
+gratuit en premier). Erreurs : 400 `invalid_payload` (format de date, `from` > `to`).
 
 ---
 
@@ -1968,6 +2009,10 @@ Si l'événement est absent ou inconnu, aucun `channel_id` n'est transmis : l'ap
 canal par défaut. La clé `message.notification` (top-level) reste inchangée pour la
 compatibilité multi-plateforme.
 
+`order.created` porte aussi `order_total` (`total_paid`, chaîne), `is_free` (`"1"` si
+`total_paid == 0`, sinon `"0"`) et `id_customer` : l'app peut filtrer les commandes gratuites
+avant affichage, sans topic dédié.
+
 Exemple de payload FCM HTTP v1 pour `order.created` :
 
 ```json
@@ -1980,7 +2025,11 @@ Exemple de payload FCM HTTP v1 pour `order.created` :
     },
     "data": {
       "event": "order.created",
-      "order_id": "42"
+      "order_id": "42",
+      "reference": "ABCDEF",
+      "order_total": "29.9",
+      "is_free": "0",
+      "id_customer": "7"
     },
     "android": {
       "notification": {
@@ -2223,6 +2272,7 @@ curl -X POST "https://example.com/module/rebuildconnector/api/reviews/812/trash"
 | GET     | `.../api/customers/{id}`                        | customers    | `customers.read`    |
 | GET     | `.../api/customers/top`                         | reports      | `reports.read`      |
 | GET     | `.../api/dashboard/metrics`                     | dashboard    | `dashboard.read`    |
+| GET     | `.../api/dashboard/free-conversion`             | dashboard    | `dashboard.read`    |
 | GET     | `.../api/reports/bestsellers`                   | reports      | `reports.read`      |
 | GET     | `.../api/reports/bestcustomers`                 | reports      | `reports.read`      |
 | GET     | `.../api/baskets`                               | baskets      | `baskets.read`      |
