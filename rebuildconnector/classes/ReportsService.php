@@ -29,6 +29,12 @@ class ReportsService
         $query->leftJoin('product_lang', 'pl', 'pl.id_product = od.product_id AND pl.id_lang = ' . (int) $langId . ' AND pl.id_shop = ' . (int) $shopId);
         $query->leftJoin('product', 'p', 'p.id_product = od.product_id');
 
+        // Vraies ventes uniquement : commandes valides, payantes (pivot offerte/payante identique
+        // aux KPI du dashboard : total_paid_tax_incl = 0 / > 0), de la boutique courante.
+        $query->where('o.valid = 1');
+        $query->where('o.total_paid_tax_incl > 0');
+        $query->where('o.id_shop = ' . (int) $shopId);
+
         $this->applyDateFilters($query, 'o.date_add', $filters);
 
         $query->groupBy('od.product_id, od.product_attribute_id');

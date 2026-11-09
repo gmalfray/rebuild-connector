@@ -1727,13 +1727,17 @@ gratuit en premier). Erreurs : 400 `invalid_payload` (format de date, `from` > `
 
 Scope requis : `reports.read`
 
-Produits les plus vendus (en quantité).
+Produits les plus vendus, triés par quantité décroissante. Seules les vraies ventes comptent : commandes valides (`valid = 1`, donc ni annulées, ni impayées, ni en erreur) et payantes (`total_paid_tax_incl > 0`, donc hors commandes offertes à 0 €), pour la boutique courante. C'est le même critère « payante » que les KPI du dashboard.
 
-| Paramètre   | Type     | Description                              |
-|-------------|----------|------------------------------------------|
-| `limit`     | int      | Nombre de résultats (défaut 10, max 50)  |
-| `date_from` | datetime | Filtre date commande >= (Y-m-d H:i:s)    |
-| `date_to`   | datetime | Filtre date commande <=                  |
+La route répond aussi sous l'alias `.../api/reports/best-sellers`.
+
+| Paramètre   | Type     | Description                                                              |
+|-------------|----------|--------------------------------------------------------------------------|
+| `limit`     | int      | Nombre de résultats (défaut 10, max 50)                                  |
+| `date_from` | date     | Date de commande >= (`Y-m-d` ou `Y-m-d H:i:s`)                           |
+| `date_to`   | date     | Date de commande <= (`Y-m-d` ou `Y-m-d H:i:s`)                           |
+
+Une ligne correspond à un couple produit/déclinaison (`product_id` + `product_attribute_id`), pas à un produit agrégé : un même produit vendu en deux déclinaisons apparaît deux fois. `name` et `reference` peuvent valoir `null` si le produit n'existe plus en base.
 
 **Réponse 200**
 
@@ -1752,6 +1756,8 @@ Produits les plus vendus (en quantité).
   ]
 }
 ```
+
+Erreurs : 400 `invalid_payload` (`limit` non numérique ou date invalide), 405 `method_not_allowed` (méthode autre que GET).
 
 ---
 
