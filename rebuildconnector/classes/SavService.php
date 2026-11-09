@@ -158,6 +158,54 @@ class SavService
     }
 
     /**
+     * Indicateurs SAV pour la synthèse (`GET reports/reviews-summary`).
+     *
+     * - `open_threads` : fils non clos (`status <> 'closed'`), instantané de la boutique courante,
+     *   NON borné par la période (inclut donc les fils dormants anciens, cf. docblock de classe).
+     * - `answered_threads` : fils créés dans [$dateFrom, $dateTo] (bornes optionnelles
+     *   `Y-m-d H:i:s`) ayant au moins un message d'employé enregistré dans PrestaShop.
+     *
+     * Aucun délai de réponse n'est exposé : les réponses faites par e-mail (synchro IMAP) ne sont
+     * pas toutes tracées dans `customer_message`, un délai calculé ici serait trompeur.
+     *
+     * @return array{open_threads: int, answered_threads: int}
+     */
+    public function getThreadStats(?string $dateFrom = null, ?string $dateTo = null): array
+    {
+        $idShop = $this->getCurrentShopId();
+
+        $openQuery = new DbQuery();
+        $openQuery->select('COUNT(*)');
+        $openQuery->from('customer_thread', 'ct');
+        $openQuery->where('ct.status <> "closed"');
+        if ($idShop > 0) {
+            $openQuery->where('ct.id_shop = ' . $idShop);
+        }
+        $open = Db::getInstance()->getValue($openQuery);
+
+        // COUNT(DISTINCT) : la jointure 1-N sur les messages ne démultiplie pas le compte.
+        $answeredQuery = new DbQuery();
+        $answeredQuery->select('COUNT(DISTINCT ct.id_customer_thread)');
+        $answeredQuery->from('customer_thread', 'ct');
+        $answeredQuery->innerJoin('customer_message', 'cm', 'cm.id_customer_thread = ct.id_customer_thread AND cm.id_employee > 0');
+        if ($idShop > 0) {
+            $answeredQuery->where('ct.id_shop = ' . $idShop);
+        }
+        if ($dateFrom !== null) {
+            $answeredQuery->where('ct.date_add >= "' . pSQL($dateFrom) . '"');
+        }
+        if ($dateTo !== null) {
+            $answeredQuery->where('ct.date_add <= "' . pSQL($dateTo) . '"');
+        }
+        $answered = Db::getInstance()->getValue($answeredQuery);
+
+        return [
+            'open_threads' => $open !== false ? (int) $open : 0,
+            'answered_threads' => $answered !== false ? (int) $answered : 0,
+        ];
+    }
+
+    /**
      * Métadonnées d'un fil SEUL (sans ses messages), utilisé par le hook push `sav.message`
      * (cf. `RebuildConnector::hookActionObjectCustomerMessageAddAfter()`), qui n'a besoin que du
      * nom de la cliente pour composer la notification, pas de l'historique complet des messages.

@@ -27,6 +27,21 @@ interface ReviewsBridgeInterface
     public function getPendingReviews(int $limit, int $offset, int $idShop): array;
 
     /**
+     * Agrégats pour la synthèse (`GET reports/reviews-summary`).
+     *
+     * `total_reviews` et `average_rating` portent sur TOUS les avis PUBLIÉS (`validated=1, deleted=0`,
+     * importés compris) dont `date_add` est dans [$dateFrom, $dateTo] (bornes optionnelles, format
+     * `Y-m-d H:i:s`). `native_reviews` est le sous-ensemble déposé sur le site (`source = 'native'`),
+     * hors avis importés (ex. `source = 'etsy'`).
+     * `pending_reviews` est un instantané de la file de modération (`validated=0, deleted=0`),
+     * volontairement NON borné par la période. `average_rating` vaut `null` sans avis publié.
+     *
+     * @return array{total_reviews: int, native_reviews: int, average_rating: float|null, pending_reviews: int}
+     * @throws ReviewsUnavailableException si rbreviews n'est pas disponible.
+     */
+    public function getSummary(int $idShop, ?string $dateFrom, ?string $dateTo): array;
+
+    /**
      * Publie un avis (`validated = 1`). `null` si l'avis est introuvable / autre boutique.
      *
      * @return array<string, mixed>|null

@@ -752,6 +752,75 @@ class DashboardService
         ];
     }
 
+    /**
+     * CA mensuel (saisonnalité) : pour les N derniers mois civils (mois courant inclus, fuseau
+     * boutique), CA TTC et nombre de commandes des VRAIES VENTES, un point par mois.
+     *
+     * Vraie vente = `o.valid = 1 AND o.total_paid_tax_incl > 0` (exclut commandes non validées,
+     * annulées, et commandes offertes à 0 EUR). CA = SUM(total_paid_tax_incl - total_shipping_tax_incl),
+     * donc le CA « marchandise » HORS PORT, même base que getMetrics() pour que la saisonnalité se
+     * lise avec le CA du dashboard (léger écart possible : getMetrics ne filtre pas sur `valid`).
+     * Les mois sans vente sont renvoyés à 0 pour garantir une série continue.
+     *
+     * @return array{months: array<int, array{month: string, turnover: float, orders: int}>, period: array{from: string, to: string}}
+     */
+    public function getMonthlyTurnover(int $months = 12): array
+    {
+        $months = max(1, min(36, $months));
+
+        $now = new \DateTimeImmutable('now', self::shopTimeZone());
+        $firstOfCurrent = $now->setDate((int) $now->format('Y'), (int) $now->format('n'), 1)->setTime(0, 0, 0);
+        $from = $firstOfCurrent->modify('-' . ($months - 1) . ' months');
+
+        $shopId = $this->getShopId();
+        $query = new DbQuery();
+        $query->select('DATE_FORMAT(o.date_add, \'%Y-%m\') AS month');
+        $query->select('SUM(o.total_paid_tax_incl - o.total_shipping_tax_incl) AS turnover');
+        $query->select('COUNT(*) AS orders');
+        $query->from('orders', 'o');
+        $query->where('o.valid = 1');
+        $query->where('o.total_paid_tax_incl > 0');
+        $query->where('o.date_add >= "' . pSQL($from->format('Y-m-d H:i:s')) . '"');
+        $query->where('o.date_add <= "' . pSQL($now->format('Y-m-d H:i:s')) . '"');
+        if ($shopId > 0) {
+            $query->where('o.id_shop = ' . $shopId);
+        }
+        $query->groupBy('month');
+        $query->orderBy('month ASC');
+
+        $indexed = [];
+        foreach ((array) Db::getInstance()->executeS($query) as $row) {
+            /** @var array<string, mixed> $row */
+            if (!isset($row['month'])) {
+                continue;
+            }
+            $indexed[(string) $row['month']] = [
+                'turnover' => isset($row['turnover']) ? round((float) $row['turnover'], 2) : 0.0,
+                'orders' => isset($row['orders']) ? (int) $row['orders'] : 0,
+            ];
+        }
+
+        $series = [];
+        $cursor = $from;
+        for ($i = 0; $i < $months; ++$i) {
+            $key = $cursor->format('Y-m');
+            $series[] = [
+                'month' => $key,
+                'turnover' => $indexed[$key]['turnover'] ?? 0.0,
+                'orders' => $indexed[$key]['orders'] ?? 0,
+            ];
+            $cursor = $cursor->modify('+1 month');
+        }
+
+        return [
+            'months' => $series,
+            'period' => [
+                'from' => $from->format('Y-m-d'),
+                'to' => $now->format('Y-m-d'),
+            ],
+        ];
+    }
+
     private function countActiveProducts(): int
     {
         $shopId = $this->getShopId();

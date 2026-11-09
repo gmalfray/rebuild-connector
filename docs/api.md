@@ -1769,6 +1769,44 @@ jours n'a pas encore eu ses 90 jours pour convertir. Erreurs : 400 `invalid_payl
 
 ---
 
+### GET `.../api/dashboard/monthly-turnover`
+
+Scope requis : `dashboard.read`
+
+CA mensuel pour observer la saisonnalité. Renvoie, pour les N derniers mois civils (mois courant
+inclus, fuseau de la boutique), le CA TTC et le nombre de commandes des **vraies ventes**, groupés par
+mois civil. Filtré sur la boutique courante.
+
+Une vraie vente est une commande avec `valid = 1` et `total_paid_tax_incl > 0` : les commandes non
+validées (annulées, paiement refusé) et les commandes offertes à 0 EUR sont exclues. Le CA est le CA
+**marchandise hors frais de port** (`SUM(total_paid_tax_incl - total_shipping_tax_incl)`), même base
+que le CA de `dashboard/metrics` et de son graphique, pour que la saisonnalité se lise avec le CA du
+tableau de bord. Léger écart possible : `dashboard/metrics` ne filtre pas sur `valid`, donc il compte
+aussi les commandes non validées.
+
+| Paramètre | Type | Description |
+|-----------|------|-------------|
+| `months`  | int  | Optionnel, de 1 à 36 (défaut 12). Nombre de mois, mois courant inclus. |
+
+**Réponse 200**
+
+```json
+{
+  "months": [
+    { "month": "2025-12", "turnover": 1234.56, "orders": 42 },
+    { "month": "2026-01", "turnover": 0.0, "orders": 0 }
+  ],
+  "period": { "from": "2025-12-01", "to": "2026-11-09" }
+}
+```
+
+La liste est triée par mois croissant et continue : un mois sans vente est renvoyé avec `turnover: 0.0`
+et `orders: 0`. Le dernier mois est le mois en cours, donc partiel. `period.from` est le premier jour du
+premier mois, `period.to` la date du jour (fuseau boutique). Erreurs : 400 `invalid_payload` (`months`
+non entier ou hors de 1 à 36).
+
+---
+
 ## Rapports
 
 ### GET `.../api/reports/bestsellers`
@@ -2012,6 +2050,73 @@ Les 7 univers sont toujours présents, dans cet ordre fixe, avec des zéros s'il
 | `period.date_from` / `date_to` | string\|null | Filtres reçus, `null` si absents              |
 
 **Erreurs** : 400 `invalid_payload` (format de date invalide), 401, 403 (scope manquant), 405 (méthode autre que GET).
+
+---
+
+### GET `.../api/reports/reviews-summary`
+
+Scope requis : `reports.read`
+
+Synthèse des avis clients (module tiers rbreviews), avec un bloc SAV en bonus. Filtré sur la boutique
+courante.
+
+**Indisponibilité** : si rbreviews n'est pas installé ou pas actif, la route répond **409**
+`reviews_unavailable` (même comportement que `.../api/reviews`), pour que l'app masque le widget.
+
+| Paramètre   | Type   | Description |
+|-------------|--------|-------------|
+| `date_from` | string | Optionnel, `YYYY-MM-DD` ou `YYYY-MM-DD HH:MM:SS`. Une date seule vaut 00:00:00. |
+| `date_to`   | string | Optionnel, mêmes formats. Une date seule vaut 23:59:59 (le jour est inclus). |
+
+Sans paramètres, tout l'historique est pris en compte.
+
+**Réponse 200**
+
+```json
+{
+  "total_reviews": 2856,
+  "native_reviews": 16,
+  "average_rating": 4.88,
+  "pending_reviews": 0,
+  "orders": 6721,
+  "review_rate": 0.2,
+  "period": { "from": null, "to": null },
+  "sav": {
+    "open_threads": 5,
+    "answered_threads": 190
+  }
+}
+```
+
+Définitions :
+
+- `total_reviews` : **tous** les avis publiés (`validated = 1` et `deleted = 0`), avis importés compris
+  (par exemple depuis Etsy), dont la date de création est dans la période. C'est le contexte de la note
+  moyenne affichée sur la boutique.
+- `native_reviews` : sous-ensemble de `total_reviews` déposé **sur le site** (`source = 'native'`).
+  Les avis importés (`source = 'etsy'`) sont exclus.
+- `average_rating` : moyenne des notes (`grade`, arrondie à 2 décimales) sur **tous** les avis publiés
+  (`total_reviews`, importés compris), comme la note moyenne affichée par la boutique. `null` s'il n'y
+  en a aucun.
+- `pending_reviews` : avis en attente de modération (`validated = 0` et `deleted = 0`), **instantané
+  actuel**, non borné par la période.
+- `orders` : nombre de vraies ventes de la période, c'est-à-dire commandes avec `valid = 1` et
+  `total_paid_tax_incl > 0` (annulées, non validées et offertes exclues), `date_add` dans la période.
+- `review_rate` : `native_reviews / orders * 100`, arrondi à 1 décimale (pourcentage). C'est le taux
+  d'avis issus du **site** rapporté aux commandes du site ; les avis importés n'y entrent pas. `null` si
+  `orders = 0`.
+- `period` : bornes effectivement appliquées (`null` si non fournie).
+
+Bloc `sav` (best-effort, SAV natif PrestaShop `customer_thread` / `customer_message`) : **omis** si le
+calcul échoue. Aucun délai de réponse n'est exposé, car les réponses envoyées par e-mail ne sont pas
+toutes enregistrées dans PrestaShop.
+
+- `open_threads` : fils non clos (`status <> 'closed'`), instantané, non borné par la période. Inclut
+  les fils dormants anciens jamais fermés.
+- `answered_threads` : fils créés dans la période ayant au moins un message d'employé enregistré dans
+  PrestaShop. C'est un plancher : une réponse faite hors PrestaShop n'est pas comptée.
+
+Erreurs : 400 `invalid_payload` (format de date, `date_from` > `date_to`), 409 `reviews_unavailable`.
 
 ---
 
@@ -2502,11 +2607,13 @@ curl -X POST "https://example.com/module/rebuildconnector/api/reviews/812/trash"
 | GET     | `.../api/dashboard/metrics`                     | dashboard    | `dashboard.read`    |
 | GET     | `.../api/dashboard/free-conversion`             | dashboard    | `dashboard.read`    |
 | GET     | `.../api/dashboard/free-conversion-cohorts`     | dashboard    | `dashboard.read`    |
+| GET     | `.../api/dashboard/monthly-turnover`            | dashboard    | `dashboard.read`    |
 | GET     | `.../api/reports/bestsellers`                   | reports      | `reports.read`      |
 | GET     | `.../api/reports/bestcustomers`                 | reports      | `reports.read`      |
 | GET     | `.../api/reports/sales-by-univers`              | reports      | `reports.read`      |
 | GET     | `.../api/reports/customer-retention`            | reports      | `reports.read`      |
 | GET     | `.../api/reports/acquisition-channels`          | reports      | `reports.read`      |
+| GET     | `.../api/reports/reviews-summary`               | reports      | `reports.read`      |
 | GET     | `.../api/baskets`                               | baskets      | `baskets.read`      |
 | GET     | `.../api/baskets/{id}`                          | baskets      | `baskets.read`      |
 | POST    | `.../api/notifications/devices`                 | notifications| `notifications.send`|

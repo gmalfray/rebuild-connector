@@ -241,6 +241,11 @@ final class FakeReviewsBridge implements ReviewsBridgeInterface
         ];
     }
 
+    public function getSummary(int $idShop, ?string $dateFrom, ?string $dateTo): array
+    {
+        return ['total_reviews' => 0, 'native_reviews' => 0, 'average_rating' => null, 'pending_reviews' => 0];
+    }
+
     public function publish(int $idReview, int $idShop): ?array
     {
         return $this->publishResult;
