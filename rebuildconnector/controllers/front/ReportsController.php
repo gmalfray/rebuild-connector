@@ -86,6 +86,13 @@ class RebuildconnectorReportsModuleFrontController extends RebuildconnectorBaseA
                     'date_to' => $filters['date_to'],
                 ]));
                 return;
+            case 'acquisition-channels':
+                $this->renderJson($this->getReportsService()->getAcquisitionChannels([
+                    'date_from' => $filters['date_from'],
+                    'date_to' => $filters['date_to'],
+                    'window_days' => Tools::getValue('window_days'),
+                ]));
+                return;
             default:
                 throw new \InvalidArgumentException($this->t('reports.error.unknown_resource', [], 'Unknown report resource.'));
         }

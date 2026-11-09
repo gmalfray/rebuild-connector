@@ -124,4 +124,118 @@ final class ReportsServiceTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
         (new ReportsService())->getCustomerRetention(['date_from' => '2026-06-01', 'date_to' => '2026-05-01']);
     }
+
+    public function testAcquisitionSqlHasFiltersAndWindow(): void
+    {
+        (new ReportsService())->getAcquisitionChannels([
+            'date_from' => '2026-05-01', 'date_to' => '2026-05-31', 'window_days' => '14',
+        ]);
+
+        $this->assertCount(1, Db::$testLoggedSelectQueries);
+        $sql = Db::$testLoggedSelectQueries[0];
+        $this->assertStringContainsString('o.valid = 1', $sql);
+        $this->assertStringContainsString('o.total_paid_tax_incl > 0', $sql);
+        $this->assertStringContainsString('o.id_shop = 1', $sql);
+        $this->assertStringContainsString('o.date_add >= "2026-05-01 00:00:00"', $sql);
+        $this->assertStringContainsString('o.date_add <= "2026-05-31 23:59:59"', $sql);
+        $this->assertStringContainsString('ca.id_guest', $sql);
+        $this->assertStringContainsString('connections_source', $sql);
+        $this->assertStringContainsString('cs.date_add <= o.date_add', $sql);
+        $this->assertStringContainsString('INTERVAL 14 DAY', $sql);
+        $this->assertStringContainsString('ORDER BY cs.date_add DESC', $sql);
+        $this->assertStringContainsString('LIMIT 1', $sql);
+    }
+
+    public function testAcquisitionDefaultWindowAndEmptyKeepsDirect(): void
+    {
+        $result = (new ReportsService())->getAcquisitionChannels();
+
+        $this->assertSame(30, $result['window_days']);
+        $this->assertSame([['key' => 'direct', 'orders' => 0]], $result['channels']);
+        $this->assertNull($result['period']['date_from']);
+        $this->assertStringContainsString('INTERVAL 30 DAY', Db::$testLoggedSelectQueries[0]);
+    }
+
+    /**
+     * @return array<string, array{0: string, 1: string, 2: string}>
+     */
+    public function channelProvider(): array
+    {
+        return [
+            'utm ig' => ['', '/?utm_source=ig&utm_medium=bio', 'instagram'],
+            'utm instagram majuscules' => ['', '/p?x=1&utm_source=Instagram', 'instagram'],
+            'utm social' => ['', '/?utm_source=social', 'social'],
+            'utm libre' => ['', '/?utm_source=Newsletter', 'newsletter'],
+            'utm prioritaire sur referer' => ['https://www.google.com/', '/?utm_source=ig', 'instagram'],
+            'google' => ['https://www.google.com/', '/', 'recherche'],
+            'bing' => ['https://www.bing.com/search?q=x', '/', 'recherche'],
+            'qwant' => ['https://www.qwant.com/', '/', 'recherche'],
+            'instagram referer' => ['https://l.instagram.com/?u=x', '/', 'instagram'],
+            'linktree' => ['https://linktr.ee/pensebonheur', '/', 'instagram'],
+            'facebook' => ['https://m.facebook.com/', '/', 'facebook'],
+            'pinterest' => ['https://fr.pinterest.com/', '/', 'pinterest'],
+            'brevo' => ['https://app.brevo.com/x', '/', 'email'],
+            'sendinblue' => ['https://sendibt3.sendinblue.com/x', '/', 'email'],
+            'autre' => ['https://exemple.org/', '/', 'autre'],
+        ];
+    }
+
+    /**
+     * @dataProvider channelProvider
+     */
+    public function testDeriveChannel(string $referer, string $uri, string $expected): void
+    {
+        $this->assertSame($expected, ReportsService::deriveChannel($referer, $uri));
+    }
+
+    public function testAcquisitionAggregatesFallsBackToDirectAndSorts(): void
+    {
+        Db::$testExecuteSResult = [
+            ['id_order' => 1, 'http_referer' => 'https://www.google.com/', 'request_uri' => '/'],
+            ['id_order' => 2, 'http_referer' => 'https://www.google.com/', 'request_uri' => '/'],
+            ['id_order' => 3, 'http_referer' => '', 'request_uri' => '/?utm_source=ig'],
+            ['id_order' => 4, 'http_referer' => null, 'request_uri' => null],
+            ['id_order' => 5, 'http_referer' => null, 'request_uri' => null],
+            ['id_order' => 6, 'http_referer' => null, 'request_uri' => null],
+        ];
+
+        $result = (new ReportsService())->getAcquisitionChannels();
+
+        $this->assertSame([
+            ['key' => 'direct', 'orders' => 3],
+            ['key' => 'recherche', 'orders' => 2],
+            ['key' => 'instagram', 'orders' => 1],
+        ], $result['channels']);
+        $this->assertSame(6, array_sum(array_column($result['channels'], 'orders')));
+    }
+
+    /**
+     * @dataProvider badWindowProvider
+     * @param mixed $value
+     */
+    public function testAcquisitionRejectsInvalidWindow($value): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        (new ReportsService())->getAcquisitionChannels(['window_days' => $value]);
+    }
+
+    /**
+     * @return array<string, array{0: mixed}>
+     */
+    public function badWindowProvider(): array
+    {
+        return ['zero' => ['0'], 'trop grand' => ['366'], 'negatif' => ['-5'], 'texte' => ['abc'], 'decimal' => ['2.5']];
+    }
+
+    public function testAcquisitionAcceptsWindowBounds(): void
+    {
+        $this->assertSame(1, (new ReportsService())->getAcquisitionChannels(['window_days' => '1'])['window_days']);
+        $this->assertSame(365, (new ReportsService())->getAcquisitionChannels(['window_days' => 365])['window_days']);
+    }
+
+    public function testAcquisitionRejectsInvalidDates(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        (new ReportsService())->getAcquisitionChannels(['date_from' => '2026-06-01', 'date_to' => '2026-05-01']);
+    }
 }

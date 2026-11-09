@@ -1882,6 +1882,68 @@ Définitions :
 
 ---
 
+### GET `.../api/reports/acquisition-channels`
+
+Scope requis : `reports.read`
+
+Répartition des commandes payantes par canal d'acquisition. À lire comme un indicatif (« le visiteur
+est passé par ce canal avant d'acheter »), pas comme du dernier clic strict. Filtré sur la boutique
+courante, commandes valides (`orders.valid = 1`) et payantes (`total_paid_tax_incl > 0`).
+
+Attribution (une commande, un seul canal) : on prend le dernier contact non direct du même visiteur
+(`orders.id_cart`, `cart.id_guest`, `connections.id_guest`, `connections_source`) dont la date est
+comprise entre `date de la commande - window_days` et la date de la commande. Un contact est non direct
+s'il a un referer non vide ou un `utm_source` dans `request_uri`. Canal, dans l'ordre :
+
+1. `utm_source` si présent : `ig` et `instagram` donnent `instagram`, sinon la valeur en minuscules
+   (`social`, `newsletter`, etc.) ;
+2. sinon le referer : instagram et linktr.ee donnent `instagram` ; google, bing, duckduckgo, yahoo,
+   brave, qwant donnent `recherche` ; facebook donne `facebook` ; pinterest donne `pinterest` ;
+   brevo et sendinblue donnent `email` ; le reste donne `autre`.
+
+Sans contact non direct dans la fenêtre, la commande est comptée en `direct`. La somme des canaux est
+égale au nombre de commandes payantes de la période.
+
+| Paramètre     | Type    | Description |
+|---------------|---------|-------------|
+| `date_from`   | string  | Optionnel, `YYYY-MM-DD` ou `YYYY-MM-DD HH:MM:SS`. |
+| `date_to`     | string  | Optionnel, même format. Sans heure, la journée entière est incluse (23:59:59). |
+| `window_days` | integer | Optionnel, fenêtre d'attribution en jours, 1 à 365, défaut 30. |
+
+**Réponse 200**
+
+```json
+{
+  "channels": [
+    { "key": "direct", "orders": 44 },
+    { "key": "recherche", "orders": 118 },
+    { "key": "instagram", "orders": 63 },
+    { "key": "email", "orders": 16 }
+  ],
+  "window_days": 30,
+  "period": { "date_from": null, "date_to": null }
+}
+```
+
+Les canaux sont triés par `orders` décroissant (ex aequo par clé) ; `direct` est toujours présent, même à
+0. Les clés sont `direct`, `recherche`, `instagram`, `facebook`, `pinterest`, `email`, `autre`, plus
+d'éventuelles valeurs d'`utm_source` du client.
+
+Limites à connaître :
+
+- `direct` est un fourre-tout : visites sans referer (adresse tapée, favoris, app Instagram qui
+  n'envoie pas de referer), clients sans suivi de connexion, et commandes sans contact dans la fenêtre.
+- Le referer n'est renseigné que dans une petite partie des connexions (environ 5 % en production).
+- Un utm_source dans les liens de bio ou de newsletter permet de récupérer une partie de ces visites.
+- Un canal n'est pas la cause de la commande : c'est le dernier passage identifiable dans la fenêtre.
+- Requête en lecture seule, avec une sous-requête par commande payante de la période ; renseigner
+  `date_from` et `date_to` pour la borner.
+
+Erreurs : 400 `invalid_payload` (format de date, `date_from` > `date_to`, `window_days` hors 1-365 ou non
+entier), 405 si la méthode n'est pas GET.
+
+---
+
 ### GET `.../api/customers/top`
 
 Alias vers les meilleurs clients : route friendly identique à `GET .../api/reports/bestcustomers` (même controller `reports`, même paramètre `resource=bestcustomers`). Accepte les mêmes paramètres et retourne la même structure.
@@ -2372,6 +2434,7 @@ curl -X POST "https://example.com/module/rebuildconnector/api/reviews/812/trash"
 | GET     | `.../api/reports/bestsellers`                   | reports      | `reports.read`      |
 | GET     | `.../api/reports/bestcustomers`                 | reports      | `reports.read`      |
 | GET     | `.../api/reports/customer-retention`            | reports      | `reports.read`      |
+| GET     | `.../api/reports/acquisition-channels`          | reports      | `reports.read`      |
 | GET     | `.../api/baskets`                               | baskets      | `baskets.read`      |
 | GET     | `.../api/baskets/{id}`                          | baskets      | `baskets.read`      |
 | POST    | `.../api/notifications/devices`                 | notifications| `notifications.send`|

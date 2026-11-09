@@ -198,6 +198,148 @@ class ReportsService
     }
 
     /**
+     * Acquisition par canal : chaque commande payante est rattachée à UN canal (indicatif).
+     *
+     * Pour chaque commande payante (valide, total TTC > 0, boutique courante) on cherche le DERNIER
+     * contact non direct du même guest (orders.id_cart -> cart.id_guest -> connections.id_guest ->
+     * connections_source) dans la fenêtre [date commande - window_days ; date commande]. Un contact est
+     * non direct s'il porte un referer non vide ou un utm_source dans request_uri. Sans contact non
+     * direct, la commande est comptée en « direct ». La somme des canaux égale donc le nombre de
+     * commandes payantes de la période.
+     *
+     * Lecture seule. Coût : une sous-requête corrélée par commande payante de la période, bornée par
+     * la fenêtre de dates et par id_guest/date_add ; pas de balayage non borné de connections_source
+     * tant que date_from/date_to sont fournis (sans bornes, toutes les commandes payantes sont lues).
+     *
+     * @param array<string, mixed> $filters date_from, date_to, window_days (1-365, défaut 30)
+     * @return array<string, mixed>
+     * @throws \InvalidArgumentException si dates ou window_days sont invalides.
+     */
+    public function getAcquisitionChannels(array $filters = []): array
+    {
+        $from = $this->normalizeBound($filters['date_from'] ?? null, false);
+        $to = $this->normalizeBound($filters['date_to'] ?? null, true);
+        if ($from !== null && $to !== null && $from > $to) {
+            throw new \InvalidArgumentException('"date_from" doit être antérieure ou égale à "date_to".');
+        }
+        $windowDays = $this->normalizeWindowDays($filters['window_days'] ?? null);
+
+        $shopId = $this->getShopId();
+        $where = 'o.valid = 1 AND o.total_paid_tax_incl > 0' . ($shopId > 0 ? ' AND o.id_shop = ' . $shopId : '');
+        if ($from !== null) {
+            $where .= ' AND o.date_add >= "' . pSQL($from) . '"';
+        }
+        if ($to !== null) {
+            $where .= ' AND o.date_add <= "' . pSQL($to) . '"';
+        }
+
+        $lastContact = 'SELECT cs.id_connections_source FROM ' . _DB_PREFIX_ . 'connections c'
+            . ' INNER JOIN ' . _DB_PREFIX_ . 'connections_source cs ON cs.id_connections = c.id_connections'
+            . ' WHERE c.id_guest = ca.id_guest AND ca.id_guest > 0'
+            . ' AND cs.date_add <= o.date_add'
+            . ' AND cs.date_add >= DATE_SUB(o.date_add, INTERVAL ' . $windowDays . ' DAY)'
+            . ' AND (cs.http_referer <> "" OR cs.request_uri LIKE "%utm\_source=%")'
+            . ' ORDER BY cs.date_add DESC, cs.id_connections_source DESC LIMIT 1';
+
+        $sql = 'SELECT x.id_order, t.http_referer, t.request_uri FROM ('
+            . 'SELECT o.id_order, (' . $lastContact . ') AS id_cs FROM ' . _DB_PREFIX_ . 'orders o'
+            . ' LEFT JOIN ' . _DB_PREFIX_ . 'cart ca ON ca.id_cart = o.id_cart'
+            . ' WHERE ' . $where
+            . ') x LEFT JOIN ' . _DB_PREFIX_ . 'connections_source t ON t.id_connections_source = x.id_cs';
+
+        /** @var array<int, array<string, mixed>> $rows */
+        $rows = Db::getInstance()->executeS($sql) ?: [];
+
+        $counts = ['direct' => 0];
+        foreach ($rows as $row) {
+            $referer = $row['http_referer'] ?? null;
+            $uri = $row['request_uri'] ?? null;
+            $key = $referer === null && $uri === null
+                ? 'direct'
+                : self::deriveChannel((string) $referer, (string) $uri);
+            $counts[$key] = ($counts[$key] ?? 0) + 1;
+        }
+
+        $channels = [];
+        foreach ($counts as $key => $orders) {
+            $channels[] = ['key' => (string) $key, 'orders' => $orders];
+        }
+        usort($channels, static function (array $a, array $b): int {
+            return $b['orders'] <=> $a['orders'] ?: strcmp($a['key'], $b['key']);
+        });
+
+        return [
+            'channels' => $channels,
+            'window_days' => $windowDays,
+            'period' => ['date_from' => $from, 'date_to' => $to],
+        ];
+    }
+
+    /**
+     * Canal d'un contact non direct : utm_source d'abord, puis referer, sinon « autre ».
+     */
+    public static function deriveChannel(string $referer, string $requestUri): string
+    {
+        if (stripos($requestUri, 'utm_source=') !== false
+            && preg_match('/[?&]utm_source=([^&#]*)/i', $requestUri, $m) === 1) {
+            $utm = strtolower(trim(urldecode($m[1])));
+            $utm = (string) preg_replace('/[^a-z0-9_. -]/', '', $utm);
+            $utm = substr($utm, 0, 40);
+            if ($utm !== '') {
+                if ($utm === 'ig' || $utm === 'instagram') {
+                    return 'instagram';
+                }
+
+                return $utm;
+            }
+        }
+
+        $referer = strtolower(trim($referer));
+        if ($referer === '') {
+            return 'autre';
+        }
+        $host = parse_url($referer, PHP_URL_HOST);
+        $haystack = is_string($host) && $host !== '' ? $host : $referer;
+
+        $map = [
+            'instagram' => ['instagram', 'linktr.ee'],
+            'recherche' => ['google', 'bing', 'duckduckgo', 'yahoo', 'brave', 'qwant'],
+            'facebook' => ['facebook'],
+            'pinterest' => ['pinterest'],
+            'email' => ['brevo', 'sendinblue'],
+        ];
+        foreach ($map as $channel => $needles) {
+            foreach ($needles as $needle) {
+                if (strpos($haystack, $needle) !== false) {
+                    return $channel;
+                }
+            }
+        }
+
+        return 'autre';
+    }
+
+    /**
+     * @param mixed $value
+     * @throws \InvalidArgumentException hors 1-365 ou non entier.
+     */
+    private function normalizeWindowDays($value): int
+    {
+        if ($value === null || $value === false || trim((string) $value) === '') {
+            return 30;
+        }
+        if (!is_numeric($value) || (string) (int) $value !== trim((string) $value)) {
+            throw new \InvalidArgumentException('"window_days" doit être un entier entre 1 et 365.');
+        }
+        $days = (int) $value;
+        if ($days < 1 || $days > 365) {
+            throw new \InvalidArgumentException('"window_days" doit être un entier entre 1 et 365.');
+        }
+
+        return $days;
+    }
+
+    /**
      * Écarts (en jours, fractionnaires) entre commandes consécutives d'un même client. Les lignes
      * doivent être triées par id_customer puis date_add croissants.
      *

@@ -1602,6 +1602,16 @@ class RebuildConnector extends Module
                     'resource' => 'customer-retention',
                 ],
             ],
+            'module-' . $module . '-api-reports-acquisition-channels' => [
+                'controller' => 'reports',
+                'rule' => $baseRule . '/reports/acquisition-channels',
+                'keywords' => [],
+                'params' => [
+                    'fc' => 'module',
+                    'module' => $module,
+                    'resource' => 'acquisition-channels',
+                ],
+            ],
             'module-' . $module . '-api-notifications-devices' => [
                 'controller' => 'notifications',
                 'rule' => $baseRule . '/notifications/devices',
