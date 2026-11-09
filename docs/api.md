@@ -1617,6 +1617,7 @@ sa forme ne change pas.
   "average_order_value": 86.21,
   "returns": 3,
   "currency": "EUR",
+  "low_stock_count": 47,
   "chart": [
     {
       "label": "2025-06-01",
@@ -1652,6 +1653,13 @@ sa forme ne change pas.
 
 | `orders_free`   | int   | **Nouveau.** Nombre de commandes gratuites (`total_paid_tax_incl = 0`) sur ce bucket (incluses dans `orders`). Payantes = `orders - orders_free`. |
 | `turnover_previous` | float | **Nouveau.** CA (hors port) du bucket de même rang sur la période de comparaison N-1 (`comparison_period`), alignement positionnel (bucket i courant = bucket i N-1, libellés différents). `0.0` si N-1 a moins de buckets ou pas de vente. |
+
+> **Stock faible (depuis v1.24.0).** `low_stock_count` (int) est le comptage **exact** des produits en
+> stock faible, aligné sur le filtre `GET /products?stock=low_stock` : produits actifs avec
+> `0 < quantité <= low_stock_threshold` (seuil par produit, sinon 5), **ruptures exclues**. C'est le
+> nombre à afficher pour une tuile « Stock bas » cohérente avec la liste Produits filtrée. À distinguer
+> de `low_stock_alerts` (liste d'alertes plafonnée à 50, seuil global 5, ruptures incluses), conservée
+> pour compatibilité.
 
 > **Commandes gratuites (nouveau).** `orders_count` et `turnover` restent des totaux (gratuites
 > incluses). Le champ additif `orders_free_count` (int, commandes `total_paid_tax_incl = 0` sur la

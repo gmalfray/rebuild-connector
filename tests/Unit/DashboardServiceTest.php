@@ -150,6 +150,22 @@ final class DashboardServiceTest extends TestCase
         }
     }
 
+    // low_stock_count : la tuile « Stock bas » du dashboard doit afficher le MÊME nombre que la carte
+    // « Stock faible » de l'onglet Produits, vers laquelle elle mène. Le comptage délègue à
+    // ProductsService::countProducts(stock=low_stock) : hors ruptures (quantité > 0) et au seuil effectif
+    // par produit (low_stock_threshold), distinct de low_stock_alerts (seuil global, ruptures incluses).
+    // Ici on verrouille le câblage (getMetrics expose la valeur comptée) ; la définition SQL hors ruptures
+    // est couverte par ProductsServiceTest, source unique du comptage.
+    public function testMetricsExposeExactLowStockCount(): void
+    {
+        Db::$testGetValueResult = 47;
+        $service = new DashboardService();
+        $metrics = $service->getMetrics('today');
+
+        $this->assertArrayHasKey('low_stock_count', $metrics, 'getMetrics doit exposer low_stock_count.');
+        $this->assertSame(47, $metrics['low_stock_count']);
+    }
+
     public function testChartRevenueQueryExcludesShippingDailyGranularity(): void
     {
         $service = new DashboardService();

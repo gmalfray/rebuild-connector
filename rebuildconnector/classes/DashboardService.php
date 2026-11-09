@@ -3,6 +3,7 @@
 defined('_PS_VERSION_') || exit;
 
 require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/LanguageResolver.php';
+require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/ProductsService.php';
 
 class DashboardService
 {
@@ -115,6 +116,11 @@ class DashboardService
         // --- Nouvelles métriques ---
         $pendingOrdersCount = $this->countPendingOrders();
         $lowStockProducts = $this->getLowStockProducts(max(0, $lowStockThreshold));
+        // Comptage EXACT du stock faible, aligné sur le filtre Produits `stock=low_stock` (0 < quantité
+        // <= seuil effectif par produit, hors ruptures) : la tuile « Stock bas » doit afficher le même
+        // nombre que la carte « Stock faible » de l'onglet Produits, vers laquelle elle mène. Distinct de
+        // low_stock_alerts (liste plafonnée à 50, seuil global, ruptures incluses), conservé pour compat.
+        $lowStockCount = (new ProductsService())->countProducts(['stock' => 'low_stock']);
         $conversionRate = $this->computeConversionRate($ordersCount, $fromSql, $toSql);
 
         return [
@@ -148,6 +154,7 @@ class DashboardService
             'pending_orders_count' => $pendingOrdersCount,
             'conversion_rate' => $conversionRate,
             'low_stock_alerts' => $lowStockProducts,
+            'low_stock_count' => $lowStockCount,
             'chart' => $this->buildChart($from, $to, $period, $isCustomRange, $prevFrom, $prevTo),
         ];
     }
