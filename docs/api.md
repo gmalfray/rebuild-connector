@@ -1787,6 +1787,71 @@ Clients ayant le plus dépensé (par CA TTC décroissant).
 
 ---
 
+### GET `.../api/reports/sales-by-univers`
+
+Alias : `GET .../api/reports/sales-by-universe` (même controller `reports`, `resource=sales-by-universe`, même réponse).
+
+Scope requis : `reports.read`. Méthode GET uniquement (autre méthode : 405 `method_not_allowed`).
+
+Chiffre d'affaires et quantités vendues par univers de produit, pour le widget « ventes par univers » du dashboard.
+
+| Paramètre   | Type     | Description                                                        |
+|-------------|----------|--------------------------------------------------------------------|
+| `date_from` | datetime | Filtre date commande >= (`Y-m-d` ou `Y-m-d H:i:s`)                 |
+| `date_to`   | datetime | Filtre date commande <= (`Y-m-d` ou `Y-m-d H:i:s`)                 |
+
+Le paramètre `limit` est ignoré : la liste des univers est fixe.
+
+**Périmètre compté.** Uniquement les vraies ventes : commandes `valid = 1` avec `total_paid_tax_incl > 0` de la boutique courante. Les commandes offertes à 0 EUR sont donc hors du chiffre d'affaires. Seule exception, les patrons gratuits : ils valent toujours 0 EUR, ils sont exclus du CA et comptés à part dans `free_patterns` (commandes valides, 0 EUR inclus) comme mesure d'acquisition. Les montants viennent des lignes de commande (`total_price_tax_incl` / `total_price_tax_excl`).
+
+**Règle de classement.** Chaque ligne de commande est classée une seule fois à partir de son `product_id`. La première condition vraie l'emporte :
+
+1. `kits` : produit pack (`cache_is_pack = 1`) ou directement dans la catégorie 13 (la catégorie seule, pas son sous-arbre).
+2. Composant de kit (catégorie 20) : exclu, il n'apparaît dans aucun univers.
+3. Patrons gratuits : produit virtuel dans la catégorie 64. Compté dans `free_patterns` uniquement.
+4. `ebooks` : produit virtuel dans la catégorie 68 ou dont la référence commence par `EBOOK`.
+5. `patrons_pdf` : tout autre produit virtuel.
+6. `livres` : catégorie 25, produit non virtuel.
+7. `fils` : produit dans le sous-arbre de la catégorie 16.
+8. `mercerie` : produit dans le sous-arbre de la catégorie 10.
+9. `autre` : le reste (produits supprimés du catalogue notamment).
+
+Les appartenances aux catégories sont testées par `EXISTS` : un produit présent dans plusieurs catégories ne multiplie jamais les lignes de commande.
+
+**Réponse 200**
+
+Les 7 univers sont toujours présents, dans cet ordre fixe, avec des zéros s'il n'y a pas de vente. `is_digital` vaut `true` pour `patrons_pdf` et `ebooks` : le « poids du numérique » se calcule en additionnant ces deux univers.
+
+```json
+{
+  "universes": [
+    {"key": "kits", "is_digital": false, "ca_tax_incl": 73250.00, "ca_tax_excl": 61041.67, "quantity": 2100, "lines": 1950},
+    {"key": "patrons_pdf", "is_digital": true, "ca_tax_incl": 29830.00, "ca_tax_excl": 24858.33, "quantity": 5400, "lines": 5100},
+    {"key": "ebooks", "is_digital": true, "ca_tax_incl": 980.00, "ca_tax_excl": 816.67, "quantity": 60, "lines": 58},
+    {"key": "livres", "is_digital": false, "ca_tax_incl": 2690.00, "ca_tax_excl": 2549.00, "quantity": 150, "lines": 140},
+    {"key": "fils", "is_digital": false, "ca_tax_incl": 10820.00, "ca_tax_excl": 9016.67, "quantity": 1700, "lines": 900},
+    {"key": "mercerie", "is_digital": false, "ca_tax_incl": 9650.00, "ca_tax_excl": 8041.67, "quantity": 1300, "lines": 800},
+    {"key": "autre", "is_digital": false, "ca_tax_incl": 0.0, "ca_tax_excl": 0.0, "quantity": 0, "lines": 0}
+  ],
+  "free_patterns": {"quantity": 899, "lines": 899},
+  "period": {"date_from": "2026-01-01", "date_to": null}
+}
+```
+
+| Champ                  | Type        | Description                                               |
+|------------------------|-------------|-----------------------------------------------------------|
+| `universes[].key`      | string      | `kits`, `patrons_pdf`, `ebooks`, `livres`, `fils`, `mercerie`, `autre` (clés stables, libellés côté app) |
+| `universes[].is_digital` | bool      | Produit numérique                                         |
+| `universes[].ca_tax_incl` / `ca_tax_excl` | float | CA TTC / HT, arrondi à 2 décimales          |
+| `universes[].quantity` | int         | Somme des quantités vendues                               |
+| `universes[].lines`    | int         | Nombre de lignes de commande                              |
+| `free_patterns.quantity` / `lines` | int | Patrons gratuits téléchargés (quantité / lignes)   |
+| `period.date_from` / `date_to` | string\|null | Filtres reçus, `null` si absents              |
+
+**Erreurs** : 400 `invalid_payload` (format de date invalide), 401, 403 (scope manquant), 405 (méthode autre que GET).
+
+---
+
 ### GET `.../api/customers/top`
 
 Alias vers les meilleurs clients : route friendly identique à `GET .../api/reports/bestcustomers` (même controller `reports`, même paramètre `resource=bestcustomers`). Accepte les mêmes paramètres et retourne la même structure.
@@ -2275,6 +2340,7 @@ curl -X POST "https://example.com/module/rebuildconnector/api/reviews/812/trash"
 | GET     | `.../api/dashboard/free-conversion`             | dashboard    | `dashboard.read`    |
 | GET     | `.../api/reports/bestsellers`                   | reports      | `reports.read`      |
 | GET     | `.../api/reports/bestcustomers`                 | reports      | `reports.read`      |
+| GET     | `.../api/reports/sales-by-univers`              | reports      | `reports.read`      |
 | GET     | `.../api/baskets`                               | baskets      | `baskets.read`      |
 | GET     | `.../api/baskets/{id}`                          | baskets      | `baskets.read`      |
 | POST    | `.../api/notifications/devices`                 | notifications| `notifications.send`|

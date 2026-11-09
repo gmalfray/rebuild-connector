@@ -97,6 +97,141 @@ class ReportsService
     }
 
     /**
+     * Univers de produit exposés, dans l'ordre stable de la réponse. Valeur = produit numérique ?
+     * (le « poids du numérique » côté app = patrons_pdf + ebooks).
+     */
+    private const UNIVERSES = [
+        'kits' => false,
+        'patrons_pdf' => true,
+        'ebooks' => true,
+        'livres' => false,
+        'fils' => false,
+        'mercerie' => false,
+        'autre' => false,
+    ];
+
+    private const UNIVERSE_FREE_PATTERNS = 'patrons_gratuits';
+    private const UNIVERSE_EXCLUDED = 'composant_kit';
+
+    /**
+     * Ventes par univers de produit (vraies ventes : commandes valides payantes de la boutique
+     * courante) + compteur d'acquisition des patrons gratuits (commandes valides, 0 EUR inclus).
+     *
+     * @param array<string, mixed> $filters date_from / date_to
+     * @return array<string, mixed>
+     * @throws \InvalidArgumentException si les dates sont dans un format invalide.
+     */
+    public function getSalesByUnivers(array $filters = []): array
+    {
+        $shopId = $this->getShopId();
+        $caseSql = $this->universeCaseSql();
+
+        // CA : le CASE est évalué une seule fois par ligne order_detail (EXISTS corrélés, aucun
+        // JOIN sur category_product), donc une ligne de commande n'est jamais comptée deux fois.
+        $query = new DbQuery();
+        $query->select($caseSql . ' AS universe');
+        $query->select('SUM(od.total_price_tax_incl) AS ca_tax_incl');
+        $query->select('SUM(od.total_price_tax_excl) AS ca_tax_excl');
+        $query->select('SUM(od.product_quantity) AS quantity');
+        $query->select('COUNT(*) AS lines_count');
+        $query->from('order_detail', 'od');
+        $query->innerJoin('orders', 'o', 'o.id_order = od.id_order');
+        $query->leftJoin('product', 'p', 'p.id_product = od.product_id');
+        $query->where('o.valid = 1');
+        $query->where('o.total_paid_tax_incl > 0');
+        $query->where('o.id_shop = ' . (int) $shopId);
+        $this->applyDateFilters($query, 'o.date_add', $filters);
+        $query->groupBy('universe');
+
+        /** @var array<int, array<string, mixed>> $rows */
+        $rows = Db::getInstance()->executeS($query) ?: [];
+
+        $byKey = [];
+        foreach ($rows as $row) {
+            $key = isset($row['universe']) ? (string) $row['universe'] : '';
+            // Patrons gratuits (0 EUR) : jamais dans le CA ; composants de kit : exclus.
+            if (!isset(self::UNIVERSES[$key])) {
+                continue;
+            }
+            $byKey[$key] = $row;
+        }
+
+        $universes = [];
+        foreach (self::UNIVERSES as $key => $isDigital) {
+            $row = $byKey[$key] ?? [];
+            $universes[] = [
+                'key' => $key,
+                'is_digital' => $isDigital,
+                'ca_tax_incl' => round((float) ($row['ca_tax_incl'] ?? 0), 2),
+                'ca_tax_excl' => round((float) ($row['ca_tax_excl'] ?? 0), 2),
+                'quantity' => (int) ($row['quantity'] ?? 0),
+                'lines' => (int) ($row['lines_count'] ?? 0),
+            ];
+        }
+
+        // Acquisition : patrons gratuits, o.valid = 1 mais sans contrainte total_paid_tax_incl > 0.
+        $free = new DbQuery();
+        $free->select('SUM(od.product_quantity) AS quantity');
+        $free->select('COUNT(*) AS lines_count');
+        $free->from('order_detail', 'od');
+        $free->innerJoin('orders', 'o', 'o.id_order = od.id_order');
+        $free->leftJoin('product', 'p', 'p.id_product = od.product_id');
+        $free->where('o.valid = 1');
+        $free->where('o.id_shop = ' . (int) $shopId);
+        $free->where($caseSql . " = '" . self::UNIVERSE_FREE_PATTERNS . "'");
+        $this->applyDateFilters($free, 'o.date_add', $filters);
+
+        /** @var array<int, array<string, mixed>> $freeRows */
+        $freeRows = Db::getInstance()->executeS($free) ?: [];
+        $freeRow = $freeRows[0] ?? [];
+
+        return [
+            'universes' => $universes,
+            'free_patterns' => [
+                'quantity' => (int) ($freeRow['quantity'] ?? 0),
+                'lines' => (int) ($freeRow['lines_count'] ?? 0),
+            ],
+            'period' => [
+                'date_from' => !empty($filters['date_from']) ? trim((string) $filters['date_from']) : null,
+                'date_to' => !empty($filters['date_to']) ? trim((string) $filters['date_to']) : null,
+            ],
+        ];
+    }
+
+    /**
+     * Expression CASE de classement par univers (1re condition vraie gagne), évaluée par ligne
+     * order_detail (alias `od`) avec le produit joint (alias `p`). Appartenance à une catégorie via
+     * EXISTS corrélé : un produit multi-catégories ne multiplie jamais les lignes.
+     */
+    private function universeCaseSql(): string
+    {
+        $cp = _DB_PREFIX_ . 'category_product';
+        $cat = _DB_PREFIX_ . 'category';
+
+        $inCat = static function (int $id) use ($cp): string {
+            return 'EXISTS (SELECT 1 FROM ' . $cp . ' cp WHERE cp.id_product = od.product_id AND cp.id_category = ' . $id . ')';
+        };
+        // Sous-arbre (nested set) : toute catégorie du produit incluse dans [nleft, nright] de la racine.
+        $inTree = static function (int $rootId) use ($cp, $cat): string {
+            return 'EXISTS (SELECT 1 FROM ' . $cp . ' cps'
+                . ' INNER JOIN ' . $cat . ' cc ON cc.id_category = cps.id_category'
+                . ' INNER JOIN ' . $cat . ' cr ON cr.id_category = ' . $rootId
+                . ' WHERE cps.id_product = od.product_id AND cc.nleft >= cr.nleft AND cc.nright <= cr.nright)';
+        };
+
+        return 'CASE'
+            . ' WHEN (p.cache_is_pack = 1 OR ' . $inCat(13) . ") THEN 'kits'"
+            . ' WHEN ' . $inCat(20) . " THEN '" . self::UNIVERSE_EXCLUDED . "'"
+            . ' WHEN (p.is_virtual = 1 AND ' . $inCat(64) . ") THEN '" . self::UNIVERSE_FREE_PATTERNS . "'"
+            . ' WHEN (p.is_virtual = 1 AND (' . $inCat(68) . " OR p.reference LIKE 'EBOOK%')) THEN 'ebooks'"
+            . " WHEN p.is_virtual = 1 THEN 'patrons_pdf'"
+            . ' WHEN ' . $inCat(25) . " THEN 'livres'"
+            . ' WHEN ' . $inTree(16) . " THEN 'fils'"
+            . ' WHEN ' . $inTree(10) . " THEN 'mercerie'"
+            . " ELSE 'autre' END";
+    }
+
+    /**
      * @param array<string, mixed> $filters
      * @throws \InvalidArgumentException si les dates sont dans un format invalide.
      */
