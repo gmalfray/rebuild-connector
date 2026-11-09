@@ -102,13 +102,15 @@ class ReportsService
     /**
      * Synthèse avis (+ SAV en best-effort).
      *
-     * - `total_reviews` / `average_rating` : avis publiés (`validated=1, deleted=0`) dont `date_add`
-     *   est dans la période (tout l'historique sans bornes). `average_rating` est `null` sans avis.
+     * - `total_reviews` / `average_rating` : TOUS les avis publiés (`validated=1, deleted=0`, importés
+     *   compris) dont `date_add` est dans la période. `average_rating` est `null` sans avis.
+     * - `native_reviews` : sous-ensemble des avis publiés déposés sur le site (`source = 'native'`),
+     *   hors avis importés (Etsy).
      * - `pending_reviews` : file de modération actuelle, non bornée par la période.
-     * - `review_rate` : `total_reviews / orders * 100` (1 décimale), où `orders` = nombre de vraies
+     * - `review_rate` : `native_reviews / orders * 100` (1 décimale), où `orders` = nombre de vraies
      *   ventes (`o.valid = 1 AND o.total_paid_tax_incl > 0`, boutique courante) dont `o.date_add`
      *   est dans la même période. `null` si `orders = 0`.
-     * - `sav` : voir SavService::getResponseStats() ; bloc OMIS si le calcul échoue.
+     * - `sav` : voir SavService::getThreadStats() ; bloc OMIS si le calcul échoue.
      *
      * @param array<string, mixed> $filters {date_from?: string, date_to?: string}
      * @return array<string, mixed>
@@ -127,18 +129,20 @@ class ReportsService
         $reviews = $bridge->getSummary($shopId, $from, $to);
         $orders = $this->countRealSales($shopId, $from, $to);
         $total = (int) $reviews['total_reviews'];
+        $native = (int) $reviews['native_reviews'];
 
         $result = [
             'total_reviews' => $total,
+            'native_reviews' => $native,
             'average_rating' => $reviews['average_rating'],
             'pending_reviews' => (int) $reviews['pending_reviews'],
             'orders' => $orders,
-            'review_rate' => $orders > 0 ? round($total / $orders * 100, 1) : null,
+            'review_rate' => $orders > 0 ? round($native / $orders * 100, 1) : null,
             'period' => ['from' => $from, 'to' => $to],
         ];
 
         try {
-            $result['sav'] = ($savService ?? new SavService())->getResponseStats($from, $to);
+            $result['sav'] = ($savService ?? new SavService())->getThreadStats($from, $to);
         } catch (\Throwable $exception) {
             // Best-effort : un échec SAV ne doit pas masquer la synthèse avis. Bloc omis.
         }

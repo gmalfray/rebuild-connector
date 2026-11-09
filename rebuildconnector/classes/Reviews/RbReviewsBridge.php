@@ -89,6 +89,9 @@ final class RbReviewsBridge implements ReviewsBridgeInterface
         // Une seule passe, sans jointure : COUNT + AVG sur les avis publiés de la période.
         $query = new DbQuery();
         $query->select('COUNT(*) AS total_reviews, AVG(r.grade) AS average_rating');
+        // Avis natifs = déposés sur le site. Même critère que le script de migration rbreviews
+        // (`source = RbReview::SOURCE_NATIVE`) ; les importés (SOURCE_ETSY) sont exclus.
+        $query->select('SUM(CASE WHEN r.source = "native" THEN 1 ELSE 0 END) AS native_reviews');
         $query->from('rbreviews_review', 'r');
         $query->where('r.validated = 1 AND r.deleted = 0');
         if ($idShop > 0) {
@@ -104,6 +107,7 @@ final class RbReviewsBridge implements ReviewsBridgeInterface
         $rows = Db::getInstance()->executeS($query);
         $row = is_array($rows) && isset($rows[0]) && is_array($rows[0]) ? $rows[0] : [];
         $total = isset($row['total_reviews']) ? (int) $row['total_reviews'] : 0;
+        $native = isset($row['native_reviews']) ? (int) $row['native_reviews'] : 0;
         $average = $total > 0 && isset($row['average_rating'])
             ? round((float) $row['average_rating'], 2)
             : null;
@@ -120,6 +124,7 @@ final class RbReviewsBridge implements ReviewsBridgeInterface
 
         return [
             'total_reviews' => $total,
+            'native_reviews' => $native,
             'average_rating' => $average,
             'pending_reviews' => $pending !== false ? (int) $pending : 0,
         ];

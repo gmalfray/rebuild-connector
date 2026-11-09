@@ -1846,46 +1846,47 @@ Sans paramètres, tout l'historique est pris en compte.
 
 ```json
 {
-  "total_reviews": 50,
-  "average_rating": 4.62,
-  "pending_reviews": 3,
-  "orders": 200,
-  "review_rate": 25.0,
+  "total_reviews": 2856,
+  "native_reviews": 16,
+  "average_rating": 4.88,
+  "pending_reviews": 0,
+  "orders": 6721,
+  "review_rate": 0.2,
   "period": { "from": null, "to": null },
   "sav": {
-    "open_threads": 6,
-    "median_first_response_hours": 6.0,
-    "answered_threads": 120
+    "open_threads": 5,
+    "answered_threads": 190
   }
 }
 ```
 
 Définitions :
 
-- `total_reviews` : avis **publiés** (`validated = 1` et `deleted = 0`) dont la date de création est
-  dans la période.
-- `average_rating` : moyenne des notes (`grade`, arrondie à 2 décimales) de ces mêmes avis. `null`
-  s'il n'y en a aucun.
+- `total_reviews` : **tous** les avis publiés (`validated = 1` et `deleted = 0`), avis importés compris
+  (par exemple depuis Etsy), dont la date de création est dans la période. C'est le contexte de la note
+  moyenne affichée sur la boutique.
+- `native_reviews` : sous-ensemble de `total_reviews` déposé **sur le site** (`source = 'native'`).
+  Les avis importés (`source = 'etsy'`) sont exclus.
+- `average_rating` : moyenne des notes (`grade`, arrondie à 2 décimales) sur **tous** les avis publiés
+  (`total_reviews`, importés compris), comme la note moyenne affichée par la boutique. `null` s'il n'y
+  en a aucun.
 - `pending_reviews` : avis en attente de modération (`validated = 0` et `deleted = 0`), **instantané
   actuel**, non borné par la période.
 - `orders` : nombre de vraies ventes de la période, c'est-à-dire commandes avec `valid = 1` et
   `total_paid_tax_incl > 0` (annulées, non validées et offertes exclues), `date_add` dans la période.
-- `review_rate` : `total_reviews / orders * 100`, arrondi à 1 décimale (pourcentage). `null` si
-  `orders = 0`. Le numérateur compte tous les avis publiés, y compris ceux qui ne viennent pas d'une
-  commande de la période (avis importés par exemple) : le taux peut dépasser 100 et doit se lire comme
-  un ordre de grandeur.
+- `review_rate` : `native_reviews / orders * 100`, arrondi à 1 décimale (pourcentage). C'est le taux
+  d'avis issus du **site** rapporté aux commandes du site ; les avis importés n'y entrent pas. `null` si
+  `orders = 0`.
 - `period` : bornes effectivement appliquées (`null` si non fournie).
 
 Bloc `sav` (best-effort, SAV natif PrestaShop `customer_thread` / `customer_message`) : **omis** si le
-calcul échoue.
+calcul échoue. Aucun délai de réponse n'est exposé, car les réponses envoyées par e-mail ne sont pas
+toutes enregistrées dans PrestaShop.
 
 - `open_threads` : fils non clos (`status <> 'closed'`), instantané, non borné par la période. Inclut
   les fils dormants anciens jamais fermés.
-- `median_first_response_hours` : médiane, en heures (1 décimale), du délai entre le premier message de
-  la cliente et le premier message d'un employé, sur les fils créés dans la période. `null` si aucun
-  fil n'est exploitable. Les fils sans réponse employé et les fils ouverts par le marchand sont exclus.
-  Seules les réponses enregistrées dans PrestaShop comptent.
-- `answered_threads` : taille de l'échantillon de la médiane (au plus les 5000 fils les plus récents).
+- `answered_threads` : fils créés dans la période ayant au moins un message d'employé enregistré dans
+  PrestaShop. C'est un plancher : une réponse faite hors PrestaShop n'est pas comptée.
 
 Erreurs : 400 `invalid_payload` (format de date, `date_from` > `date_to`), 409 `reviews_unavailable`.
 

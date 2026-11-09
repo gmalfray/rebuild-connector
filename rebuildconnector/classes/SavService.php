@@ -162,19 +162,15 @@ class SavService
      *
      * - `open_threads` : fils non clos (`status <> 'closed'`), instantané de la boutique courante,
      *   NON borné par la période (inclut donc les fils dormants anciens, cf. docblock de classe).
-     * - `median_first_response_hours` : médiane (calculée en PHP) du délai entre le premier message
-     *   cliente (`id_employee = 0`) et le premier message d'un employé (`id_employee > 0`) d'un
-     *   même fil, sur les fils créés dans [$dateFrom, $dateTo] (bornes optionnelles `Y-m-d H:i:s`).
-     *   Les fils sans réponse employé, ou dont le premier message est celui d'un employé
-     *   (fil ouvert par le marchand), sont exclus. `null` si aucun fil échantillonné.
-     *   Limite : seules les réponses enregistrées dans PrestaShop comptent ; une réponse faite hors
-     *   PrestaShop (messagerie externe) n'est pas vue.
-     * - `answered_threads` : taille de l'échantillon de la médiane (les 5000 fils les plus récents
-     *   au plus).
+     * - `answered_threads` : fils créés dans [$dateFrom, $dateTo] (bornes optionnelles
+     *   `Y-m-d H:i:s`) ayant au moins un message d'employé enregistré dans PrestaShop.
      *
-     * @return array{open_threads: int, median_first_response_hours: float|null, answered_threads: int}
+     * Aucun délai de réponse n'est exposé : les réponses faites par e-mail (synchro IMAP) ne sont
+     * pas toutes tracées dans `customer_message`, un délai calculé ici serait trompeur.
+     *
+     * @return array{open_threads: int, answered_threads: int}
      */
-    public function getResponseStats(?string $dateFrom = null, ?string $dateTo = null): array
+    public function getThreadStats(?string $dateFrom = null, ?string $dateTo = null): array
     {
         $idShop = $this->getCurrentShopId();
 
@@ -187,67 +183,26 @@ class SavService
         }
         $open = Db::getInstance()->getValue($openQuery);
 
-        // Un agrégat par fil (MIN conditionnels) : la jointure 1-N sur les messages est réduite par
-        // le GROUP BY, aucune ligne dupliquée n'atteint le calcul.
-        $query = new DbQuery();
-        $query->select(
-            'ct.id_customer_thread, '
-            . 'MIN(CASE WHEN cm.id_employee = 0 THEN cm.date_add END) AS first_customer_at, '
-            . 'MIN(CASE WHEN cm.id_employee > 0 THEN cm.date_add END) AS first_employee_at'
-        );
-        $query->from('customer_thread', 'ct');
-        $query->innerJoin('customer_message', 'cm', 'cm.id_customer_thread = ct.id_customer_thread');
+        // COUNT(DISTINCT) : la jointure 1-N sur les messages ne démultiplie pas le compte.
+        $answeredQuery = new DbQuery();
+        $answeredQuery->select('COUNT(DISTINCT ct.id_customer_thread)');
+        $answeredQuery->from('customer_thread', 'ct');
+        $answeredQuery->innerJoin('customer_message', 'cm', 'cm.id_customer_thread = ct.id_customer_thread AND cm.id_employee > 0');
         if ($idShop > 0) {
-            $query->where('ct.id_shop = ' . $idShop);
+            $answeredQuery->where('ct.id_shop = ' . $idShop);
         }
         if ($dateFrom !== null) {
-            $query->where('ct.date_add >= "' . pSQL($dateFrom) . '"');
+            $answeredQuery->where('ct.date_add >= "' . pSQL($dateFrom) . '"');
         }
         if ($dateTo !== null) {
-            $query->where('ct.date_add <= "' . pSQL($dateTo) . '"');
+            $answeredQuery->where('ct.date_add <= "' . pSQL($dateTo) . '"');
         }
-        $query->groupBy('ct.id_customer_thread');
-        $query->having('first_customer_at IS NOT NULL AND first_employee_at IS NOT NULL');
-        $query->orderBy('ct.id_customer_thread DESC');
-        $query->limit(5000);
-
-        $rows = Db::getInstance()->executeS($query);
-        $delays = [];
-        foreach (is_array($rows) ? $rows : [] as $row) {
-            if (!is_array($row) || !isset($row['first_customer_at'], $row['first_employee_at'])) {
-                continue;
-            }
-            $customerAt = strtotime((string) $row['first_customer_at']);
-            $employeeAt = strtotime((string) $row['first_employee_at']);
-            if ($customerAt === false || $employeeAt === false || $employeeAt < $customerAt) {
-                continue; // fil ouvert par le marchand, ou données incohérentes
-            }
-            $delays[] = ($employeeAt - $customerAt) / 3600;
-        }
+        $answered = Db::getInstance()->getValue($answeredQuery);
 
         return [
             'open_threads' => $open !== false ? (int) $open : 0,
-            'median_first_response_hours' => self::median($delays),
-            'answered_threads' => count($delays),
+            'answered_threads' => $answered !== false ? (int) $answered : 0,
         ];
-    }
-
-    /**
-     * Médiane (arrondie à 1 décimale) ; `null` si la liste est vide.
-     *
-     * @param array<int, float|int> $values
-     */
-    public static function median(array $values): ?float
-    {
-        $count = count($values);
-        if ($count === 0) {
-            return null;
-        }
-        sort($values);
-        $mid = intdiv($count, 2);
-        $median = $count % 2 === 1 ? (float) $values[$mid] : ((float) $values[$mid - 1] + (float) $values[$mid]) / 2;
-
-        return round($median, 1);
     }
 
     /**

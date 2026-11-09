@@ -839,11 +839,6 @@ class DbQuery
         return $this;
     }
 
-    public function having(string $restriction): self
-    {
-        return $this;
-    }
-
     public function orderBy(string $fields): self
     {
         return $this;
