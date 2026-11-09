@@ -4,6 +4,8 @@ defined('_PS_VERSION_') || exit;
 
 require_once __DIR__ . '/BaseApiController.php';
 require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/ReportsService.php';
+require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/Reviews/ReviewsBridgeFactory.php';
+require_once _PS_MODULE_DIR_ . 'rebuildconnector/classes/Reviews/ReviewsUnavailableException.php';
 
 class RebuildconnectorReportsModuleFrontController extends RebuildconnectorBaseApiModuleFrontController
 {
@@ -43,6 +45,12 @@ class RebuildconnectorReportsModuleFrontController extends RebuildconnectorBaseA
                 $this->t('api.error.forbidden', [], 'You do not have the required permissions.'),
                 403
             );
+        } catch (ReviewsUnavailableException $exception) {
+            $this->jsonError(
+                'reviews_unavailable',
+                $this->t('reviews.error.unavailable', [], 'The reviews module is not installed or not enabled on this shop.'),
+                409
+            );
         } catch (\InvalidArgumentException $exception) {
             $this->jsonError(
                 'invalid_payload',
@@ -80,6 +88,12 @@ class RebuildconnectorReportsModuleFrontController extends RebuildconnectorBaseA
                     'customers' => $this->getReportsService()->getBestCustomers($filters),
                 ]);
                 return;
+            case 'reviews-summary':
+                $this->renderJson($this->getReportsService()->getReviewsSummary(
+                    $this->getReviewsBridge(),
+                    ['date_from' => $filters['date_from'], 'date_to' => $filters['date_to']]
+                ));
+                return;
             default:
                 throw new \InvalidArgumentException($this->t('reports.error.unknown_resource', [], 'Unknown report resource.'));
         }
@@ -103,6 +117,11 @@ class RebuildconnectorReportsModuleFrontController extends RebuildconnectorBaseA
         }
 
         return (int) $value;
+    }
+
+    protected function getReviewsBridge(): ReviewsBridgeInterface
+    {
+        return ReviewsBridgeFactory::create();
     }
 
     private function getReportsService(): ReportsService

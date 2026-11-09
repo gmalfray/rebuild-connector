@@ -1721,6 +1721,44 @@ gratuit en premier). Erreurs : 400 `invalid_payload` (format de date, `from` > `
 
 ---
 
+### GET `.../api/dashboard/monthly-turnover`
+
+Scope requis : `dashboard.read`
+
+CA mensuel pour observer la saisonnalité. Renvoie, pour les N derniers mois civils (mois courant
+inclus, fuseau de la boutique), le CA TTC et le nombre de commandes des **vraies ventes**, groupés par
+mois civil. Filtré sur la boutique courante.
+
+Une vraie vente est une commande avec `valid = 1` et `total_paid_tax_incl > 0` : les commandes non
+validées (annulées, paiement refusé) et les commandes offertes à 0 EUR sont exclues. Le CA est le CA
+**marchandise hors frais de port** (`SUM(total_paid_tax_incl - total_shipping_tax_incl)`), même base
+que le CA de `dashboard/metrics` et de son graphique, pour que la saisonnalité se lise avec le CA du
+tableau de bord. Léger écart possible : `dashboard/metrics` ne filtre pas sur `valid`, donc il compte
+aussi les commandes non validées.
+
+| Paramètre | Type | Description |
+|-----------|------|-------------|
+| `months`  | int  | Optionnel, de 1 à 36 (défaut 12). Nombre de mois, mois courant inclus. |
+
+**Réponse 200**
+
+```json
+{
+  "months": [
+    { "month": "2025-12", "turnover": 1234.56, "orders": 42 },
+    { "month": "2026-01", "turnover": 0.0, "orders": 0 }
+  ],
+  "period": { "from": "2025-12-01", "to": "2026-11-09" }
+}
+```
+
+La liste est triée par mois croissant et continue : un mois sans vente est renvoyé avec `turnover: 0.0`
+et `orders: 0`. Le dernier mois est le mois en cours, donc partiel. `period.from` est le premier jour du
+premier mois, `period.to` la date du jour (fuseau boutique). Erreurs : 400 `invalid_payload` (`months`
+non entier ou hors de 1 à 36).
+
+---
+
 ## Rapports
 
 ### GET `.../api/reports/bestsellers`
@@ -1784,6 +1822,72 @@ Clients ayant le plus dépensé (par CA TTC décroissant).
   ]
 }
 ```
+
+---
+
+### GET `.../api/reports/reviews-summary`
+
+Scope requis : `reports.read`
+
+Synthèse des avis clients (module tiers rbreviews), avec un bloc SAV en bonus. Filtré sur la boutique
+courante.
+
+**Indisponibilité** : si rbreviews n'est pas installé ou pas actif, la route répond **409**
+`reviews_unavailable` (même comportement que `.../api/reviews`), pour que l'app masque le widget.
+
+| Paramètre   | Type   | Description |
+|-------------|--------|-------------|
+| `date_from` | string | Optionnel, `YYYY-MM-DD` ou `YYYY-MM-DD HH:MM:SS`. Une date seule vaut 00:00:00. |
+| `date_to`   | string | Optionnel, mêmes formats. Une date seule vaut 23:59:59 (le jour est inclus). |
+
+Sans paramètres, tout l'historique est pris en compte.
+
+**Réponse 200**
+
+```json
+{
+  "total_reviews": 50,
+  "average_rating": 4.62,
+  "pending_reviews": 3,
+  "orders": 200,
+  "review_rate": 25.0,
+  "period": { "from": null, "to": null },
+  "sav": {
+    "open_threads": 6,
+    "median_first_response_hours": 6.0,
+    "answered_threads": 120
+  }
+}
+```
+
+Définitions :
+
+- `total_reviews` : avis **publiés** (`validated = 1` et `deleted = 0`) dont la date de création est
+  dans la période.
+- `average_rating` : moyenne des notes (`grade`, arrondie à 2 décimales) de ces mêmes avis. `null`
+  s'il n'y en a aucun.
+- `pending_reviews` : avis en attente de modération (`validated = 0` et `deleted = 0`), **instantané
+  actuel**, non borné par la période.
+- `orders` : nombre de vraies ventes de la période, c'est-à-dire commandes avec `valid = 1` et
+  `total_paid_tax_incl > 0` (annulées, non validées et offertes exclues), `date_add` dans la période.
+- `review_rate` : `total_reviews / orders * 100`, arrondi à 1 décimale (pourcentage). `null` si
+  `orders = 0`. Le numérateur compte tous les avis publiés, y compris ceux qui ne viennent pas d'une
+  commande de la période (avis importés par exemple) : le taux peut dépasser 100 et doit se lire comme
+  un ordre de grandeur.
+- `period` : bornes effectivement appliquées (`null` si non fournie).
+
+Bloc `sav` (best-effort, SAV natif PrestaShop `customer_thread` / `customer_message`) : **omis** si le
+calcul échoue.
+
+- `open_threads` : fils non clos (`status <> 'closed'`), instantané, non borné par la période. Inclut
+  les fils dormants anciens jamais fermés.
+- `median_first_response_hours` : médiane, en heures (1 décimale), du délai entre le premier message de
+  la cliente et le premier message d'un employé, sur les fils créés dans la période. `null` si aucun
+  fil n'est exploitable. Les fils sans réponse employé et les fils ouverts par le marchand sont exclus.
+  Seules les réponses enregistrées dans PrestaShop comptent.
+- `answered_threads` : taille de l'échantillon de la médiane (au plus les 5000 fils les plus récents).
+
+Erreurs : 400 `invalid_payload` (format de date, `date_from` > `date_to`), 409 `reviews_unavailable`.
 
 ---
 
@@ -2273,8 +2377,10 @@ curl -X POST "https://example.com/module/rebuildconnector/api/reviews/812/trash"
 | GET     | `.../api/customers/top`                         | reports      | `reports.read`      |
 | GET     | `.../api/dashboard/metrics`                     | dashboard    | `dashboard.read`    |
 | GET     | `.../api/dashboard/free-conversion`             | dashboard    | `dashboard.read`    |
+| GET     | `.../api/dashboard/monthly-turnover`            | dashboard    | `dashboard.read`    |
 | GET     | `.../api/reports/bestsellers`                   | reports      | `reports.read`      |
 | GET     | `.../api/reports/bestcustomers`                 | reports      | `reports.read`      |
+| GET     | `.../api/reports/reviews-summary`               | reports      | `reports.read`      |
 | GET     | `.../api/baskets`                               | baskets      | `baskets.read`      |
 | GET     | `.../api/baskets/{id}`                          | baskets      | `baskets.read`      |
 | POST    | `.../api/notifications/devices`                 | notifications| `notifications.send`|

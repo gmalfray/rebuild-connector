@@ -22,6 +22,11 @@ final class NullReviewsBridge implements ReviewsBridgeInterface
         throw new ReviewsUnavailableException();
     }
 
+    public function getSummary(int $idShop, ?string $dateFrom, ?string $dateTo): array
+    {
+        throw new ReviewsUnavailableException();
+    }
+
     public function publish(int $idReview, int $idShop): ?array
     {
         throw new ReviewsUnavailableException();

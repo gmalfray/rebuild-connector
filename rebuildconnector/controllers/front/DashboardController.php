@@ -61,6 +61,11 @@ class RebuildconnectorDashboardModuleFrontController extends RebuildconnectorBas
             return;
         }
 
+        if ($this->isMonthlyTurnoverRequest()) {
+            $this->handleMonthlyTurnover();
+            return;
+        }
+
         $fromParam = trim((string) Tools::getValue('from', ''));
         $toParam = trim((string) Tools::getValue('to', ''));
 
@@ -126,6 +131,31 @@ class RebuildconnectorDashboardModuleFrontController extends RebuildconnectorBas
     private function isFreeConversionRequest(): bool
     {
         return trim((string) Tools::getValue('action', '')) === 'free-conversion';
+    }
+
+    private function isMonthlyTurnoverRequest(): bool
+    {
+        return trim((string) Tools::getValue('action', '')) === 'monthly-turnover';
+    }
+
+    /**
+     * GET dashboard/monthly-turnover[?months=1..36] (défaut 12).
+     */
+    private function handleMonthlyTurnover(): void
+    {
+        $raw = Tools::getValue('months', '');
+        $raw = is_string($raw) ? trim($raw) : '';
+        $months = 12;
+        if ($raw !== '') {
+            if (!ctype_digit($raw) || (int) $raw < 1 || (int) $raw > 36) {
+                throw new \InvalidArgumentException(
+                    $this->t('dashboard.error.invalid_months', [], 'Invalid "months" parameter. Allowed: integer between 1 and 36.')
+                );
+            }
+            $months = (int) $raw;
+        }
+
+        $this->renderJson($this->getDashboardService()->getMonthlyTurnover($months));
     }
 
     /**
