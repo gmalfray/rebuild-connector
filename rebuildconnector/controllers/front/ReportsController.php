@@ -80,6 +80,12 @@ class RebuildconnectorReportsModuleFrontController extends RebuildconnectorBaseA
                     'customers' => $this->getReportsService()->getBestCustomers($filters),
                 ]);
                 return;
+            case 'customer-retention':
+                $this->renderJson($this->getReportsService()->getCustomerRetention([
+                    'date_from' => $filters['date_from'],
+                    'date_to' => $filters['date_to'],
+                ]));
+                return;
             default:
                 throw new \InvalidArgumentException($this->t('reports.error.unknown_resource', [], 'Unknown report resource.'));
         }

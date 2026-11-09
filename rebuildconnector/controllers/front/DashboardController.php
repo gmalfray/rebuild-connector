@@ -61,6 +61,11 @@ class RebuildconnectorDashboardModuleFrontController extends RebuildconnectorBas
             return;
         }
 
+        if (trim((string) Tools::getValue('action', '')) === 'free-conversion-cohorts') {
+            $this->handleFreeConversionCohorts();
+            return;
+        }
+
         $fromParam = trim((string) Tools::getValue('from', ''));
         $toParam = trim((string) Tools::getValue('to', ''));
 
@@ -162,6 +167,62 @@ class RebuildconnectorDashboardModuleFrontController extends RebuildconnectorBas
         }
 
         $this->renderJson($this->getDashboardService()->getFreeConversion($from, $to));
+    }
+
+    /**
+     * GET dashboard/free-conversion-cohorts[?months=N | ?from=YYYY-MM-DD&to=YYYY-MM-DD].
+     * Fenêtre sur le mois de la 1re commande offerte. Défaut : 12 derniers mois (mois courant inclus).
+     */
+    private function handleFreeConversionCohorts(): void
+    {
+        $monthsParam = trim((string) Tools::getValue('months', ''));
+        $fromParam = trim((string) Tools::getValue('from', ''));
+        $toParam = trim((string) Tools::getValue('to', ''));
+
+        if ($fromParam !== '' || $toParam !== '') {
+            if ($fromParam === '' || $toParam === '') {
+                throw new \InvalidArgumentException(
+                    $this->t('dashboard.error.from_to_required', [], 'Both "from" and "to" parameters are required when using date range mode.')
+                );
+            }
+            $dates = [];
+            foreach (['from' => $fromParam, 'to' => $toParam] as $name => $value) {
+                $date = \DateTimeImmutable::createFromFormat('Y-m-d', $value);
+                if ($date === false || $date->format('Y-m-d') !== $value) {
+                    throw new \InvalidArgumentException(
+                        $this->t('dashboard.error.invalid_date_format', [], 'Invalid date format. Use YYYY-MM-DD (e.g. 2025-06-01).')
+                    );
+                }
+                $dates[$name] = $date;
+            }
+            if ($dates['from'] > $dates['to']) {
+                throw new \InvalidArgumentException(
+                    $this->t('dashboard.error.from_after_to', [], '"from" must be earlier than or equal to "to".')
+                );
+            }
+            if ((int) $dates['from']->diff($dates['to'])->days > 1100) {
+                throw new \InvalidArgumentException(
+                    $this->t('dashboard.error.range_too_large', [], 'Date range is too large.')
+                );
+            }
+            $from = $dates['from']->setTime(0, 0, 0);
+            $to = $dates['to']->setTime(23, 59, 59);
+        } else {
+            $months = 12;
+            if ($monthsParam !== '') {
+                if (!ctype_digit($monthsParam) || (int) $monthsParam < 1 || (int) $monthsParam > 36) {
+                    throw new \InvalidArgumentException(
+                        $this->t('dashboard.error.invalid_months', [], '"months" must be an integer between 1 and 36.')
+                    );
+                }
+                $months = (int) $monthsParam;
+            }
+            $now = new \DateTimeImmutable('now');
+            $to = $now;
+            $from = $now->modify('first day of this month')->setTime(0, 0, 0)->modify('-' . ($months - 1) . ' months');
+        }
+
+        $this->renderJson($this->getDashboardService()->getFreeConversionCohorts($from, $to));
     }
 
     private function getDashboardService(): DashboardService

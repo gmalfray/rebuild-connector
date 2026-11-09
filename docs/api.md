@@ -1721,6 +1721,54 @@ gratuit en premier). Erreurs : 400 `invalid_payload` (format de date, `from` > `
 
 ---
 
+### GET `.../api/dashboard/free-conversion-cohorts`
+
+Scope requis : `dashboard.read`
+
+Cohortes offert vers payant, par mois de première commande. Sert à mesurer, mois après mois, ce que
+rapporte une campagne de commandes offertes. Filtré sur la boutique courante, commandes valides
+uniquement (`orders.valid = 1`).
+
+Définitions :
+
+- **Client offert à sa première commande** : sa plus ancienne commande valide a
+  `total_paid_tax_incl = 0`. Le mois de cohorte (`YYYY-MM`) est celui de cette commande. Si une
+  commande offerte et une commande payante ont exactement la même date, le client est traité comme
+  payant d'abord.
+- **Converti à J+X** (X = 30, 60 ou 90) : le client a une commande valide payante
+  (`total_paid_tax_incl > 0`) passée après sa première commande offerte et au plus X jours après.
+  Les seuils sont cumulatifs : un client converti à 30 jours compte aussi à 60 et à 90.
+
+| Paramètre | Type   | Description |
+|-----------|--------|-------------|
+| `months`  | int    | Optionnel, 1 à 36, défaut 12 : nombre de mois affichés, mois courant inclus. |
+| `from`    | string | Optionnel, `YYYY-MM-DD` : début de fenêtre sur la date de première commande. |
+| `to`      | string | Optionnel, `YYYY-MM-DD` : fin de fenêtre (jour inclus). `from` et `to` vont ensemble et priment sur `months`. Écart maximal 1100 jours. |
+
+**Réponse 200**
+
+```json
+{
+  "cohorts": [
+    {
+      "month": "2026-05",
+      "first_free_customers": 40,
+      "converted_30d": 1,
+      "converted_60d": 2,
+      "converted_90d": 3
+    }
+  ],
+  "period": { "from": "2026-01-01", "to": "2026-11-09" }
+}
+```
+
+`cohorts` est trié par mois croissant et contient tous les mois de la fenêtre, y compris ceux sans
+client offert (compteurs à 0). Les cohortes récentes sont incomplètes : un client offert il y a 20
+jours n'a pas encore eu ses 90 jours pour convertir. Erreurs : 400 `invalid_payload` (format de date,
+`from` sans `to`, `from` > `to`, `months` hors 1 à 36), 405 si la méthode n'est pas GET.
+
+---
+
 ## Rapports
 
 ### GET `.../api/reports/bestsellers`
@@ -1784,6 +1832,53 @@ Clients ayant le plus dépensé (par CA TTC décroissant).
   ]
 }
 ```
+
+### GET `.../api/reports/customer-retention`
+
+Scope requis : `reports.read`
+
+Fidélité et réachat des clients payants. Filtré sur la boutique courante, commandes valides
+(`orders.valid = 1`) et payantes (`total_paid_tax_incl > 0`) uniquement.
+
+Définitions :
+
+- **Périmètre** : clients ayant au moins une commande payante. Si `date_from` ou `date_to` est
+  fourni, clients ayant au moins une commande payante dans cette fenêtre.
+- **Compte de commandes et 1re commande** : calculés « à vie » sur toutes les commandes payantes du
+  client, fenêtre ou non.
+- `paying_customers` : nombre de clients du périmètre.
+- `repeat_customers` : clients du périmètre avec au moins 2 commandes payantes (à vie).
+- `repeat_rate` : `repeat_customers / paying_customers * 100`, arrondi à 1 décimale (`0.0` si
+  périmètre vide).
+- `median_days_between_orders` : médiane, en jours (1 décimale), des écarts entre commandes payantes
+  consécutives d'un même client, sur les clients à au moins 2 commandes payantes. `null` si aucun
+  écart. La médiane est calculée côté PHP.
+- `new_customers` / `recurring_customers` : avec fenêtre, nouveaux = clients dont la première
+  commande payante à vie tombe dans la fenêtre, récurrents = ceux dont elle est antérieure. Sans
+  fenêtre, répartition sur tout l'historique : nouveaux = clients à une seule commande payante,
+  récurrents = clients à au moins 2 commandes payantes.
+
+| Paramètre   | Type   | Description |
+|-------------|--------|-------------|
+| `date_from` | string | Optionnel, `YYYY-MM-DD` ou `YYYY-MM-DD HH:MM:SS`. |
+| `date_to`   | string | Optionnel, même format. Sans heure, la journée entière est incluse (23:59:59). |
+
+**Réponse 200** (objet plat)
+
+```json
+{
+  "paying_customers": 820,
+  "repeat_customers": 310,
+  "repeat_rate": 37.8,
+  "median_days_between_orders": 64.5,
+  "new_customers": 510,
+  "recurring_customers": 310,
+  "period": { "date_from": null, "date_to": null }
+}
+```
+
+`period` reprend les bornes normalisées en `YYYY-MM-DD HH:MM:SS`, ou `null` si absentes. Erreurs : 400
+`invalid_payload` (format de date, `date_from` > `date_to`), 405 si la méthode n'est pas GET.
 
 ---
 
@@ -2273,8 +2368,10 @@ curl -X POST "https://example.com/module/rebuildconnector/api/reviews/812/trash"
 | GET     | `.../api/customers/top`                         | reports      | `reports.read`      |
 | GET     | `.../api/dashboard/metrics`                     | dashboard    | `dashboard.read`    |
 | GET     | `.../api/dashboard/free-conversion`             | dashboard    | `dashboard.read`    |
+| GET     | `.../api/dashboard/free-conversion-cohorts`     | dashboard    | `dashboard.read`    |
 | GET     | `.../api/reports/bestsellers`                   | reports      | `reports.read`      |
 | GET     | `.../api/reports/bestcustomers`                 | reports      | `reports.read`      |
+| GET     | `.../api/reports/customer-retention`            | reports      | `reports.read`      |
 | GET     | `.../api/baskets`                               | baskets      | `baskets.read`      |
 | GET     | `.../api/baskets/{id}`                          | baskets      | `baskets.read`      |
 | POST    | `.../api/notifications/devices`                 | notifications| `notifications.send`|

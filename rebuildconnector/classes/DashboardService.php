@@ -673,6 +673,85 @@ class DashboardService
         ];
     }
 
+    /**
+     * Cohortes offert -> payant par mois de 1ère commande.
+     *
+     * Un client « offert à la 1re commande » est un client dont la plus ancienne commande valide
+     * (o.valid = 1) est offerte (total_paid_tax_incl = 0). Son mois de cohorte est celui de cette
+     * commande. Il est « converti à J+X » s'il a une commande valide payante (> 0) dont la date est
+     * postérieure à la 1re commande offerte et au plus X jours après (X = 30, 60, 90 ; cumulatif).
+     *
+     * Une seule requête : agrégation par client (MIN conditionnels), puis par mois de cohorte.
+     * Les mois sans client offert dans la fenêtre sont renvoyés à zéro.
+     *
+     * @return array{cohorts: array<int, array{month: string, first_free_customers: int, converted_30d: int, converted_60d: int, converted_90d: int}>, period: array{from: string, to: string}}
+     */
+    public function getFreeConversionCohorts(\DateTimeImmutable $from, \DateTimeImmutable $to): array
+    {
+        $db = Db::getInstance();
+        $shopId = $this->getShopId();
+        $shopSql = $shopId > 0 ? ' AND o.id_shop = ' . $shopId : '';
+
+        $perCustomer = 'SELECT o.id_customer,'
+            . ' MIN(CASE WHEN o.total_paid_tax_incl = 0 THEN o.date_add END) AS first_free,'
+            . ' MIN(CASE WHEN o.total_paid_tax_incl > 0 THEN o.date_add END) AS first_paid'
+            . ' FROM ' . _DB_PREFIX_ . 'orders o'
+            . ' WHERE o.valid = 1 AND o.id_customer > 0' . $shopSql
+            . ' GROUP BY o.id_customer';
+
+        $sql = 'SELECT DATE_FORMAT(c.first_free, "%Y-%m") AS month,'
+            . ' COUNT(*) AS first_free_customers,'
+            . ' SUM(c.first_paid IS NOT NULL AND c.first_paid <= DATE_ADD(c.first_free, INTERVAL 30 DAY)) AS converted_30d,'
+            . ' SUM(c.first_paid IS NOT NULL AND c.first_paid <= DATE_ADD(c.first_free, INTERVAL 60 DAY)) AS converted_60d,'
+            . ' SUM(c.first_paid IS NOT NULL AND c.first_paid <= DATE_ADD(c.first_free, INTERVAL 90 DAY)) AS converted_90d'
+            . ' FROM (' . $perCustomer . ') c'
+            . ' WHERE c.first_free IS NOT NULL AND (c.first_paid IS NULL OR c.first_free < c.first_paid)'
+            . ' AND c.first_free >= "' . pSQL($from->format('Y-m-d H:i:s')) . '"'
+            . ' AND c.first_free <= "' . pSQL($to->format('Y-m-d H:i:s')) . '"'
+            . ' GROUP BY month ORDER BY month ASC';
+
+        /** @var array<int, array<string, mixed>> $rows */
+        $rows = $db->executeS($sql) ?: [];
+
+        $byMonth = [];
+        foreach ($rows as $row) {
+            $month = (string) ($row['month'] ?? '');
+            if ($month === '') {
+                continue;
+            }
+            $byMonth[$month] = [
+                'month' => $month,
+                'first_free_customers' => (int) ($row['first_free_customers'] ?? 0),
+                'converted_30d' => (int) ($row['converted_30d'] ?? 0),
+                'converted_60d' => (int) ($row['converted_60d'] ?? 0),
+                'converted_90d' => (int) ($row['converted_90d'] ?? 0),
+            ];
+        }
+
+        $cohorts = [];
+        $cursor = $from->setDate((int) $from->format('Y'), (int) $from->format('n'), 1)->setTime(0, 0, 0);
+        $last = $to->setDate((int) $to->format('Y'), (int) $to->format('n'), 1)->setTime(0, 0, 0);
+        while ($cursor <= $last) {
+            $key = $cursor->format('Y-m');
+            $cohorts[] = $byMonth[$key] ?? [
+                'month' => $key,
+                'first_free_customers' => 0,
+                'converted_30d' => 0,
+                'converted_60d' => 0,
+                'converted_90d' => 0,
+            ];
+            $cursor = $cursor->modify('+1 month');
+        }
+
+        return [
+            'cohorts' => $cohorts,
+            'period' => [
+                'from' => $from->format('Y-m-d'),
+                'to' => $to->format('Y-m-d'),
+            ],
+        ];
+    }
+
     private function countActiveProducts(): int
     {
         $shopId = $this->getShopId();

@@ -1519,6 +1519,16 @@ class RebuildConnector extends Module
                     'action' => 'free-conversion',
                 ],
             ],
+            'module-' . $module . '-api-dashboard-free-conversion-cohorts' => [
+                'controller' => 'dashboard',
+                'rule' => $baseRule . '/dashboard/free-conversion-cohorts',
+                'keywords' => [],
+                'params' => [
+                    'fc' => 'module',
+                    'module' => $module,
+                    'action' => 'free-conversion-cohorts',
+                ],
+            ],
             'module-' . $module . '-api-customers' => [
                 'controller' => 'customers',
                 'rule' => $baseRule . '/customers',
@@ -1580,6 +1590,16 @@ class RebuildConnector extends Module
                     'fc' => 'module',
                     'module' => $module,
                     'resource' => 'bestcustomers',
+                ],
+            ],
+            'module-' . $module . '-api-reports-customer-retention' => [
+                'controller' => 'reports',
+                'rule' => $baseRule . '/reports/customer-retention',
+                'keywords' => [],
+                'params' => [
+                    'fc' => 'module',
+                    'module' => $module,
+                    'resource' => 'customer-retention',
                 ],
             ],
             'module-' . $module . '-api-notifications-devices' => [
