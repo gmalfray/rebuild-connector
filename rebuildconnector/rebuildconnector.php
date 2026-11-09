@@ -1582,6 +1582,26 @@ class RebuildConnector extends Module
                     'resource' => 'bestcustomers',
                 ],
             ],
+            'module-' . $module . '-api-reports-sales-by-univers' => [
+                'controller' => 'reports',
+                'rule' => $baseRule . '/reports/sales-by-univers',
+                'keywords' => [],
+                'params' => [
+                    'fc' => 'module',
+                    'module' => $module,
+                    'resource' => 'sales-by-univers',
+                ],
+            ],
+            'module-' . $module . '-api-reports-sales-by-universe' => [
+                'controller' => 'reports',
+                'rule' => $baseRule . '/reports/sales-by-universe',
+                'keywords' => [],
+                'params' => [
+                    'fc' => 'module',
+                    'module' => $module,
+                    'resource' => 'sales-by-universe',
+                ],
+            ],
             'module-' . $module . '-api-notifications-devices' => [
                 'controller' => 'notifications',
                 'rule' => $baseRule . '/notifications/devices',
