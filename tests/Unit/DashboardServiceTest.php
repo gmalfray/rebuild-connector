@@ -326,6 +326,49 @@ final class DashboardServiceTest extends TestCase
         $this->assertStringContainsString('op.date_add > f.first_date', Db::$testLoggedSelectQueries[2]);
     }
 
+    public function testFreeConversionCohortsStructureAndZeroFilledMonths(): void
+    {
+        Db::$testExecuteSResult = [
+            ['month' => '2026-05', 'first_free_customers' => '40', 'converted_30d' => '1', 'converted_60d' => '2', 'converted_90d' => '3'],
+        ];
+
+        $result = (new DashboardService())->getFreeConversionCohorts(
+            new \DateTimeImmutable('2026-04-01 00:00:00'),
+            new \DateTimeImmutable('2026-06-15 10:00:00')
+        );
+
+        $this->assertSame(['from' => '2026-04-01', 'to' => '2026-06-15'], $result['period']);
+        $this->assertSame(['2026-04', '2026-05', '2026-06'], array_column($result['cohorts'], 'month'));
+        $this->assertSame(
+            ['month' => '2026-05', 'first_free_customers' => 40, 'converted_30d' => 1, 'converted_60d' => 2, 'converted_90d' => 3],
+            $result['cohorts'][1]
+        );
+        $this->assertSame(0, $result['cohorts'][0]['first_free_customers']);
+        $this->assertSame(0, $result['cohorts'][2]['converted_90d']);
+    }
+
+    public function testFreeConversionCohortsSqlFiltersValidPivotShopAndWindows(): void
+    {
+        (new DashboardService())->getFreeConversionCohorts(
+            new \DateTimeImmutable('2026-01-01 00:00:00'),
+            new \DateTimeImmutable('2026-06-30 23:59:59')
+        );
+
+        $this->assertCount(1, Db::$testLoggedSelectQueries);
+        $sql = Db::$testLoggedSelectQueries[0];
+        $this->assertStringContainsString('o.valid = 1', $sql);
+        $this->assertStringContainsString('o.id_shop = 1', $sql);
+        $this->assertStringContainsString('o.total_paid_tax_incl = 0', $sql);
+        $this->assertStringContainsString('o.total_paid_tax_incl > 0', $sql);
+        $this->assertStringContainsString('c.first_free < c.first_paid', $sql);
+        $this->assertStringContainsString('INTERVAL 30 DAY', $sql);
+        $this->assertStringContainsString('INTERVAL 60 DAY', $sql);
+        $this->assertStringContainsString('INTERVAL 90 DAY', $sql);
+        $this->assertStringContainsString('c.first_free >= "2026-01-01 00:00:00"', $sql);
+        $this->assertStringContainsString('c.first_free <= "2026-06-30 23:59:59"', $sql);
+        $this->assertStringContainsString('GROUP BY o.id_customer', $sql);
+    }
+
     // -----------------------------------------------------------------------
     // Métriques de base (données retournées par le service)
     // -----------------------------------------------------------------------
