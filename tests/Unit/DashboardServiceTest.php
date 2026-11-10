@@ -64,6 +64,38 @@ final class DashboardServiceTest extends TestCase
         $this->assertStringContainsString('o.id_shop = 1', Db::$testLoggedSelectQueries[0]);
     }
 
+    public function testCountPendingOrdersExcludesRefundsAndResolvedStates(): void
+    {
+        // Une commande annulée, remboursée (totale ou partielle) ou en erreur de paiement n'est PAS en
+        // attente de paiement. Le comptage exige : aucun encaissement (total_paid_real = 0, ce qui écarte
+        // les remboursements qui ont reçu un paiement) et exclusion des états résolus via constantes PS.
+        Configuration::$testValues = [
+            'PS_OS_ERROR' => 8,
+            'PS_OS_CANCELED' => 6,
+            'PS_OS_REFUND' => 7,
+        ];
+
+        $service = new DashboardService();
+        $method = new \ReflectionMethod(DashboardService::class, 'countPendingOrders');
+        $method->setAccessible(true);
+        $method->invoke($service);
+
+        $this->assertNotEmpty(Db::$testLoggedSelectQueries);
+        $sql = Db::$testLoggedSelectQueries[0];
+        $this->assertStringContainsString(
+            'o.total_paid_real = 0',
+            $sql,
+            'Le comptage doit écarter les commandes ayant reçu un paiement (remboursements).'
+        );
+        $this->assertStringContainsString(
+            'NOT IN (8,6,7)',
+            $sql,
+            'Les états résolus (erreur / annulé / remboursé) doivent être exclus.'
+        );
+
+        Configuration::$testValues = [];
+    }
+
     public function testComputeConversionRateCartQueryFiltersByCurrentShopId(): void
     {
         $service = new DashboardService();

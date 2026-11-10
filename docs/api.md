@@ -1654,6 +1654,13 @@ sa forme ne change pas.
 | `orders_free`   | int   | **Nouveau.** Nombre de commandes gratuites (`total_paid_tax_incl = 0`) sur ce bucket (incluses dans `orders`). Payantes = `orders - orders_free`. |
 | `turnover_previous` | float | **Nouveau.** CA (hors port) du bucket de même rang sur la période de comparaison N-1 (`comparison_period`), alignement positionnel (bucket i courant = bucket i N-1, libellés différents). `0.0` si N-1 a moins de buckets ou pas de vente. |
 
+> **Commandes en attente de paiement (resserré en v1.25.0).** `pending_orders_count` (int) ne compte
+> que les commandes **réellement à relancer** : état non payé / non logable, **aucun encaissement**
+> (`total_paid_real = 0`, ce qui écarte les remboursements qui ont reçu un paiement avant d'être
+> remboursés), et hors états résolus `PS_OS_ERROR` / `PS_OS_CANCELED` / `PS_OS_REFUND`. Avant v1.25.0, le
+> seul critère `paid = 0 AND logable = 0` ramassait aussi les annulations, remboursements (totaux et
+> partiels) et erreurs de paiement, gonflant le compteur.
+
 > **Stock faible (depuis v1.24.0).** `low_stock_count` (int) est le comptage **exact** des produits en
 > stock faible, aligné sur le filtre `GET /products?stock=low_stock` : produits actifs avec
 > `0 < quantité <= low_stock_threshold` (seuil par produit, sinon 5), **ruptures exclues**. C'est le

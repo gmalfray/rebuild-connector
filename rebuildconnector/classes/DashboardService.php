@@ -160,26 +160,37 @@ class DashboardService
     }
 
     /**
-     * Nombre de commandes en attente de paiement.
+     * Nombre de commandes réellement en attente de paiement (à relancer).
      *
-     * PrestaShop stocke les états d'attente de paiement dans la table order_state,
-     * identifiés par le flag logable = 0 (commandes non validées financièrement) et
-     * le flag paid = 0. La configuration PS_OS_PAYMENT pointe l'état "payé", donc
-     * on cible l'état par défaut "En attente de virement" (PS_OS_BANKWIRE) et
-     * "En attente de paiement" (PS_OS_CHEQUE, PS_OS_PREPARATION, etc.).
-     *
-     * En pratique, on sélectionne les commandes dont l'état courant est associé
-     * à un order_state dont paid = 0 ET logable = 0 (= commande non encore confirmée).
+     * On part des états « non payé / non logable » (order_state.paid = 0 AND logable = 0), mais ce seul
+     * critère est trop large : il ramasse aussi les commandes annulées, remboursées (totales ou
+     * partielles) et en erreur de paiement, qui ne sont PAS en attente. On resserre donc avec :
+     * - total_paid_real = 0 : aucun encaissement, ce qui écarte les remboursements (ils ont reçu un
+     *   paiement avant d'être remboursés) ;
+     * - exclusion des états résolus PS_OS_ERROR / PS_OS_CANCELED / PS_OS_REFUND (constantes PrestaShop).
+     * Une commande en attente a donc un état d'attente de paiement, rien d'encaissé, et n'est ni annulée
+     * ni remboursée ni en erreur.
      */
     protected function countPendingOrders(): int
     {
         $shopId = $this->getShopId();
         $shopFilterSql = $shopId > 0 ? ' AND o.id_shop = ' . $shopId : '';
 
+        // États résolus à exclure, via les constantes PrestaShop (robustes multi-boutique / multi-install).
+        $excludedStates = array_values(array_filter(array_map('intval', [
+            Configuration::get('PS_OS_ERROR'),
+            Configuration::get('PS_OS_CANCELED'),
+            Configuration::get('PS_OS_REFUND'),
+        ])));
+        $excludedSql = !empty($excludedStates)
+            ? ' AND o.current_state NOT IN (' . implode(',', $excludedStates) . ')'
+            : '';
+
         $result = Db::getInstance()->getValue(
             'SELECT COUNT(*) FROM ' . _DB_PREFIX_ . 'orders o'
             . ' INNER JOIN ' . _DB_PREFIX_ . 'order_state os ON os.id_order_state = o.current_state'
-            . ' WHERE os.paid = 0 AND os.logable = 0' . $shopFilterSql
+            . ' WHERE os.paid = 0 AND os.logable = 0 AND o.total_paid_real = 0'
+            . $excludedSql . $shopFilterSql
         );
 
         return $result !== false ? (int) $result : 0;
