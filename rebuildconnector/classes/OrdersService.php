@@ -87,6 +87,11 @@ class OrdersService
             $query->where('o.date_add <= "' . pSQL($filters['date_to']) . '"');
         }
 
+        // Filtre opt-in : exclut les commandes offertes (total payé TTC = 0).
+        if (!empty($filters['exclude_free'])) {
+            $query->where('o.total_paid_tax_incl > 0');
+        }
+
         if (!empty($filters['search'])) {
             $term = pSQL((string) $filters['search'], true);
             $like = '"%' . $term . '%"';

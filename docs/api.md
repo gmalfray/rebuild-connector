@@ -265,6 +265,7 @@ Liste paginée des commandes.
 | `date_from`   | datetime   | Filtre `date_add >=` (format Y-m-d ou Y-m-d H:i:s)                                                                                          |
 | `date_to`     | datetime   | Filtre `date_add <=` (format Y-m-d ou Y-m-d H:i:s)                                                                                          |
 | `search`      | string     | Recherche sur référence, prénom, nom, email                                                                                                  |
+| `exclude_free` | bool      | Optionnel (v1.27.0). `exclude_free=1` écarte les commandes offertes, celles dont `total_paid_tax_incl` vaut 0. Absent ou vide, toutes les commandes sont renvoyées. |
 
 **Valeurs de `sort` :**
 

@@ -327,4 +327,27 @@ final class OrdersServiceTest extends TestCase
 
         return (int) $method->invoke($this->service, $reference);
     }
+
+    // =========================================================================
+    // getOrders : filtre opt-in exclude_free (commandes offertes, total = 0).
+    // =========================================================================
+
+    public function testGetOrdersExcludeFreeAddsPaidCondition(): void
+    {
+        DbQuery::$testWhereLog = [];
+        $this->service->getOrders(['exclude_free' => '1']);
+
+        $this->assertContains('o.total_paid_tax_incl > 0', DbQuery::$testWhereLog);
+    }
+
+    public function testGetOrdersWithoutExcludeFreeKeepsFreeOrders(): void
+    {
+        DbQuery::$testWhereLog = [];
+        $this->service->getOrders([]);
+        $this->assertNotContains('o.total_paid_tax_incl > 0', DbQuery::$testWhereLog);
+
+        DbQuery::$testWhereLog = [];
+        $this->service->getOrders(['exclude_free' => '']);
+        $this->assertNotContains('o.total_paid_tax_incl > 0', DbQuery::$testWhereLog);
+    }
 }

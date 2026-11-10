@@ -151,6 +151,7 @@ class RebuildconnectorOrdersModuleFrontController extends RebuildconnectorBaseAp
             'date_from'   => Tools::getValue('date_from'),
             'date_to'     => Tools::getValue('date_to'),
             'search'      => Tools::getValue('search'),
+            'exclude_free' => Tools::getValue('exclude_free'),
         ];
 
         $orders = $this->getOrdersService()->getOrders($filters);
