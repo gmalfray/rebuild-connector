@@ -147,9 +147,21 @@ class RebuildconnectorProductsModuleFrontController extends RebuildconnectorBase
         $products = $this->getProductsService()->getProducts($filters);
         $total = $this->getProductsService()->countProducts($filters);
 
+        $limit = isset($filters['limit']) ? max(1, (int) $filters['limit']) : 20;
+        $offset = isset($filters['offset']) ? max(0, (int) $filters['offset']) : 0;
+        $hasMore = ($offset + count($products)) < $total;
+
         $this->renderJson([
             'products' => $products,
             'total' => $total,
+            'pagination' => [
+                'limit' => $limit,
+                'offset' => $offset,
+                'count' => count($products),
+                'total' => $total,
+                'has_next' => $hasMore,
+                'next_offset' => $hasMore ? $offset + $limit : null,
+            ],
         ]);
     }
 

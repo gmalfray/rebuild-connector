@@ -24,6 +24,68 @@ final class ProductsControllerTest extends TestCase
         $this->assertSame('method_not_allowed', $controller->response['payload']['error']);
     }
 
+    /**
+     * @param array<string, mixed> $query
+     * @return array<string, mixed>
+     */
+    private function listPagination(array $query, int $total, int $returned): array
+    {
+        $_SERVER = ['REQUEST_METHOD' => 'GET'];
+        $_GET = $query;
+
+        $controller = new TestProductsController();
+        $fake = $controller->injectFakeService();
+        $fake->listRows = $returned;
+        $fake->listTotal = $total;
+        $controller->initContent();
+
+        $this->assertSame(200, $controller->response['status']);
+        $this->assertSame($total, $controller->response['payload']['total']);
+
+        return $controller->response['payload']['pagination'];
+    }
+
+    public function testListPaginationOnFullPageHasNext(): void
+    {
+        $pagination = $this->listPagination(['limit' => 200], 476, 200);
+
+        $this->assertSame(
+            ['limit' => 200, 'offset' => 0, 'count' => 200, 'total' => 476, 'has_next' => true, 'next_offset' => 200],
+            $pagination
+        );
+    }
+
+    public function testListPaginationOnLastPageHasNoNext(): void
+    {
+        $pagination = $this->listPagination(['limit' => 200, 'offset' => 400], 476, 76);
+
+        $this->assertSame(
+            ['limit' => 200, 'offset' => 400, 'count' => 76, 'total' => 476, 'has_next' => false, 'next_offset' => null],
+            $pagination
+        );
+    }
+
+    public function testListPaginationExactMultipleEndsOnLastPage(): void
+    {
+        $pagination = $this->listPagination(['limit' => 200, 'offset' => 200], 400, 200);
+
+        $this->assertFalse($pagination['has_next']);
+        $this->assertNull($pagination['next_offset']);
+    }
+
+    public function testListPaginationUsesDefaultsAndClampsInputs(): void
+    {
+        $pagination = $this->listPagination([], 50, 20);
+        $this->assertSame(20, $pagination['limit']);
+        $this->assertSame(0, $pagination['offset']);
+        $this->assertTrue($pagination['has_next']);
+        $this->assertSame(20, $pagination['next_offset']);
+
+        $clamped = $this->listPagination(['limit' => 0, 'offset' => -5], 3, 1);
+        $this->assertSame(1, $clamped['limit']);
+        $this->assertSame(0, $clamped['offset']);
+    }
+
     public function testPatchStockActionRequiresTheStockWriteScope(): void
     {
         $_SERVER = ['REQUEST_METHOD' => 'PATCH'];
@@ -218,6 +280,19 @@ final class FakeStockProductsService extends ProductsService
     /** @var array<int, array{quantity: int, combinationId: int, employeeIdentity: array<string, mixed>|null}> */
     public array $absoluteCalls = [];
     public bool $absoluteResult = true;
+
+    public int $listRows = 0;
+    public int $listTotal = 0;
+
+    public function getProducts(array $filters = []): array
+    {
+        return $this->listRows > 0 ? array_fill(0, $this->listRows, ['id' => 1]) : [];
+    }
+
+    public function countProducts(array $filters = []): int
+    {
+        return $this->listTotal;
+    }
 
     public function getProductById(int $productId): array
     {

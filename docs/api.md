@@ -611,7 +611,15 @@ Liste paginée de produits.
       "updated_at": "2025-06-01 12:00:00"
     }
   ],
-  "total": 324
+  "total": 324,
+  "pagination": {
+    "limit": 200,
+    "offset": 0,
+    "count": 200,
+    "total": 324,
+    "has_next": true,
+    "next_offset": 200
+  }
 }
 ```
 
@@ -627,6 +635,21 @@ Liste paginée de produits.
 | Champ   | Type | Description                                                                        |
 |---------|------|------------------------------------------------------------------------------------|
 | `total` | int  | Nombre total de produits correspondant aux filtres actifs, indépendamment de la pagination (`limit`/`offset` ignorés). L'app s'en sert pour afficher un compteur global et calculer le nombre de pages. |
+
+**Objet `pagination` (v1.26.0)**
+
+| Champ         | Type      | Description                                                                 |
+|---------------|-----------|-----------------------------------------------------------------------------|
+| `limit`       | int       | Taille de page appliquée (défaut 20, minimum 1).                            |
+| `offset`      | int       | Décalage appliqué (défaut 0, minimum 0).                                    |
+| `count`       | int       | Nombre de produits renvoyés dans cette page.                                |
+| `total`       | int       | Même valeur que le `total` racine.                                          |
+| `has_next`    | bool      | `true` tant que `offset + count < total`, donc `false` sur la dernière page. |
+| `next_offset` | int\|null | Offset à demander pour la page suivante (`offset + limit`), `null` sur la dernière page. |
+
+Le `total` racine reste présent pour les anciennes versions de l'app. Pour tout charger, rappelez
+l'API avec `offset=next_offset` tant que `has_next` vaut `true`. Le total compte les produits
+distincts, les jointures ne le gonflent pas.
 
 **Champs `matched_combination` (v1.10.5) et `combinations` (v1.10.7)**
 
